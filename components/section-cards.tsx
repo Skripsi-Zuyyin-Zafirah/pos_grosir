@@ -1,109 +1,87 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react"
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { IconCash, IconHourglassHigh, IconClipboardList, IconAlertTriangle } from "@tabler/icons-react"
 
-export function SectionCards() {
+export interface DashboardMetrics {
+  totalRevenue: number
+  todayOrdersCount: number
+  activeQueueLength: number
+  lowStockCount: number
+}
+
+interface SectionCardsProps {
+  metrics: DashboardMetrics
+}
+
+export function SectionCards({ metrics }: SectionCardsProps) {
+  const formatRupiah = (val: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(val)
+  }
+
   return (
-    <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+    <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 md:grid-cols-2 lg:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+      {/* 1. Total Revenue Card */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Total Revenue</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            $1,250.00
+          <CardDescription className="flex items-center gap-1.5 font-medium">
+            <IconCash className="size-4 text-emerald-500" /> Total Pendapatan
+          </CardDescription>
+          <CardTitle className="text-xl font-bold tabular-nums @[250px]/card:text-2xl mt-1 text-emerald-600 dark:text-emerald-400">
+            {formatRupiah(metrics.totalRevenue)}
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingUp
-              />
-              +12.5%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Trending up this month{" "}
-            <IconTrendingUp className="size-4" />
-          </div>
-          <div className="text-muted-foreground">
-            Visitors for the last 6 months
-          </div>
+        <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
+          <p>Akumulasi total transaksi sukses di kasir.</p>
         </CardFooter>
       </Card>
+
+      {/* 2. Today's Orders Card */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>New Customers</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            1,234
+          <CardDescription className="flex items-center gap-1.5 font-medium">
+            <IconClipboardList className="size-4 text-sky-500" /> Pesanan Hari Ini
+          </CardDescription>
+          <CardTitle className="text-2xl font-bold mt-1 text-sky-600 dark:text-sky-400">
+            {metrics.todayOrdersCount} <span className="text-xs font-normal text-muted-foreground">pesanan</span>
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingDown
-              />
-              -20%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Down 20% this period{" "}
-            <IconTrendingDown className="size-4" />
-          </div>
-          <div className="text-muted-foreground">
-            Acquisition needs attention
-          </div>
+        <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
+          <p>Total pesanan masuk pada hari ini.</p>
         </CardFooter>
       </Card>
+
+      {/* 3. Queue Length Card */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Active Accounts</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            45,678
+          <CardDescription className="flex items-center gap-1.5 font-medium">
+            <IconHourglassHigh className="size-4 text-amber-500" /> Antrean Saat Ini
+          </CardDescription>
+          <CardTitle className="text-2xl font-bold mt-1 text-amber-600 dark:text-amber-400">
+            {metrics.activeQueueLength} <span className="text-xs font-normal text-muted-foreground">antrean</span>
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingUp
-              />
-              +12.5%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Strong user retention{" "}
-            <IconTrendingUp className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Engagement exceed targets</div>
+        <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
+          <p>Pesanan berstatus ANTRI & DIPROSES.</p>
         </CardFooter>
       </Card>
+
+      {/* 4. Low Stock Card */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Growth Rate</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            4.5%
+          <CardDescription className="flex items-center gap-1.5 font-medium">
+            <IconAlertTriangle className="size-4 text-rose-500 animate-pulse" /> Stok Kritis
+          </CardDescription>
+          <CardTitle className="text-2xl font-bold mt-1 text-rose-600 dark:text-rose-400">
+            {metrics.lowStockCount} <span className="text-xs font-normal text-muted-foreground">barang</span>
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingUp
-              />
-              +4.5%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Steady performance increase{" "}
-            <IconTrendingUp className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Meets growth projections</div>
+        <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
+          <p>Jumlah produk di bawah reorder level.</p>
         </CardFooter>
       </Card>
     </div>
