@@ -15,7 +15,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { IconDashboard, IconListDetails, IconChartBar, IconFolder, IconUsers, IconCamera, IconFileDescription, IconFileAi, IconSettings, IconHelp, IconSearch, IconDatabase, IconReport, IconFileWord, IconInnerShadowTop, IconPackage, IconClipboardList } from "@tabler/icons-react"
+import { IconDashboard, IconListDetails, IconChartBar, IconFolder, IconUsers, IconCamera, IconFileDescription, IconFileAi, IconSettings, IconHelp, IconSearch, IconDatabase, IconReport, IconFileWord, IconInnerShadowTop, IconPackage, IconClipboardList, IconClipboardCheck } from "@tabler/icons-react"
 
 const data = {
   user: {
@@ -43,6 +43,13 @@ const data = {
       url: "/dashboard/inventory",
       icon: (
         <IconDatabase />
+      ),
+    },
+    {
+      title: "Proses Gudang",
+      url: "/dashboard/picking",
+      icon: (
+        <IconClipboardCheck />
       ),
     },
     {
