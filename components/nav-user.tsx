@@ -1,5 +1,8 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import {
   Avatar,
   AvatarFallback,
@@ -8,7 +11,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -20,7 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { IconDotsVertical, IconUserCircle, IconCreditCard, IconNotification, IconLogout } from "@tabler/icons-react"
+import { IconDotsVertical, IconLogout } from "@tabler/icons-react"
 
 export function NavUser({
   user,
@@ -32,6 +34,20 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      toast.success("Berhasil keluar.")
+      router.push("/login")
+      router.refresh()
+    } catch (err: any) {
+      toast.error("Gagal keluar: " + err.message)
+    }
+  }
 
   return (
     <SidebarMenu>
@@ -76,28 +92,9 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <IconUserCircle
-                />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconCreditCard
-                />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification
-                />
-                Notifications
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <IconLogout
-              />
-              Log out
+            <DropdownMenuItem onClick={handleLogout} className="text-rose-500 hover:text-rose-600 focus:text-rose-600 cursor-pointer">
+              <IconLogout className="size-4" />
+              Keluar / Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

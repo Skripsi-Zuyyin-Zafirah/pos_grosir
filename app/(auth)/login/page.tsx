@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { IconLoader2, IconLock, IconMail } from "@tabler/icons-react"
+import { IconLoader2, IconLock, IconMail, IconAlertCircle } from "@tabler/icons-react"
 
 function LoginForm() {
   const router = useRouter()
@@ -20,10 +20,12 @@ function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setErrorMsg(null)
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -32,6 +34,7 @@ function LoginForm() {
       })
 
       if (error) {
+        setErrorMsg(error.message)
         toast.error(error.message)
         return
       }
@@ -54,7 +57,9 @@ function LoginForm() {
       }
       router.refresh()
     } catch (err: any) {
-      toast.error(err.message || "Terjadi kesalahan")
+      const msg = err.message || "Terjadi kesalahan"
+      setErrorMsg(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -77,6 +82,13 @@ function LoginForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
+            {errorMsg && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <IconAlertCircle className="size-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { IconLoader2, IconLock, IconMail, IconUser } from "@tabler/icons-react"
+import { IconLoader2, IconLock, IconMail, IconUser, IconAlertCircle } from "@tabler/icons-react"
 
 function RegisterForm() {
   const router = useRouter()
@@ -21,10 +21,12 @@ function RegisterForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setErrorMsg(null)
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -38,6 +40,7 @@ function RegisterForm() {
       })
 
       if (error) {
+        setErrorMsg(error.message)
         toast.error(error.message)
         return
       }
@@ -45,7 +48,9 @@ function RegisterForm() {
       toast.success("Registrasi berhasil! Silakan masuk.")
       router.push(`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`)
     } catch (err: any) {
-      toast.error(err.message || "Terjadi kesalahan")
+      const msg = err.message || "Terjadi kesalahan"
+      setErrorMsg(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -68,6 +73,13 @@ function RegisterForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
+            {errorMsg && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <IconAlertCircle className="size-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="fullName">Nama Lengkap</Label>
               <div className="relative">
