@@ -15,7 +15,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { IconDashboard, IconListDetails, IconChartBar, IconFolder, IconUsers, IconCamera, IconFileDescription, IconFileAi, IconSettings, IconHelp, IconSearch, IconDatabase, IconReport, IconFileWord, IconInnerShadowTop, IconPackage, IconClipboardList, IconClipboardCheck } from "@tabler/icons-react"
+import { IconDashboard, IconListDetails, IconChartBar, IconFolder, IconUsers, IconCamera, IconFileDescription, IconFileAi, IconSettings, IconHelp, IconSearch, IconDatabase, IconReport, IconFileWord, IconInnerShadowTop, IconPackage, IconClipboardList, IconClipboardCheck, IconCash } from "@tabler/icons-react"
 
 const data = {
   user: {
@@ -50,6 +50,13 @@ const data = {
       url: "/dashboard/picking",
       icon: (
         <IconClipboardCheck />
+      ),
+    },
+    {
+      title: "Kasir & Pembayaran",
+      url: "/dashboard/cashier",
+      icon: (
+        <IconCash />
       ),
     },
     {
