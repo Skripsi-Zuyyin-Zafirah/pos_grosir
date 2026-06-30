@@ -15,53 +15,48 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { IconDashboard, IconListDetails, IconChartBar, IconFolder, IconUsers, IconCamera, IconFileDescription, IconFileAi, IconSettings, IconHelp, IconSearch, IconDatabase, IconReport, IconFileWord, IconInnerShadowTop } from "@tabler/icons-react"
+import { IconDashboard, IconListDetails, IconChartBar, IconFolder, IconUsers, IconCamera, IconFileDescription, IconFileAi, IconSettings, IconHelp, IconSearch, IconDatabase, IconReport, IconFileWord, IconInnerShadowTop, IconPackage, IconClipboardList } from "@tabler/icons-react"
 
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    name: "Admin POS",
+    email: "admin@posgrosir.com",
+    avatar: "",
   },
   navMain: [
     {
       title: "Dashboard",
-      url: "#",
+      url: "/dashboard",
       icon: (
-        <IconDashboard
-        />
+        <IconDashboard />
       ),
     },
     {
-      title: "Lifecycle",
-      url: "#",
+      title: "Kelola Produk",
+      url: "/dashboard/products",
       icon: (
-        <IconListDetails
-        />
+        <IconPackage />
       ),
     },
     {
-      title: "Analytics",
-      url: "#",
+      title: "Kelola Stok",
+      url: "/dashboard/inventory",
       icon: (
-        <IconChartBar
-        />
+        <IconDatabase />
       ),
     },
     {
-      title: "Projects",
-      url: "#",
+      title: "Papan Antrian",
+      url: "/dashboard/queue",
       icon: (
-        <IconFolder
-        />
+        <IconClipboardList />
       ),
     },
     {
-      title: "Team",
-      url: "#",
+      title: "Laporan & Evaluasi",
+      url: "/dashboard/reports",
       icon: (
-        <IconUsers
-        />
+        <IconReport />
       ),
     },
   ],
