@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { IconLoader2, IconLock, IconMail, IconAlertCircle } from "@tabler/icons-react"
+import { IconLoader2, IconLock, IconMail, IconAlertCircle, IconArrowLeft } from "@tabler/icons-react"
 
 function LoginForm() {
   const router = useRouter()
@@ -92,7 +92,7 @@ function LoginForm() {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
-                <IconMail className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconMail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="email"
                   type="email"
@@ -108,7 +108,7 @@ function LoginForm() {
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
-                <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconLock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="password"
                   type="password"
@@ -133,7 +133,7 @@ function LoginForm() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
+        <CardFooter className="flex flex-col space-y-3 text-center text-sm text-muted-foreground">
           <div>
             Belum punya akun?{" "}
             <Link
@@ -143,6 +143,13 @@ function LoginForm() {
               Daftar Sekarang
             </Link>
           </div>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <IconArrowLeft className="size-4" />
+            Kembali ke Halaman Utama
+          </Link>
         </CardFooter>
       </Card>
     </div>
