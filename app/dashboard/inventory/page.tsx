@@ -52,7 +52,6 @@ export default function InventoryPage() {
 
   // Selected item and form fields
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
-  const [location, setLocation] = useState("")
   const [reorderLevel, setReorderLevel] = useState("")
   const [adjustQty, setAdjustQty] = useState("")
   const [adjustReason, setAdjustReason] = useState("")
@@ -81,7 +80,6 @@ export default function InventoryPage() {
   // Open edit modal
   const handleEditOpen = (item: InventoryItem) => {
     setSelectedItem(item)
-    setLocation(item.location || "")
     setReorderLevel(item.reorder_level.toString())
     setEditOpen(true)
   }
@@ -216,7 +214,7 @@ export default function InventoryPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Kelola Stok & Inventori</h1>
             <p className="text-muted-foreground mt-1">
-              Pantau tingkat ketersediaan stok, kelola lokasi penyimpanan rak, dan lakukan penyesuaian stok.
+              Pantau tingkat ketersediaan stok, kelola batas minimum stok, dan lakukan penyesuaian stok.
             </p>
           </div>
 

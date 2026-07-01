@@ -87,6 +87,7 @@ export default function ReportsPage() {
   // Search filter
   const [salesSearch, setSalesSearch] = useState("")
   const [stockSearch, setStockSearch] = useState("")
+  const [activeFilter, setActiveFilter] = useState<"today" | "week" | "month" | null>(null)
 
   // Invoice Modal states
   const [invoiceOpen, setInvoiceOpen] = useState(false)
@@ -94,7 +95,14 @@ export default function ReportsPage() {
 
   const handleViewInvoice = (payment: any) => {
     if (payment.orders) {
-      setSelectedInvoiceOrder(payment.orders)
+      // Map properties from payments to the orders object for Receipt component
+      const receiptOrder = {
+        ...payment.orders,
+        payment_method: payment.method === "tunai" ? "Tunai" : payment.method === "transfer" ? "Transfer Bank" : "QRIS",
+        payment_amount: payment.amount,
+        change_amount: payment.amount - payment.orders.total_price,
+      }
+      setSelectedInvoiceOrder(receiptOrder)
       setInvoiceOpen(true)
     } else {
       toast.error("Data pesanan tidak ditemukan")
@@ -123,7 +131,7 @@ export default function ReportsPage() {
 
       const { data, error } = await supabase
         .from("payments")
-        .select("id, amount, paid_at, method, orders:order_id ( id, order_number, customer_name, total_items, total_price, payment_method, payment_amount, change_amount, created_at, order_items ( id, quantity, price, products ( name, unit ) ) )")
+        .select("id, amount, paid_at, method, orders:order_id ( id, order_number, customer_name, total_items, total_price, created_at, order_items ( id, quantity, price, products ( name, unit ) ) )")
         .gte("paid_at", startIso.toISOString())
         .lte("paid_at", endIso.toISOString())
         .order("paid_at", { ascending: false })
@@ -476,7 +484,10 @@ export default function ReportsPage() {
                         id="sDate"
                         type="date"
                         value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        onChange={(e) => {
+                          setStartDate(e.target.value)
+                          setActiveFilter(null)
+                        }}
                         className="w-44 bg-background"
                       />
                     </div>
@@ -486,26 +497,30 @@ export default function ReportsPage() {
                         id="eDate"
                         type="date"
                         value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
+                        onChange={(e) => {
+                          setEndDate(e.target.value)
+                          setActiveFilter(null)
+                        }}
                         className="w-44 bg-background"
                       />
                     </div>
                     <div className="flex gap-2 items-center">
                       <Button
                         type="button"
-                        variant="outline"
+                        variant={activeFilter === "today" ? "default" : "outline"}
                         onClick={() => {
                           const todayStr = new Date().toISOString().split("T")[0]
                           setStartDate(todayStr)
                           setEndDate(todayStr)
+                          setActiveFilter("today")
                         }}
-                        className="text-xs h-9"
+                        className="text-xs h-9 font-semibold"
                       >
                         Hari Ini
                       </Button>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant={activeFilter === "week" ? "default" : "outline"}
                         onClick={() => {
                           const now = new Date()
                           const day = now.getDay()
@@ -515,14 +530,15 @@ export default function ReportsPage() {
                           const todayStr = new Date().toISOString().split("T")[0]
                           setStartDate(mondayStr)
                           setEndDate(todayStr)
+                          setActiveFilter("week")
                         }}
-                        className="text-xs h-9"
+                        className="text-xs h-9 font-semibold"
                       >
                         Minggu Ini
                       </Button>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant={activeFilter === "month" ? "default" : "outline"}
                         onClick={() => {
                           const now = new Date()
                           const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -530,8 +546,9 @@ export default function ReportsPage() {
                           const todayStr = new Date().toISOString().split("T")[0]
                           setStartDate(firstDayStr)
                           setEndDate(todayStr)
+                          setActiveFilter("month")
                         }}
-                        className="text-xs h-9"
+                        className="text-xs h-9 font-semibold"
                       >
                         Bulan Ini
                       </Button>

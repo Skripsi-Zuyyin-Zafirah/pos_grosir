@@ -16,7 +16,7 @@ import { IconLoader2, IconClock, IconDeviceFloppy, IconSearch } from "@tabler/ic
 
 type ProductUnit = {
   id: string
-  unit: string
+  name: string
   time_weight: number | null
   products: {
     id: string
@@ -38,7 +38,7 @@ export default function PickingTimePage() {
       setLoading(true)
       const { data, error } = await supabase
         .from("product_units")
-        .select("id, unit, time_weight, products ( id, name, sku )")
+        .select("id, name, time_weight, products ( id, name, sku )")
         .order("id", { ascending: true })
 
       if (error) throw error
@@ -98,7 +98,7 @@ export default function PickingTimePage() {
     return (
       pu.products?.name?.toLowerCase().includes(q) ||
       pu.products?.sku?.toLowerCase().includes(q) ||
-      pu.unit?.toLowerCase().includes(q)
+      pu.name?.toLowerCase().includes(q)
     )
   })
 
@@ -192,7 +192,7 @@ export default function PickingTimePage() {
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge variant="outline" className="font-semibold uppercase tracking-wide">
-                                {pu.unit}
+                                {pu.name}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center">

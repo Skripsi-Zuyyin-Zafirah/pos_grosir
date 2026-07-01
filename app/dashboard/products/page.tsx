@@ -311,7 +311,6 @@ export default function ProductsPage() {
                         <TableHead>Kategori</TableHead>
                         <TableHead className="text-right">Harga Grosir</TableHead>
                         <TableHead>Satuan</TableHead>
-                        <TableHead>Berat</TableHead>
                         <TableHead className="w-[100px] text-center">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -342,9 +341,6 @@ export default function ProductsPage() {
                             {formatRupiah(product.price)}
                           </TableCell>
                           <TableCell>{product.unit || "pcs"}</TableCell>
-                          <TableCell>
-                            {product.weight ? `${product.weight} kg` : "-"}
-                          </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center gap-2">
                               <Button
@@ -385,7 +381,8 @@ export default function ProductsPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="max-h-[60vh] overflow-y-auto px-1 pr-2 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="sku">SKU (Stock Keeping Unit)</Label>
                   <div className="flex gap-2">
@@ -400,7 +397,7 @@ export default function ProductsPage() {
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => setSku(`PRD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`)}
+                      onClick={() => setSku(`PRD-${Date.now().toString().slice(-6)}`)}
                       disabled={submitting}
                       className="text-xs shrink-0"
                     >
@@ -471,37 +468,74 @@ export default function ProductsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="image">Foto Produk</Label>
-                <div className="flex flex-col gap-2">
-                  <Input
-                    id="image"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                    disabled={submitting}
-                  />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Atau</span>
+                <Label>Foto Produk</Label>
+                <div className="flex flex-col gap-3">
+                  {/* Image Preview */}
+                  {(imageFile || imageUrl) ? (
+                    <div className="relative w-32 h-32 rounded-lg border border-border overflow-hidden bg-muted group">
+                      <img
+                        src={imageFile ? URL.createObjectURL(imageFile) : imageUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImageFile(null);
+                          setImageUrl("");
+                          // Clear input values
+                          const imgInput = document.getElementById("image") as HTMLInputElement;
+                          if (imgInput) imgInput.value = "";
+                          const camInput = document.getElementById("camera-capture-input") as HTMLInputElement;
+                          if (camInput) camInput.value = "";
+                        }}
+                        className="absolute top-1.5 right-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full p-1 opacity-90 transition-opacity shadow-sm"
+                      >
+                        <IconTrash className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 text-muted-foreground text-xs">
+                      Belum ada foto
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setImageFile(file);
+                        if (file) setImageUrl("");
+                      }}
+                      disabled={submitting}
+                      className="bg-background flex-1 cursor-pointer"
+                    />
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
                       onClick={() => {
                         const camInput = document.getElementById("camera-capture-input");
                         if (camInput) camInput.click();
                       }}
                       disabled={submitting}
-                      className="text-xs flex items-center gap-1"
+                      className="flex items-center gap-1.5 shrink-0"
                     >
-                      <IconCamera className="size-3.5" /> Ambil dari Kamera HP
+                      <IconCamera className="size-4" /> Ambil Kamera
                     </Button>
                     <input
                       id="camera-capture-input"
                       type="file"
                       accept="image/*"
                       capture="environment"
-                      onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setImageFile(file);
+                        if (file) setImageUrl("");
+                      }}
+                      className="absolute w-0 h-0 opacity-0 pointer-events-none"
                     />
                   </div>
                 </div>
@@ -517,6 +551,7 @@ export default function ProductsPage() {
                   disabled={submitting}
                   className="w-full min-h-[80px] px-3 py-2 border rounded-md text-sm bg-background border-input focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
+              </div>
               </div>
 
               <DialogFooter className="mt-6">
