@@ -46,10 +46,20 @@ Fokus pada standarisasi navigasi header dan penyediaan halaman profil pengguna y
 * **Strategi**:
   * Menambahkan tombol "Profil Saya" di dropdown menu `components/nav-user.tsx` yang mengarah ke `/dashboard/profile`.
   * Membuat halaman profil di `/dashboard/profile` yang memuat form berisi data:
-    * Nama Lengkap (`full_name`)
-    * E-mail (read-only dari Auth)
-    * Peran / Role (read-only: Admin/Kasir)
-  * Menghubungkan form dengan Supabase DB untuk memperbarui tabel `profiles` menggunakan ID user aktif.
+    * **Informasi Akun**:
+      * Nama Lengkap (editable)
+      * E-mail (read-only dari Auth)
+      * Nomor Telepon (editable)
+      * Alamat Lengkap (editable)
+      * Peran / Role (read-only: Admin/Kasir/Pelanggan)
+      * Tombol: Simpan Perubahan
+    * **Keamanan Akun**:
+      * Password Lama
+      * Password Baru
+      * Konfirmasi Password Baru
+      * Tombol: Ubah Password
+  * Menghubungkan form Informasi Akun dengan Supabase DB untuk memperbarui tabel `profiles` menggunakan ID user aktif.
+  * Menghubungkan form Keamanan Akun dengan API Auth Supabase untuk memperbarui password setelah memverifikasi password lama.
 
 ---
 

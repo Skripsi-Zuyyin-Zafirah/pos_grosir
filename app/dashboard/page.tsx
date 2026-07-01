@@ -365,7 +365,7 @@ export default function Page() {
                           width={55}
                         />
                         <Tooltip
-                          formatter={(value: number) => [formatRupiah(value), "Omzet"]}
+                          formatter={(value: unknown) => [formatRupiah(Number(value ?? 0)), "Omzet"]}
                           contentStyle={{
                             backgroundColor: "hsl(var(--popover))",
                             border: "1px solid hsl(var(--border))",
@@ -418,7 +418,7 @@ export default function Page() {
                           tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
                         />
                         <Tooltip
-                          formatter={(value: number) => [`${value} unit`, "Terjual"]}
+                          formatter={(value: unknown) => [`${Number(value ?? 0)} unit`, "Terjual"]}
                           contentStyle={{
                             backgroundColor: "hsl(var(--popover))",
                             border: "1px solid hsl(var(--border))",
