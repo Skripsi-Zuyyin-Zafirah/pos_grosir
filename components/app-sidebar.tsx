@@ -24,7 +24,8 @@ import {
   IconPackage,
   IconClipboardList,
   IconClipboardCheck,
-  IconCash
+  IconCash,
+  IconClock
 } from "@tabler/icons-react"
 
 const data = {
@@ -69,6 +70,13 @@ const data = {
       url: "/dashboard/queue",
       icon: (
         <IconClipboardList />
+      ),
+    },
+    {
+      title: "Waktu Pengambilan",
+      url: "/dashboard/picking-time",
+      icon: (
+        <IconClock />
       ),
     },
     {

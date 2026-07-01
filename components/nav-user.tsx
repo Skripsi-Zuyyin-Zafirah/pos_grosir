@@ -22,7 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { IconDotsVertical, IconLogout } from "@tabler/icons-react"
+import { IconDotsVertical, IconLogout, IconUser } from "@tabler/icons-react"
 
 export function NavUser({
   user,
@@ -91,6 +91,11 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")} className="cursor-pointer">
+              <IconUser className="size-4" />
+              Profil Saya
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-rose-500 hover:text-rose-600 focus:text-rose-600 cursor-pointer">
               <IconLogout className="size-4" />

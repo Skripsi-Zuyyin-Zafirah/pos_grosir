@@ -9,9 +9,13 @@ import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Cell
+} from "recharts"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { IconLoader2, IconClipboardList, IconActivity } from "@tabler/icons-react"
+import { IconLoader2, IconClipboardList, IconChartBar, IconTrophy } from "@tabler/icons-react"
 
 type RecentOrder = {
   id: string
@@ -27,6 +31,24 @@ type RevenueDay = {
   revenue: number
 }
 
+type MonthlyRevenue = {
+  month: string
+  revenue: number
+}
+
+type TopProduct = {
+  name: string
+  total_qty: number
+}
+
+const CHART_COLORS = [
+  "hsl(var(--primary))",
+  "#06b6d4",
+  "#8b5cf6",
+  "#f59e0b",
+  "#10b981",
+]
+
 export default function Page() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
@@ -38,6 +60,8 @@ export default function Page() {
   })
   const [chartData, setChartData] = useState<RevenueDay[]>([])
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
+  const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenue[]>([])
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([])
 
   const fetchDashboardData = async () => {
     try {
@@ -124,6 +148,67 @@ export default function Page() {
       if (recentErr) throw recentErr
 
       setRecentOrders((recent as any) || [])
+
+      // 7. Fetch Monthly Revenue (last 6 months)
+      const sixMonthsAgo = new Date()
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
+      sixMonthsAgo.setDate(1)
+      sixMonthsAgo.setHours(0, 0, 0, 0)
+
+      const { data: monthlyPayments, error: monthlyErr } = await supabase
+        .from("payments")
+        .select("amount, paid_at")
+        .gte("paid_at", sixMonthsAgo.toISOString())
+      if (monthlyErr) throw monthlyErr
+
+      const monthlyMap: Record<string, number> = {}
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"]
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date()
+        d.setMonth(d.getMonth() - i)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+        monthlyMap[key] = 0
+      }
+
+      if (monthlyPayments) {
+        monthlyPayments.forEach((p) => {
+          const d = new Date(p.paid_at)
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+          if (monthlyMap[key] !== undefined) {
+            monthlyMap[key] += p.amount
+          }
+        })
+      }
+
+      const formattedMonthly: MonthlyRevenue[] = Object.entries(monthlyMap).map(([key, revenue]) => {
+        const [year, month] = key.split("-")
+        return {
+          month: `${monthNames[parseInt(month) - 1]} '${year.slice(2)}`,
+          revenue,
+        }
+      })
+      setMonthlyRevenue(formattedMonthly)
+
+      // 8. Fetch Top 5 Best Selling Products
+      const { data: orderItems, error: itemsErr } = await supabase
+        .from("order_items")
+        .select("quantity, products ( name )")
+      if (itemsErr) throw itemsErr
+
+      const productMap: Record<string, number> = {}
+      if (orderItems) {
+        orderItems.forEach((item: any) => {
+          const name = item.products?.name || "Tidak diketahui"
+          productMap[name] = (productMap[name] || 0) + item.quantity
+        })
+      }
+
+      const sortedProducts = Object.entries(productMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, total_qty]) => ({ name, total_qty }))
+
+      setTopProducts(sortedProducts)
     } catch (err: any) {
       toast.error("Gagal memuat dashboard: " + err.message)
     } finally {
@@ -158,6 +243,12 @@ export default function Page() {
       currency: "IDR",
       maximumFractionDigits: 0,
     }).format(val)
+  }
+
+  const formatRupiahShort = (val: number) => {
+    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}Jt`
+    if (val >= 1_000) return `${(val / 1_000).toFixed(0)}Rb`
+    return val.toString()
   }
 
   return (
@@ -238,6 +329,115 @@ export default function Page() {
                   )}
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Monthly Revenue & Top Products Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4 lg:px-6">
+
+              {/* Monthly Revenue Bar Chart */}
+              <Card className="border-border/50 shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <IconChartBar className="size-5 text-primary" /> Omzet Bulanan
+                  </CardTitle>
+                  <CardDescription>Tren pendapatan 6 bulan terakhir</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {monthlyRevenue.length === 0 ? (
+                    <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+                      Belum ada data pendapatan bulanan
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={monthlyRevenue} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                        <XAxis
+                          dataKey="month"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                          tickFormatter={formatRupiahShort}
+                          width={55}
+                        />
+                        <Tooltip
+                          formatter={(value: number) => [formatRupiah(value), "Omzet"]}
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--popover))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            fontSize: 12,
+                          }}
+                          labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                        />
+                        <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={50} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Top 5 Best Selling Products Bar Chart */}
+              <Card className="border-border/50 shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <IconTrophy className="size-5 text-amber-500" /> Produk Terlaris
+                  </CardTitle>
+                  <CardDescription>5 produk dengan penjualan unit terbanyak</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {topProducts.length === 0 ? (
+                    <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+                      Belum ada data penjualan produk
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart
+                        data={topProducts}
+                        layout="vertical"
+                        margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                        <XAxis
+                          type="number"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          tickLine={false}
+                          axisLine={false}
+                          width={100}
+                          tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
+                          tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
+                        />
+                        <Tooltip
+                          formatter={(value: number) => [`${value} unit`, "Terjual"]}
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--popover))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            fontSize: 12,
+                          }}
+                          labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                        />
+                        <Bar dataKey="total_qty" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                          {topProducts.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
             </div>
           </div>
         )}

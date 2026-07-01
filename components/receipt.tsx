@@ -45,11 +45,11 @@ export function Receipt({ order }: ReceiptProps) {
   }
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center w-full">
       {/* Printable Receipt Wrapper */}
       <div
         id="receipt-print-area"
-        className="w-full max-w-[320px] p-6 bg-white text-black border border-dashed border-gray-300 rounded shadow-sm text-xs font-mono"
+        className="w-full max-w-[320px] max-h-[400px] overflow-y-auto p-6 bg-white text-black border border-dashed border-gray-300 rounded shadow-sm text-xs font-mono"
       >
         <div className="text-center space-y-1 mb-4 border-b border-dashed pb-3">
           <h2 className="text-sm font-bold tracking-wider uppercase">POS GROSIR JASA</h2>
@@ -162,6 +162,8 @@ export function Receipt({ order }: ReceiptProps) {
             border: none;
             box-shadow: none;
             width: 80mm; /* standard thermal printer size */
+            max-height: none !important;
+            overflow: visible !important;
           }
         }
       `}</style>

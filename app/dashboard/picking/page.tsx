@@ -376,7 +376,6 @@ export default function PickingPage() {
                             <TableHead className="w-[60px] text-center">Pilih</TableHead>
                             <TableHead>SKU</TableHead>
                             <TableHead>Nama Barang</TableHead>
-                            <TableHead className="flex items-center gap-1"><IconMapPin className="size-3.5" /> Lokasi Rak</TableHead>
                             <TableHead className="text-right">Qty</TableHead>
                             <TableHead>Satuan</TableHead>
                           </TableRow>
@@ -401,11 +400,6 @@ export default function PickingPage() {
                                 </TableCell>
                                 <TableCell className="font-medium">
                                   {item.products?.name}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className={`font-bold ${isChecked ? "opacity-50" : "bg-primary/5 text-primary border-primary/20"}`}>
-                                    {item.products?.inventory?.[0]?.location || "Belum diatur"}
-                                  </Badge>
                                 </TableCell>
                                 <TableCell className="text-right font-bold text-sm">
                                   {item.quantity}

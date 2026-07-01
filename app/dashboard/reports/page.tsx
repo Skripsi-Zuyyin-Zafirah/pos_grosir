@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Receipt } from "@/components/receipt"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
@@ -24,8 +26,24 @@ type PaymentReport = {
   paid_at: string
   method: string
   orders: {
+    id: string
     order_number: string | null
     customer_name: string | null
+    total_items: number
+    total_price: number
+    payment_method?: string
+    payment_amount?: number
+    change_amount?: number
+    created_at: string
+    order_items: Array<{
+      id: string
+      quantity: number
+      price: number
+      products: {
+        name: string
+        unit: string | null
+      } | null
+    }>
   } | null
 }
 
@@ -70,6 +88,19 @@ export default function ReportsPage() {
   const [salesSearch, setSalesSearch] = useState("")
   const [stockSearch, setStockSearch] = useState("")
 
+  // Invoice Modal states
+  const [invoiceOpen, setInvoiceOpen] = useState(false)
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null)
+
+  const handleViewInvoice = (payment: any) => {
+    if (payment.orders) {
+      setSelectedInvoiceOrder(payment.orders)
+      setInvoiceOpen(true)
+    } else {
+      toast.error("Data pesanan tidak ditemukan")
+    }
+  }
+
   // Simulation state
   const [simCount, setSimCount] = useState("10")
   const [simProfile, setSimProfile] = useState("mixed")
@@ -92,7 +123,7 @@ export default function ReportsPage() {
 
       const { data, error } = await supabase
         .from("payments")
-        .select("id, amount, paid_at, method, orders:order_id ( order_number, customer_name )")
+        .select("id, amount, paid_at, method, orders:order_id ( id, order_number, customer_name, total_items, total_price, payment_method, payment_amount, change_amount, created_at, order_items ( id, quantity, price, products ( name, unit ) ) )")
         .gte("paid_at", startIso.toISOString())
         .lte("paid_at", endIso.toISOString())
         .order("paid_at", { ascending: false })
@@ -429,9 +460,6 @@ export default function ReportsPage() {
               <TabsTrigger value="stock" className="flex items-center gap-1.5 font-semibold">
                 <IconHistory className="size-4" /> Laporan Riwayat Stok
               </TabsTrigger>
-              <TabsTrigger value="evaluation" className="flex items-center gap-1.5 font-semibold">
-                <IconScale className="size-4" /> Evaluasi Antrian (FIFO vs PQ)
-              </TabsTrigger>
             </TabsList>
 
             {/* TAB 1: SALES REPORT */}
@@ -441,7 +469,7 @@ export default function ReportsPage() {
                   <CardTitle className="text-sm">Filter Laporan Penjualan</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col md:flex-row gap-4 items-end justify-between">
-                  <div className="flex flex-wrap gap-4 items-center">
+                  <div className="flex flex-wrap gap-4 items-end">
                     <div className="space-y-1.5">
                       <Label htmlFor="sDate">Mulai Tanggal</Label>
                       <Input
@@ -461,6 +489,52 @@ export default function ReportsPage() {
                         onChange={(e) => setEndDate(e.target.value)}
                         className="w-44 bg-background"
                       />
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const todayStr = new Date().toISOString().split("T")[0]
+                          setStartDate(todayStr)
+                          setEndDate(todayStr)
+                        }}
+                        className="text-xs h-9"
+                      >
+                        Hari Ini
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const now = new Date()
+                          const day = now.getDay()
+                          const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+                          const monday = new Date(now.setDate(diff))
+                          const mondayStr = monday.toISOString().split("T")[0]
+                          const todayStr = new Date().toISOString().split("T")[0]
+                          setStartDate(mondayStr)
+                          setEndDate(todayStr)
+                        }}
+                        className="text-xs h-9"
+                      >
+                        Minggu Ini
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const now = new Date()
+                          const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+                          const firstDayStr = firstDay.toISOString().split("T")[0]
+                          const todayStr = new Date().toISOString().split("T")[0]
+                          setStartDate(firstDayStr)
+                          setEndDate(todayStr)
+                        }}
+                        className="text-xs h-9"
+                      >
+                        Bulan Ini
+                      </Button>
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -512,6 +586,7 @@ export default function ReportsPage() {
                             <TableHead>Pelanggan</TableHead>
                             <TableHead>Metode Pembayaran</TableHead>
                             <TableHead className="text-right">Jumlah Bayar</TableHead>
+                            <TableHead className="text-center w-[120px]">Aksi</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -531,6 +606,16 @@ export default function ReportsPage() {
                               </TableCell>
                               <TableCell className="text-right font-bold text-primary">
                                 {formatRupiah(p.amount)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewInvoice(p)}
+                                  className="h-8 text-xs font-semibold"
+                                >
+                                  Lihat Invoice
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -618,135 +703,25 @@ export default function ReportsPage() {
               </Card>
             </TabsContent>
 
-            {/* TAB 3: QUEUE STRATEGY EVALUATION */}
-            <TabsContent value="evaluation" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Mode Controller & Simulation card */}
-                <div className="md:col-span-1 space-y-6">
-                  {/* Mode switch */}
-                  <Card className="border-border/50 shadow-md">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-1.5 text-sm">
-                        <IconCpu className="size-4 text-primary" /> Pengontrol Mode Antrian
-                      </CardTitle>
-                      <CardDescription>Ganti strategi antrian utama secara real-time.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex gap-2">
-                        <Button
-                          variant={queueMode === "fifo" ? "default" : "outline"}
-                          className="flex-1 text-xs"
-                          onClick={() => handleToggleQueueMode("fifo")}
-                        >
-                          FIFO Mode
-                        </Button>
-                        <Button
-                          variant={queueMode === "priority" ? "default" : "outline"}
-                          className="flex-1 text-xs"
-                          onClick={() => handleToggleQueueMode("priority")}
-                        >
-                          SJF Priority
-                        </Button>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        * Merubah strategi antrian akan langsung mempengaruhi penyusunan antrian di Papan Antrian dan Proses Gudang.
-                      </p>
-                    </CardContent>
-                  </Card>
+            {/* Invoice Printing Dialog */}
+            <Dialog open={invoiceOpen} onOpenChange={setInvoiceOpen}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-1.5">Detail Invoice</DialogTitle>
+                  <DialogDescription>
+                    Invoice transaksi belanja pelanggan.
+                  </DialogDescription>
+                </DialogHeader>
 
-                  {/* Load simulator widget */}
-                  <Card className="border-border/50 shadow-md">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-1.5 text-sm">
-                        <IconRocket className="size-4 text-primary" /> Generator Simulasi Beban
-                      </CardTitle>
-                      <CardDescription>Programmatically generate test orders in database.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="simCount">Jumlah Pesanan (N)</Label>
-                        <Input
-                          id="simCount"
-                          type="number"
-                          value={simCount}
-                          onChange={(e) => setSimCount(e.target.value)}
-                          disabled={simulating}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="simProfile">Profil Kuantitas Barang</Label>
-                        <Select value={simProfile} onValueChange={setSimProfile} disabled={simulating}>
-                          <SelectTrigger id="simProfile">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="mixed">Campuran / Acak</SelectItem>
-                            <SelectItem value="small">Hanya Pesanan Kecil (1 pcs)</SelectItem>
-                            <SelectItem value="large">Hanya Pesanan Besar (&gt;8 pcs)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button onClick={handleRunSimulation} disabled={simulating} className="w-full text-xs font-semibold">
-                        {simulating ? (
-                          <>
-                            <IconLoader2 className="mr-2 size-3.5 animate-spin" /> Menjalankan Simulasi...
-                          </>
-                        ) : (
-                          "Jalankan Simulasi"
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
+                {selectedInvoiceOrder && <Receipt order={selectedInvoiceOrder} />}
 
-                {/* Queue performance stats charts (Left/Center 2 cols) */}
-                <div className="md:col-span-2 space-y-6">
-                  {/* Wait Time Comparison Bar Chart */}
-                  <Card className="border-border/50 shadow-md">
-                    <CardHeader>
-                      <CardTitle>Perbandingan Rata-rata Waktu Tunggu</CardTitle>
-                      <CardDescription>
-                        Perbandingan kinerja waktu respon pelayanan (menit) antara FIFO vs Shortest Job First (SJF) Priority
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[250px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={waitTimeChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                          <YAxis tickLine={false} axisLine={false} label={{ value: "Menit", angle: -90, position: "insideLeft" }} />
-                          <Tooltip cursor={{ fill: "transparent" }} />
-                          <Bar dataKey="Waktu Tunggu (menit)" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} maxBarSize={60} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  {/* Parameter Sensitivity Line Chart */}
-                  <Card className="border-border/50 shadow-md">
-                    <CardHeader>
-                      <CardTitle>Sensitivitas Parameter t_pick Terhadap Waktu Tunggu</CardTitle>
-                      <CardDescription>
-                        Analisis pengaruh naiknya t_pick (pencarian barang di rak) terhadap total waktu tunggu di antrean
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[250px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={sensitivityChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="t_pick" tickLine={false} axisLine={false} />
-                          <YAxis tickLine={false} axisLine={false} />
-                          <Tooltip />
-                          <Legend />
-                          <Line type="monotone" dataKey="FIFO" stroke="#f43f5e" strokeWidth={2.5} activeDot={{ r: 8 }} />
-                          <Line type="monotone" dataKey="Priority Queue" stroke="#10b981" strokeWidth={2.5} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            </TabsContent>
+                <DialogFooter className="mt-4">
+                  <Button variant="outline" className="w-full" onClick={() => setInvoiceOpen(false)}>
+                    Tutup
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </Tabs>
         </div>
       </SidebarInset>

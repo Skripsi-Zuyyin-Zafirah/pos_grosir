@@ -125,7 +125,6 @@ export default function InventoryPage() {
       const { error } = await supabase
         .from("inventory")
         .update({
-          location: location || null,
           reorder_level: parseInt(reorderLevel),
           updated_at: new Date().toISOString(),
         })
@@ -262,7 +261,6 @@ export default function InventoryPage() {
                       <TableRow>
                         <TableHead>SKU</TableHead>
                         <TableHead>Nama Produk</TableHead>
-                        <TableHead>Lokasi Rak</TableHead>
                         <TableHead className="text-right">Stok Saat Ini</TableHead>
                         <TableHead className="text-right">Min. Stok (Reorder)</TableHead>
                         <TableHead className="text-center">Status</TableHead>
@@ -278,11 +276,6 @@ export default function InventoryPage() {
                               {item.products?.sku || "-"}
                             </TableCell>
                             <TableCell className="font-medium">{item.products?.name}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="font-semibold px-2 py-0.5">
-                                {item.location || "Belum diatur"}
-                              </Badge>
-                            </TableCell>
                             <TableCell className="text-right font-bold text-base">
                               {item.stock_qty} <span className="text-xs font-normal text-muted-foreground">{item.products?.unit || "pcs"}</span>
                             </TableCell>
@@ -345,20 +338,10 @@ export default function InventoryPage() {
             <DialogHeader>
               <DialogTitle>Edit Pengaturan Inventori</DialogTitle>
               <DialogDescription>
-                Sesuaikan lokasi rak penyimpanan dan batas minimum stok untuk {selectedItem?.products?.name}.
+                Sesuaikan batas minimum stok untuk {selectedItem?.products?.name}.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="location">Lokasi Rak</Label>
-                <Input
-                  id="location"
-                  placeholder="Contoh: A1, B4, C12"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  disabled={submitting}
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="reorderLevel">Batas Minimum Stok (Alert)</Label>
                 <Input

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { IconLoader2, IconPlus, IconSearch, IconEdit, IconTrash, IconPackage, IconPhoto } from "@tabler/icons-react"
+import { IconLoader2, IconPlus, IconSearch, IconEdit, IconTrash, IconPackage, IconPhoto, IconCamera } from "@tabler/icons-react"
 
 type Product = {
   id: string
@@ -188,7 +188,7 @@ export default function ProductsPage() {
             .insert({
               product_id: newProd.id,
               stock_qty: 0,
-              location: "A1",
+              location: null,
               reorder_level: 5,
             })
           if (invErr) {
@@ -388,13 +388,25 @@ export default function ProductsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="sku">SKU (Stock Keeping Unit)</Label>
-                  <Input
-                    id="sku"
-                    placeholder="PRD-XXXXX"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    disabled={submitting}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="sku"
+                      placeholder="PRD-XXXXX"
+                      value={sku}
+                      onChange={(e) => setSku(e.target.value)}
+                      disabled={submitting}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setSku(`PRD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`)}
+                      disabled={submitting}
+                      className="text-xs shrink-0"
+                    >
+                      Generate
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="categoryId">Kategori</Label>
@@ -440,32 +452,27 @@ export default function ProductsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="unit">Satuan</Label>
-                  <Input
-                    id="unit"
-                    placeholder="pcs / box / kg"
-                    value={unit}
-                    onChange={(e) => setUnit(e.target.value)}
-                    required
-                    disabled={submitting}
-                  />
+                  <Select value={unit} onValueChange={setUnit} disabled={submitting}>
+                    <SelectTrigger id="unit">
+                      <SelectValue placeholder="Pilih Satuan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pcs">pcs (Pcs)</SelectItem>
+                      <SelectItem value="pack">pack (Pack)</SelectItem>
+                      <SelectItem value="dus">dus (Dus)</SelectItem>
+                      <SelectItem value="karton">karton (Karton)</SelectItem>
+                      <SelectItem value="slop">slop (Slop)</SelectItem>
+                      <SelectItem value="kg">kg (Kilogram)</SelectItem>
+                      <SelectItem value="liter">liter (Liter)</SelectItem>
+                      <SelectItem value="box">box (Box)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="weight">Berat (kg)</Label>
-                  <Input
-                    id="weight"
-                    type="number"
-                    step="0.01"
-                    placeholder="1.0"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="image">Foto Produk</Label>
+              <div className="space-y-2">
+                <Label htmlFor="image">Foto Produk</Label>
+                <div className="flex flex-col gap-2">
                   <Input
                     id="image"
                     type="file"
@@ -473,6 +480,30 @@ export default function ProductsPage() {
                     onChange={(e) => setImageFile(e.target.files?.[0] || null)}
                     disabled={submitting}
                   />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Atau</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const camInput = document.getElementById("camera-capture-input");
+                        if (camInput) camInput.click();
+                      }}
+                      disabled={submitting}
+                      className="text-xs flex items-center gap-1"
+                    >
+                      <IconCamera className="size-3.5" /> Ambil dari Kamera HP
+                    </Button>
+                    <input
+                      id="camera-capture-input"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                  </div>
                 </div>
               </div>
 
