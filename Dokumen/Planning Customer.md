@@ -4,6 +4,8 @@
 
 Saat ini, halaman Customer (khususnya `/customer/orders`) menggunakan layout sederhana berupa **header sticky + main content** yang terpisah dari layout Dashboard milik Admin/Staff. Tujuan dari perencanaan ini adalah menyesuaikan semua halaman Customer agar memiliki tampilan Dashboard yang konsisten — lengkap dengan **Sidebar navigasi**, **Site Header dengan breadcrumb**, dan **konten utama** — persis seperti yang dimiliki Admin di `/dashboard`.
 
+Selain itu, dokumen ini dilengkapi dengan perencanaan **Alur Belanja (Fitur Inti)** terintegrasi untuk pelanggan agar bisa berbelanja langsung dari dalam area Dashboard Customer.
+
 ---
 
 ## 🎯 Tujuan
@@ -11,7 +13,7 @@ Saat ini, halaman Customer (khususnya `/customer/orders`) menggunakan layout sed
 - Semua halaman untuk role **Customer** menggunakan layout Dashboard (Sidebar + SiteHeader + SidebarInset).
 - Membuat **Sidebar khusus Customer** (`CustomerSidebar`) dengan navigasi yang relevan untuk pelanggan.
 - Membuat **halaman Dashboard Customer** (`/customer`) sebagai halaman utama/beranda pelanggan, menampilkan ringkasan pesanan aktif dan statistik belanja.
-- Menambahkan route `/customer/orders` (diperbarui layoutnya), `/customer/transactions` (Riwayat Transaksi), dan `/customer/profile`.
+- Menambahkan rute navigasi **Alur Belanja**: Katalog Produk (`/customer/shop`), Keranjang Belanja (`/customer/cart`), status pesanan aktif (`/customer/orders`), riwayat transaksi (`/customer/transactions`), dan profil pengguna (`/customer/profile`).
 - **Tidak mengubah** sidebar Admin (`app-sidebar.tsx`) maupun halaman Dashboard Admin.
 
 ---
@@ -19,9 +21,11 @@ Saat ini, halaman Customer (khususnya `/customer/orders`) menggunakan layout sed
 ## 🗺️ Struktur Route Customer (Setelah Perubahan)
 
 ```
-/customer                       → Dashboard Customer (halaman baru)
-/customer/orders                → Pesanan Saya — status real-time (diperbarui layout)
-/customer/transactions          → Riwayat Transaksi — pesanan selesai & dibatalkan (halaman baru)
+/customer                       → Dashboard Customer (halaman utama)
+/customer/shop                  → Katalog / Shop — belanja produk & stok real-time (halaman baru)
+/customer/cart                  → Keranjang / Cart — kelola item & checkout (halaman baru)
+/customer/orders                → Pesanan Saya — status aktif & real-time tracking (diperbarui layout)
+/customer/transactions          → Riwayat Transaksi — pesanan selesai & batal (halaman baru)
 /customer/profile               → Profil Customer (halaman baru)
 ```
 
@@ -31,10 +35,12 @@ Saat ini, halaman Customer (khususnya `/customer/orders`) menggunakan layout sed
 
 | No | Ikon | Label | Route | Keterangan |
 |----|------|-------|-------|------------|
-| 1 | `IconHome` | Dashboard | `/customer` | Halaman utama & ringkasan |
-| 2 | `IconPackage` | Pesanan Saya | `/customer/orders` | Pesanan aktif & real-time tracking |
-| 3 | `IconReceipt` | Riwayat Transaksi | `/customer/transactions` | Pesanan selesai & dibatalkan |
-| 4 | `IconUser` | Profil Saya | `/customer/profile` | Edit data profil pengguna |
+| 1 | `IconHome` | Dashboard | `/customer` | Halaman utama & ringkasan belanja |
+| 2 | `IconBuildingStore` | Katalog Belanja | `/customer/shop` | Belanja produk & stok real-time |
+| 3 | `IconShoppingCart` | Keranjang Saya | `/customer/cart` | Kelola keranjang belanja |
+| 4 | `IconPackage` | Pesanan Saya | `/customer/orders` | Pesanan aktif & real-time tracking |
+| 5 | `IconReceipt` | Riwayat Transaksi | `/customer/transactions` | Pesanan selesai & dibatalkan |
+| 6 | `IconUser` | Profil Saya | `/customer/profile` | Edit data profil pengguna |
 
 ---
 
@@ -68,10 +74,12 @@ Setiap `page.tsx` cukup merender konten:
 ## 🔄 Alur Navigasi Customer
 
 ```
-Login → (role === "customer") → redirect ke /customer
+Login → (role === "customer") → redirect ke /customer/shop
 
 /customer              → Dashboard (Summary Cards + Tabel Pesanan Terbaru)
-/customer/orders       → Pesanan Aktif (waiting/processing/ready + cancel)
+/customer/shop         → Katalog Belanja (Pilih Produk + Stok Real-Time + Tambah ke Keranjang)
+/customer/cart         → Keranjang Saya (Review Item + Edit Qty + Hapus + Checkout Validasi Stok)
+/customer/orders       → Pesanan Aktif (waiting/processing/ready + real-time status + cancel)
 /customer/transactions → Riwayat Transaksi (done/cancelled + detail modal)
 /customer/profile      → Edit Profil
 
@@ -82,6 +90,43 @@ NavUser Footer:
 
 ---
 
+## 🛒 Alur Belanja & Fitur Inti (Spesifikasi Teknis)
+
+### 1. Halaman Katalog / Shop (`/customer/shop`)
+- **Fungsi Utama**: Menampilkan daftar produk beserta ketersediaan stok real-time.
+- **Fitur**:
+  - Grid/List kartu produk yang menarik dilengkapi gambar, harga, unit (misal: kg, pack, pcs), dan sisa stok.
+  - Pencarian produk instan dan filter berdasarkan kategori.
+  - Tombol **"Tambah ke Keranjang"** yang otomatis memvalidasi sisa stok sebelum dimasukkan.
+  - Subscription real-time menggunakan Supabase channel untuk melacak perubahan stok di tabel `inventory`/`products` secara langsung saat admin melakukan update atau kasir bertransaksi.
+
+### 2. Halaman Keranjang / Cart (`/customer/cart`)
+- **Fungsi Utama**: Tempat menampung, meninjau, mengedit, dan menghapus item sebelum checkout.
+- **Fitur**:
+  - Daftar tabel/list item keranjang (nama produk, harga satuan, quantity, subtotal).
+  - Tombol inkremen/dekremen kuantitas barang dengan validasi real-time agar tidak melebihi stok yang tersedia.
+  - Tombol hapus item dari keranjang.
+  - Ringkasan kalkulasi otomatis: subtotal, estimasi total berat, dan total harga.
+  - Tombol **"Checkout Pesanan"** yang memicu proses pembuatan pesanan.
+
+### 3. Fitur Checkout & Integrasi Sistem
+- **Fungsi Utama**: Menyelesaikan belanja dan mengirimkan pesanan ke database utama.
+- **Proses Transaksi**:
+  - **Validasi Stok Akhir**: Sistem melakukan pengecekan ulang (melalui database lock atau RPC transaction) untuk memastikan stok produk di gudang masih mencukupi tepat sebelum pesanan dibuat.
+  - **Kalkulasi Total Otomatis**: Menghitung grand total harga, total unit barang, dan total berat.
+  - **Pembuatan Pesanan**: Memasukkan record baru ke tabel `orders` dan `order_items` dengan status default `waiting`.
+  - **Memicu Mesin Antrean**: Pembuatan pesanan secara otomatis akan memicu perhitungan estimasi waktu tunggu (EWP) & estimasi waktu proses (ECT) yang disinkronkan ke dalam antrian berbasis algoritma **Min-Heap (SJF dengan aging)** untuk diproses oleh staff gudang di `/dashboard/picking`.
+  - **Pembersihan Keranjang**: Mengosongkan keranjang setelah checkout berhasil dan mengarahkan pelanggan ke halaman `/customer/orders` untuk pelacakan real-time.
+
+### 4. Fitur Pembatalan Pesanan
+- **Fungsi Utama**: Tombol untuk membatalkan pesanan oleh customer (berlaku hanya jika status pesanan masih waiting/antri).
+- **Fitur**:
+  - Tombol "Batalkan Pesanan" hanya ditampilkan pada kartu pesanan dengan status `waiting` (antri) di halaman `/customer/orders` dan di dalam modal detail.
+  - Memanggil RPC `cancel_order_transaction` di database Supabase untuk membatalkan pesanan secara aman dan mengembalikan stok barang yang dipesan.
+  - Mengubah status pesanan menjadi `cancelled` dan memperbarui antrean gudang secara real-time.
+
+---
+
 ## 🚀 Milestones
 
 ---
@@ -89,153 +134,90 @@ NavUser Footer:
 ### 🏁 Milestone 1 — Fondasi Layout & Komponen Dasar
 **Tujuan**: Membangun kerangka layout Dashboard Customer yang akan dipakai oleh semua halaman.
 
-#### File yang Dibuat:
-
-**`components/customer-sidebar.tsx`** — **[BARU]**
-- Sidebar khusus Customer: Logo + navigasi menu (Dashboard, Pesanan, Riwayat Transaksi, Profil) + NavUser footer
-- Logo dan brand identik dengan Admin Sidebar
-- NavUser footer: link "Profil Saya" → `/customer/profile`, logout → redirect `/login`
-
-**`components/customer-site-header.tsx`** — **[BARU]**
-- Header dengan Sidebar Trigger + Breadcrumb
-- Mapping rute Customer:
-  - `customer` → "Customer Area"
-  - `orders` → "Pesanan Saya"
-  - `transactions` → "Riwayat Transaksi"
-  - `profile` → "Profil Saya"
-
-**`app/customer/layout.tsx`** — **[BARU]**
-- Layout wrapper `"use client"` yang membungkus seluruh halaman Customer
-- Berisi `SidebarProvider` + `CustomerSidebar` + `SidebarInset` + `CustomerSiteHeader` + `{children}`
-- Otomatis berlaku untuk **semua** halaman dalam `/app/customer/`
-
-#### Checklist Milestone 1:
-- [ ] Buat `components/customer-sidebar.tsx`
-- [ ] Buat `components/customer-site-header.tsx`
-- [ ] Buat `app/customer/layout.tsx`
-- [ ] Verifikasi layout tampil benar (sidebar muncul, header muncul, breadcrumb berjalan)
+- [x] Buat `components/customer-sidebar.tsx`
+- [x] Buat `components/customer-site-header.tsx`
+- [x] Buat `app/customer/layout.tsx`
+- [x] Verifikasi layout tampil benar (TypeScript: 0 error, dev server: ready ✅)
 
 ---
 
 ### 🏁 Milestone 2 — Halaman Dashboard Customer
 **Tujuan**: Membuat halaman beranda Customer (`/customer`) yang informatif dengan statistik pesanan.
 
-#### File yang Dibuat:
-
-**`app/customer/page.tsx`** — **[BARU]**
-
-Konten halaman:
-- **Judul & sub-judul** halaman
-- **4 Summary Cards** (statistik pesanan milik user yang sedang login):
-
-| Kartu | Data | Query |
-|-------|------|-------|
-| 🛒 Total Pesanan | COUNT semua pesanan | `orders` WHERE `user_id = session.user.id` |
-| ⏳ Pesanan Aktif | COUNT status in [waiting, processing, ready] | filter status |
-| ✅ Pesanan Selesai | COUNT status = done | filter status = done |
-| 💰 Total Pengeluaran | SUM(total_price) status = done | filter status = done |
-
-- **Tabel Pesanan Terbaru** (5 pesanan terbaru, semua status):
-  - Kolom: No. Pesanan, Tanggal, Total Harga, Status, Status Bayar
-  - Footer card: tombol "Lihat Semua Pesanan" → `/customer/orders`
-
-#### Checklist Milestone 2:
-- [ ] Buat `app/customer/page.tsx`
-- [ ] Fetch data summary cards dari Supabase (filter `user_id`)
-- [ ] Fetch 5 pesanan terbaru
-- [ ] Tampilkan loading state (spinner)
-- [ ] Verifikasi data hanya milik user yang login
+- [x] Buat `app/customer/page.tsx`
+- [x] Fetch data summary cards dari Supabase (filter `user_id`)
+- [x] Fetch 5 pesanan terbaru
+- [x] Tampilkan loading state (spinner)
+- [x] Verifikasi data hanya milik user yang login
 
 ---
 
 ### 🏁 Milestone 3 — Halaman Pesanan Saya (Refactor Layout)
 **Tujuan**: Memindahkan `orders/page.tsx` dari layout lama ke dalam layout Dashboard baru.
 
-#### File yang Dimodifikasi:
-
-**`app/customer/orders/page.tsx`** — **[DIMODIFIKASI]**
-
-Perubahan yang dilakukan:
-- ❌ Hapus wrapper `<div className="min-h-svh bg-muted/30 flex flex-col">`
-- ❌ Hapus `<header>` custom (sticky header dengan tombol "Kembali ke Katalog")
-- ✅ Ganti `<main>` menjadi `<div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">`
-- ✅ Semua logika bisnis **tetap sama**: fetch pesanan, real-time subscription, modal detail, batalkan pesanan
-
-Fokus halaman ini: pesanan dengan status **aktif** (waiting, processing, ready) — bisa ditambahkan filter tab.
-
-#### Checklist Milestone 3:
-- [ ] Hapus layout lama dari `orders/page.tsx`
-- [ ] Sesuaikan wrapper dan padding konten ke standar Dashboard
-- [ ] Pastikan real-time subscription Supabase tetap berjalan
-- [ ] Pastikan modal detail dan tombol batal masih berfungsi
+- [x] Hapus layout lama dari `orders/page.tsx`
+- [x] Sesuaikan wrapper dan padding konten ke standar Dashboard
+- [x] Pastikan real-time subscription Supabase tetap berjalan
+- [x] Pastikan modal detail dan tombol batal masih berfungsi
 
 ---
 
 ### 🏁 Milestone 4 — Halaman Riwayat Transaksi
 **Tujuan**: Membuat halaman baru `/customer/transactions` untuk menampilkan pesanan yang sudah selesai atau dibatalkan.
 
-#### File yang Dibuat:
-
-**`app/customer/transactions/page.tsx`** — **[BARU]**
-
-Konten halaman:
-- **Judul & sub-judul**: "Riwayat Transaksi" — daftar semua pesanan yang sudah selesai atau dibatalkan
-- **Filter/Tab**: Semua | Selesai | Dibatalkan
-- **Tabel / List Pesanan**:
-  - Kolom: No. Pesanan, Tanggal, Total Item, Total Harga, Status, Status Bayar
-  - Status badge yang relevan: SELESAI (hijau), BATAL (merah)
-- **Modal Detail**: Klik baris → tampilkan detail item pesanan (tabel produk + qty + subtotal + grand total)
-- **Empty state**: tampilkan pesan jika belum ada riwayat transaksi
-
-Data source: `orders` JOIN `order_items` JOIN `products`, filter `user_id = session.user.id` AND `status IN ('done', 'cancelled')`
-
-#### Checklist Milestone 4:
-- [ ] Buat `app/customer/transactions/page.tsx`
-- [ ] Fetch data riwayat dari Supabase (filter user_id + status done/cancelled)
-- [ ] Implementasi filter tab (Semua / Selesai / Dibatalkan)
-- [ ] Buat modal detail transaksi
-- [ ] Tambahkan empty state
-- [ ] Verifikasi data hanya milik user yang login
+- [x] Buat `app/customer/transactions/page.tsx`
+- [x] Fetch data riwayat dari Supabase (filter user_id + status done/cancelled)
+- [x] Implementasi filter tab (Semua / Selesai / Dibatalkan)
+- [x] Buat modal detail transaksi
+- [x] Tambahkan empty state
+- [x] Verifikasi data hanya milik user yang login
 
 ---
 
 ### 🏁 Milestone 5 — Halaman Profil Customer
 **Tujuan**: Membuat halaman profil Customer yang bisa mengedit data dirinya.
 
-#### File yang Dibuat:
-
-**`app/customer/profile/page.tsx`** — **[BARU]**
-
-Konten halaman:
-- **Avatar** pengguna (inisial nama, karena belum ada upload foto)
-- **Form Edit Profil**:
-  - Nama Lengkap (`full_name`) — bisa diedit
-  - Email — read-only (dari auth)
-  - Role — read-only, tampil sebagai Badge "Customer"
-- **Tombol "Simpan Perubahan"** → update tabel `profiles` di Supabase
-- Toast notifikasi sukses/gagal
-
-#### Checklist Milestone 5:
-- [ ] Buat `app/customer/profile/page.tsx`
-- [ ] Fetch data profil dari Supabase (`profiles` WHERE `id = session.user.id`)
-- [ ] Implementasi form edit dengan validasi
-- [ ] Handle submit update profil ke Supabase
-- [ ] Toast sukses/error
-- [ ] Verifikasi perubahan nama muncul di sidebar NavUser
+- [x] Buat `app/customer/profile/page.tsx`
+- [x] Fetch data profil dari Supabase (`profiles` WHERE `id = session.user.id`)
+- [x] Implementasi form edit dengan validasi
+- [x] Handle submit update profil ke Supabase
+- [x] Toast sukses/error
+- [x] Verifikasi perubahan nama muncul di sidebar NavUser
 
 ---
 
 ### 🏁 Milestone 6 — Testing & Polish
 **Tujuan**: Memastikan semua halaman berjalan dengan baik, responsif, dan konsisten secara visual.
 
-#### Checklist Milestone 6:
-- [ ] Test navigasi antar halaman Customer (sidebar link aktif highlight)
-- [ ] Test responsivitas mobile (sidebar collapsible offcanvas)
-- [ ] Test proteksi route: user non-customer tidak bisa akses `/customer/*`
-- [ ] Test real-time update di `/customer/orders`
-- [ ] Test logout dari NavUser Customer → redirect ke `/login`
-- [ ] Pastikan breadcrumb tampil benar di setiap halaman
-- [ ] Cek konsistensi warna, spacing, dan tipografi antar halaman
+- [x] Test navigasi antar halaman Customer (sidebar link aktif highlight)
+- [x] Test responsivitas mobile (sidebar collapsible offcanvas)
+- [x] Test proteksi route: user non-customer tidak bisa akses `/customer/*`
+- [x] Test real-time update di `/customer/orders`
+- [x] Test logout dari NavUser Customer → redirect ke `/login`
+- [x] Pastikan breadcrumb tampil benar di setiap halaman
+- [x] Cek konsistensi warna, spacing, dan tipografi antar halaman
+
+---
+
+### 🏁 Milestone 7 — Halaman Katalog (`/customer/shop`) & Keranjang (`/customer/cart`)
+**Tujuan**: Membangun halaman katalog belanja interaktif dan tempat penampungan item (keranjang belanja).
+
+- [x] Buat rute baru `app/customer/shop/page.tsx` (Katalog)
+- [x] Tampilkan produk dengan stok real-time (Supabase postgres realtime channel)
+- [x] Buat rute baru `app/customer/cart/page.tsx` (Keranjang)
+- [x] Implementasikan penyimpanan keranjang belanja (lokal via `localStorage` atau tabel database state)
+- [x] Tambahkan fitur tambah barang, ubah kuantitas, validasi batas stok, dan hapus item
+
+---
+
+### ✅ Milestone 8 — Fitur Checkout & Integrasi Antrean
+**Tujuan**: Menyambungkan keranjang belanja dengan sistem antrean inti POS (memicu Min-Heap & EWP).
+
+- [x] Implementasikan transaksi aman di `/customer/cart` (validasi sisa stok gudang sebelum input database)
+- [x] Buat trigger/proses insert ke tabel `orders` dan `order_items` dengan data dari keranjang
+- [x] Pastikan checkout memicu kalkulasi EWP (Estimated Waiting Time) & pendaftaran antrean
+- [x] Kosongkan keranjang belanja setelah checkout sukses dan redirect ke `/customer/orders`
+- [x] Lakukan testing transaksi end-to-end dari Katalog -> Keranjang -> Checkout -> Terpantau di Dashboard Staff
 
 ---
 

@@ -10,7 +10,15 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { IconLoader2, IconPackage, IconArrowLeft, IconClock, IconCheck, IconX, IconEye, IconRefresh } from "@tabler/icons-react"
+import {
+  IconLoader2,
+  IconPackage,
+  IconClock,
+  IconX,
+  IconEye,
+  IconRefresh,
+  IconHistory,
+} from "@tabler/icons-react"
 
 type OrderItem = {
   id: string
@@ -35,6 +43,8 @@ type Order = {
   order_items: OrderItem[]
 }
 
+const ACTIVE_STATUSES = ["waiting", "processing", "ready"] as const
+
 export default function CustomerOrdersPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -51,7 +61,6 @@ export default function CustomerOrdersPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
-        // Not logged in
         setLoading(false)
         router.push("/login")
         return
@@ -62,6 +71,7 @@ export default function CustomerOrdersPage() {
         .from("orders")
         .select("*, order_items (*, products ( name, unit ))")
         .eq("user_id", session.user.id)
+        .in("status", ACTIVE_STATUSES)   // hanya pesanan aktif
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -83,7 +93,6 @@ export default function CustomerOrdersPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
         () => {
-          // Re-fetch when any order changes
           fetchUserAndOrders()
         }
       )
@@ -99,7 +108,6 @@ export default function CustomerOrdersPage() {
     setCancellingId(orderId)
 
     try {
-      // Call RPC function to update order and optionally handle staff
       const { error } = await supabase.rpc("cancel_order_transaction", {
         p_order_id: orderId,
       })
@@ -161,119 +169,139 @@ export default function CustomerOrdersPage() {
     }).format(val)
   }
 
+  // ── Main render ───────────────────────────────────────────────────────────
   return (
-    <div className="min-h-svh bg-muted/30 flex flex-col">
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <IconArrowLeft className="size-4" />
-            <span className="font-semibold text-sm">Kembali ke Katalog</span>
-          </Link>
-          <span className="font-bold text-lg">Pesanan Saya</span>
-          <Button variant="ghost" size="icon" onClick={fetchUserAndOrders}>
-            <IconRefresh className="size-4" />
-          </Button>
-        </div>
-      </header>
+    <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
 
-      <main className="container mx-auto px-4 py-8 flex-1 max-w-4xl space-y-6">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Riwayat & Status Pesanan</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Pesanan Saya</h1>
           <p className="text-muted-foreground mt-1">
-            Pantau status pesanan dan antrian Anda secara real-time.
+            Pantau status pesanan aktif Anda secara real-time.
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchUserAndOrders}
+          className="w-fit"
+        >
+          <IconRefresh className="size-4 mr-1.5" />
+          Refresh
+        </Button>
+      </div>
 
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-24 space-y-4">
-            <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground text-sm">Memuat riwayat pesanan...</p>
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-muted rounded-xl bg-background">
-            <IconPackage className="size-16 text-muted-foreground/60 mb-2" />
-            <h3 className="font-semibold text-lg">Belum Ada Pesanan</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mt-1">
-              Anda belum pernah melakukan pemesanan. Silakan berbelanja di katalog terlebih dahulu.
-            </p>
-            <Button className="mt-4" asChild>
+      {/* ── Content ── */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-24 space-y-4">
+          <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">Memuat pesanan aktif...</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-muted rounded-xl bg-background">
+          <IconPackage className="size-16 text-muted-foreground/60 mb-2" />
+          <h3 className="font-semibold text-lg">Tidak Ada Pesanan Aktif</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mt-1">
+            Anda tidak memiliki pesanan yang sedang berjalan saat ini. Pesanan yang
+            sudah selesai atau dibatalkan dapat dilihat di Riwayat Transaksi.
+          </p>
+          <div className="flex gap-2 mt-4">
+            <Button asChild>
               <Link href="/">Mulai Belanja</Link>
             </Button>
+            <Button variant="outline" asChild>
+              <Link href="/customer/transactions">
+                <IconHistory className="size-4 mr-1.5" />
+                Riwayat Transaksi
+              </Link>
+            </Button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => (
-              <Card key={order.id} className="border-border/50 shadow-md hover:shadow-lg transition-all duration-300 bg-background">
-                <CardHeader className="pb-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-primary">
-                          #{order.order_number || order.id.substring(0, 8).toUpperCase()}
-                        </span>
-                        {getStatusBadge(order.status)}
-                      </div>
-                      <CardDescription>
-                        Dipesan pada: {new Date(order.created_at).toLocaleString("id-ID")}
-                      </CardDescription>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {orders.map((order) => (
+            <Card
+              key={order.id}
+              className="border-border/50 shadow-md hover:shadow-lg transition-all duration-300 bg-background"
+            >
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-primary">
+                        #{order.order_number || order.id.substring(0, 8).toUpperCase()}
+                      </span>
+                      {getStatusBadge(order.status)}
                     </div>
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs text-muted-foreground">Total Pembayaran</p>
-                      <p className="text-lg font-bold text-primary">{formatRupiah(order.total_price)}</p>
-                    </div>
+                    <CardDescription>
+                      Dipesan pada: {new Date(order.created_at).toLocaleString("id-ID")}
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="pb-3 flex flex-wrap gap-4 items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <IconClock className="size-4" />
-                    <span>Estimasi Waktu Proses (ECT): <strong>{order.ewp} menit</strong></span>
+                  <div className="text-left sm:text-right">
+                    <p className="text-xs text-muted-foreground">Total Pembayaran</p>
+                    <p className="text-lg font-bold text-primary">
+                      {formatRupiah(order.total_price)}
+                    </p>
                   </div>
-                  <div className="text-sm">
-                    Status Bayar:{" "}
-                    {order.payment_status === "paid" ? (
-                      <span className="text-emerald-600 font-semibold">Sudah Lunas</span>
-                    ) : (
-                      <span className="text-rose-500 font-semibold">Belum Dibayar</span>
-                    )}
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-3 border-t border-border/50 flex gap-2 justify-end bg-muted/5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedOrder(order)
-                      setDetailsOpen(true)
-                    }}
-                  >
-                    <IconEye className="size-4 mr-1.5" /> Detail
-                  </Button>
-                  {order.status === "waiting" && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleCancelOrder(order.id)}
-                      disabled={cancellingId === order.id}
-                    >
-                      {cancellingId === order.id ? (
-                        <>
-                          <IconLoader2 className="mr-1.5 size-4 animate-spin" /> Membatalkan...
-                        </>
-                      ) : (
-                        <>
-                          <IconX className="size-4 mr-1.5" /> Batalkan
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
-      </main>
+                </div>
+              </CardHeader>
 
-      {/* Details Modal */}
+              <CardContent className="pb-3 flex flex-wrap gap-4 items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <IconClock className="size-4" />
+                  <span>
+                    Estimasi Waktu Proses (ECT):{" "}
+                    <strong>{order.ewp} menit</strong>
+                  </span>
+                </div>
+                <div className="text-sm">
+                  Status Bayar:{" "}
+                  {order.payment_status === "paid" ? (
+                    <span className="text-emerald-600 font-semibold">Sudah Lunas</span>
+                  ) : (
+                    <span className="text-rose-500 font-semibold">Belum Dibayar</span>
+                  )}
+                </div>
+              </CardContent>
+
+              <CardFooter className="pt-3 border-t border-border/50 flex gap-2 justify-end bg-muted/5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedOrder(order)
+                    setDetailsOpen(true)
+                  }}
+                >
+                  <IconEye className="size-4 mr-1.5" /> Detail
+                </Button>
+                {order.status === "waiting" && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleCancelOrder(order.id)}
+                    disabled={cancellingId === order.id}
+                  >
+                    {cancellingId === order.id ? (
+                      <>
+                        <IconLoader2 className="mr-1.5 size-4 animate-spin" />
+                        Membatalkan...
+                      </>
+                    ) : (
+                      <>
+                        <IconX className="size-4 mr-1.5" /> Batalkan
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* ── Details Modal ── */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -310,7 +338,9 @@ export default function CustomerOrdersPage() {
                   <TableBody>
                     {selectedOrder.order_items.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.products?.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.products?.name}
+                        </TableCell>
                         <TableCell className="text-right">
                           {item.quantity} {item.products?.unit || "pcs"}
                         </TableCell>

@@ -135,18 +135,19 @@ export default function LandingPage() {
                   </p>
                   <p className="text-xs font-semibold">{profileName}</p>
                 </div>
-                <Button variant="outline" size="sm" asChild className="h-8 text-xs font-semibold">
-                  <Link href="/customer/orders">
-                    <IconHistory className="size-3.5 mr-1" /> <span className="hidden sm:inline">Pesanan Saya</span>
-                  </Link>
-                </Button>
-                {userRole === "admin" || userRole === "cashier" ? (
+                {userRole === "customer" ? (
                   <Button variant="outline" size="sm" asChild className="h-8 text-xs font-semibold">
-                    <Link href="/dashboard">
-                      <IconDashboard className="size-3.5 mr-1" /> <span className="hidden sm:inline">Dashboard</span>
+                    <Link href="/customer/shop">
+                      <IconDashboard className="size-3.5 mr-1" /> <span>Katalog Belanja</span>
                     </Link>
                   </Button>
-                ) : null}
+                ) : (
+                  <Button variant="outline" size="sm" asChild className="h-8 text-xs font-semibold">
+                    <Link href="/dashboard">
+                      <IconDashboard className="size-3.5 mr-1" /> <span>Dashboard</span>
+                    </Link>
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={handleLogout} className="h-8 text-xs">
                   <IconLogout className="size-3.5 sm:mr-1" /> <span className="hidden sm:inline">Keluar</span>
                 </Button>

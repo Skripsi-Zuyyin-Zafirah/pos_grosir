@@ -50,10 +50,14 @@ function LoginForm() {
 
       const role = profile?.role || "customer"
 
-      if (role === "admin" || role === "cashier") {
+      if (role === "admin" || role === "cashier" || role === "staff" || role === "warehouse") {
         router.push("/dashboard")
       } else {
-        router.push(next)
+        if (next === "/") {
+          router.push("/customer/shop")
+        } else {
+          router.push(next)
+        }
       }
       router.refresh()
     } catch (err: any) {

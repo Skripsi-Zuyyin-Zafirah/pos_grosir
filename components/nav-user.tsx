@@ -92,7 +92,7 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")} className="cursor-pointer">
+            <DropdownMenuItem onClick={() => router.push("/profile")} className="cursor-pointer">
               <IconUser className="size-4" />
               Profil Saya
             </DropdownMenuItem>
