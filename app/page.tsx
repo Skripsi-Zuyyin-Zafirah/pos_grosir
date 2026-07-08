@@ -10,16 +10,17 @@ import { toast } from "sonner"
 import {
   IconDashboard,
   IconLogout,
-  IconHistory,
   IconSparkles,
   IconArrowRight,
-  IconCpu,
-  IconChartBar,
-  IconBolt,
+  IconPackage,
+  IconRocket,
+  IconMapPin,
+  IconCreditCard,
+  IconShoppingCart,
+  IconClipboardList,
+  IconBuildingStore,
   IconUserPlus,
   IconLogin2,
-  IconListCheck,
-  IconShieldCheck,
 } from "@tabler/icons-react"
 
 export default function LandingPage() {
@@ -67,42 +68,42 @@ export default function LandingPage() {
 
   const steps = [
     {
-      icon: IconUserPlus,
-      title: "Masuk ke Akun Anda",
-      desc: "Login menggunakan akun pelanggan, kasir, atau admin untuk mengakses sistem sesuai peran masing-masing.",
+      icon: IconShoppingCart,
+      title: "Pilih Produk",
+      desc: "Browse katalog produk kami dan lihat stok yang tersedia secara real-time. Tambahkan barang yang Anda butuhkan ke keranjang.",
     },
     {
-      icon: IconListCheck,
-      title: "Pesanan Tercatat Otomatis",
-      desc: "Setiap transaksi yang diproses kasir langsung masuk ke antrian gudang secara real-time.",
+      icon: IconClipboardList,
+      title: "Buat Pesanan",
+      desc: "Checkout pesanan Anda dan sistem akan menghitung total harga secara otomatis. Pesanan langsung masuk ke antrian pemrosesan.",
     },
     {
-      icon: IconBolt,
-      title: "Antrian Disusun Cerdas",
-      desc: "Algoritma SJF dengan Anti-Starvation Aging menyusun prioritas pengemasan berdasarkan estimasi waktu kemas (ECT).",
+      icon: IconBuildingStore,
+      title: "Ambil di Toko",
+      desc: "Pantau status pesanan Anda secara real-time. Setelah status \"Siap Diambil\", datang ke toko dan tunjukkan nomor pesanan Anda!",
     },
   ]
 
   const features = [
     {
-      icon: IconCpu,
-      title: "Algoritma Min-Heap",
-      desc: "Penyusunan antrean terurut instan O(log n) yang selalu memprioritaskan pesanan efisien dengan parameter aging.",
+      icon: IconPackage,
+      title: "Stok Real-Time",
+      desc: "Lihat ketersediaan barang secara langsung sebelum memesan. Tidak perlu datang ke toko untuk cek stok!",
     },
     {
-      icon: IconBolt,
-      title: "Estimasi ECT & EWP",
-      desc: "Perhitungan otomatis sisa waktu tunggu berdasarkan jumlah SKU, total barang, dan berat fisik kiriman.",
+      icon: IconRocket,
+      title: "Pesanan Cepat Diproses",
+      desc: "Sistem antrian cerdas memastikan pesanan Anda diproses lebih cepat berdasarkan jumlah item yang dipesan.",
     },
     {
-      icon: IconChartBar,
-      title: "Evaluasi FIFO vs PQ",
-      desc: "Grafik performa langsung membandingkan efisiensi antrean, sensitivitas parameter, dan simulasi beban acak.",
+      icon: IconMapPin,
+      title: "Tracking Pesanan",
+      desc: "Pantau status pesanan Anda secara real-time: dari diproses, dikemas, hingga siap diambil.",
     },
     {
-      icon: IconShieldCheck,
-      title: "Anti-Starvation Aging",
-      desc: "Pesanan lama otomatis naik prioritas seiring waktu, memastikan tidak ada pesanan yang terlantar di antrian.",
+      icon: IconCreditCard,
+      title: "Pembayaran Fleksibel",
+      desc: "Bayar langsung di toko atau transfer online. Pilih metode yang paling mudah untuk Anda!",
     },
   ]
 
@@ -170,17 +171,17 @@ export default function LandingPage() {
       <section className="relative pt-20 pb-16 md:pt-28 md:pb-24 overflow-hidden border-b border-border/30">
         <div className="container mx-auto px-4 flex flex-col items-center text-center space-y-6 max-w-4xl">
           <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary font-bold px-3 py-1 text-xs gap-1.5 rounded-full shadow-sm">
-            <IconSparkles className="size-3.5 animate-spin" /> Next-Gen Priority Queue System
+            <IconSparkles className="size-3.5 animate-spin" /> 🛒 Grosir Jasa
           </Badge>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.1] text-foreground">
-            Optimasi Antrean Gudang <br className="hidden sm:inline" />
-            Secara <span className="bg-gradient-to-r from-primary via-chart-2 to-chart-3 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient-x">Cerdas & Real-Time</span>
+            Belanja Grosir Jadi <br className="hidden sm:inline" />
+            <span className="bg-gradient-to-r from-primary via-chart-2 to-chart-3 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient-x">Lebih Mudah & Cepat!</span>
           </h1>
 
           <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl leading-relaxed">
-            Sistem POS Grosir pintar yang menyusun antrian gudang secara dinamis menggunakan algoritma
-            <strong> Shortest Job First (SJF) dengan Anti-Starvation Aging</strong> berbasis estimasi waktu kemas (ECT).
+            Pesan dari rumah, lihat stok real-time, dan ambil pesanan Anda tanpa menunggu lama.
+            <strong> Sistem antrian cerdas</strong> memastikan pesanan Anda diproses lebih cepat!
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-4 justify-center w-full max-w-md">
@@ -197,11 +198,6 @@ export default function LandingPage() {
                 </Link>
               </Button>
             )}
-            <Button variant="outline" size="lg" asChild className="font-bold border-border/50 text-sm h-11">
-              <Link href="/login">
-                <IconLogin2 className="size-4 mr-1" /> Masuk Dashboard
-              </Link>
-            </Button>
           </div>
 
           {/* Bento-style Features widgets */}
@@ -232,11 +228,11 @@ export default function LandingPage() {
       <section className="container mx-auto px-4 py-20">
         <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
           <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary font-bold px-3 py-1 text-xs rounded-full">
-            Alur Sistem
+            Cara Belanja
           </Badge>
-          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Bagaimana Cara Kerjanya?</h2>
+          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Cara Belanja di Grosir Jasa</h2>
           <p className="text-muted-foreground text-sm">
-            Tiga langkah sederhana dari pesanan masuk hingga antrian gudang tersusun otomatis.
+            Tiga langkah mudah dari rumah hingga barang siap diambil!
           </p>
         </div>
 
@@ -263,10 +259,10 @@ export default function LandingPage() {
         <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-chart-2/10 p-10 md:p-14 text-center space-y-5">
           <div className="absolute -top-20 -right-20 size-64 bg-primary/20 blur-[100px] rounded-full -z-10" />
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-            Siap Mengoptimalkan Antrian Gudang Anda?
+            🛒 Belanja Grosir Jadi Lebih Mudah!
           </h2>
           <p className="text-muted-foreground text-sm max-w-xl mx-auto">
-            Bergabung sekarang dan rasakan efisiensi pengelolaan antrian gudang berbasis prioritas cerdas.
+            Pesan dari rumah, lihat stok real-time, ambil langsung di toko tanpa antri lama.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             {!user && (
@@ -282,9 +278,14 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/40 bg-background/50 backdrop-blur-md py-8 mt-auto">
-        <div className="container mx-auto px-4 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} POS Grosir Jasa. Dibuat dengan Gaya MagicUI untuk Keperluan Evaluasi & Skripsi.
+      <footer className="border-t border-border/40 bg-background/50 backdrop-blur-md py-10 mt-auto">
+        <div className="container mx-auto px-4 text-center space-y-2">
+          <p className="text-sm font-semibold text-foreground">© {new Date().getFullYear()} Grosir Jasa. Semua hak dilindungi.</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-xs text-muted-foreground">
+            <span>📍 Lokasi: Aceh Timur</span>
+            <span>📞 <a href="tel:082275237151" className="hover:text-primary transition-colors">082275237151</a></span>
+            <span>📧 <a href="mailto:zuyyinzafirah9@gmail.com" className="hover:text-primary transition-colors">zuyyinzafirah9@gmail.com</a></span>
+          </div>
         </div>
       </footer>
     </div>
