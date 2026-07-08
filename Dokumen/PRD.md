@@ -1,263 +1,228 @@
 # Product Requirements Document (PRD)
 ## Rancang Bangun Sistem Point of Sale Grosir dengan Penerapan Priority Queue pada Antrian Pesanan
-**Studi Kasus: Grosir Jasa**
+**Studi Kasus: Grosir Jasa (Aceh Timur)**
 
 | | |
 |---|---|
-| **Versi** | 1.0 |
-| **Tanggal** | Juni 2026 |
-| **Penyusun** | Kholis — Parzello Tech |
-| **Stack** | Next.js (App Router) + shadcn/ui + Supabase (Postgres, Auth, Realtime, Storage) |
-| **Algoritma Inti** | Priority Queue (min-heap) dengan kaidah *Shortest Job First* / *Shortest Processing Time* |
+| **Versi** | 2.0 (revisi — disesuaikan dengan skripsi) |
+| **Tanggal** | Juli 2026 |
+| **Penyusun** | Zuyyin Zafirah |
+| **Stack** | Next.js 15+ (App Router) + Tailwind CSS + shadcn/ui + Supabase (PostgreSQL, Auth, Realtime) + React Context/Zustand |
+| **Algoritma Inti** | Priority Queue (Min-Heap) dengan model estimasi **EWP** (Estimasi Waktu Proses) khas grosir, bukan SJF klasik dengan *exponential averaging* |
 
 ---
 
 ## 1. Ringkasan Eksekutif
 
-Sistem ini adalah aplikasi Point of Sale (POS) berbasis web untuk usaha grosir yang melayani pemesanan dalam volume. Permasalahan khas grosir adalah banyaknya pesanan masuk secara bersamaan, sementara pemrosesan di gudang terbatas. Bila pesanan diproses berdasarkan urutan kedatangan (FIFO) saja, pesanan ringan yang sebenarnya bisa cepat selesai justru tertahan di belakang pesanan besar, sehingga rata-rata waktu tunggu seluruh pelanggan membengkak.
+Sistem ini adalah aplikasi Point of Sale (POS) berbasis web untuk Grosir Jasa di Aceh Timur. Saat ini pemesanan masih manual: pembeli datang ke toko, menulis daftar belanja di kertas, dan menyerahkannya ke salah satu dari **empat pegawai** tanpa mekanisme distribusi yang formal. Akibatnya distribusi beban kerja antar pegawai tidak merata dan pembeli tidak bisa mengecek stok sebelum datang.
 
-Sistem menerapkan **Priority Queue** dengan kaidah **Shortest Job First (SJF)**: pesanan dengan **estimasi waktu penyelesaian tercepat** didahulukan. Pendekatan ini secara teoretis meminimalkan rata-rata waktu tunggu (*mean flow time*) pada satu titik pemrosesan, dan menjadi kontribusi utama yang akan diuji secara empiris dengan membandingkannya terhadap skema FIFO.
+Sistem menerapkan **Priority Queue berbasis Min-Heap** dengan nilai prioritas berupa **Estimasi Waktu Proses (EWP)**: pesanan dengan EWP terkecil diproses lebih dulu. Bila dua pesanan memiliki EWP yang sama, **waktu kedatangan (arrival time)** dipakai sebagai penyeimbang keadilan (tie-breaker). Begitu dihitung, sistem **secara otomatis** mendistribusikan pesanan ke salah satu dari empat pegawai yang sedang **idle** — model ini disebut **Single Queue Multiple Server (SQMS)**.
 
-Pelanggan dapat memesan mandiri (self-order), pesanan otomatis masuk ke antrian prioritas, lalu kasir memproses pesanan sesuai urutan prioritas hingga menyelesaikan pembayaran.
+Pembeli memesan mandiri (self-order) dari perangkat mobile, pesanan otomatis masuk ke Min-Heap, pegawai idle menerima dan menyiapkan barang secara fisik, dan kasir memantau dasbor antrian, mencetak struk, serta mengonfirmasi pembayaran.
 
 ---
 
 ## 2. Latar Belakang & Pernyataan Masalah
 
-Pada Grosir Jasa, pesanan diterima dari banyak pelanggan dengan karakteristik berbeda — ada yang hanya beberapa item dan stok tersedia, ada yang puluhan jenis barang dengan kuantitas besar. Tanpa pengaturan urutan yang cerdas:
+Pada Grosir Jasa, pesanan diterima dari banyak pembeli dengan karakteristik berbeda — ada yang hanya beberapa item, ada yang puluhan jenis barang dalam kuantitas besar. Tanpa mekanisme pengaturan yang formal:
 
-- Pesanan kecil dan cepat selesai menunggu lama di belakang pesanan besar.
-- Rata-rata waktu tunggu seluruh pelanggan meningkat, menurunkan kepuasan.
-- Staf gudang tidak punya panduan urutan kerja yang objektif.
-- Tidak ada visibilitas real-time atas status pesanan untuk pelanggan maupun pengelola.
+- Distribusi pesanan ke empat pegawai bergantung pada penilaian subjektif pembeli/pegawai sendiri, bukan sistem.
+- Pembagian beban kerja antar pegawai tidak merata; ada pegawai yang idle sementara yang lain menumpuk pesanan besar.
+- Pembeli tidak dapat mengetahui ketersediaan stok sebelum datang ke toko.
+- Tidak ada laporan penjualan terstruktur untuk pengambilan keputusan pemilik usaha.
 
-**Hipotesis solusi:** dengan memprioritaskan pesanan berestimasi tercepat (SJF), throughput dan rata-rata waktu tunggu membaik dibanding FIFO, tanpa mengorbankan keadilan secara berlebihan (ditangani lewat mekanisme *aging*/anti-starvation).
+**Hipotesis penelitian:** penerapan Priority Queue berbasis Min-Heap dengan kriteria EWP dan waktu kedatangan mampu mendistribusikan pesanan secara otomatis dan efisien ke empat pegawai, sehingga tidak ada pegawai yang menganggur selama masih ada pesanan dalam antrian.
 
 ---
 
-## 3. Tujuan & Metrik Keberhasilan
+## 3. Tujuan & Ruang Lingkup Pengujian
 
 ### 3.1 Tujuan Produk
-1. Menyediakan POS grosir lengkap: kasir, inventori, pelanggan, dan laporan.
-2. Mengimplementasikan Priority Queue berbasis SJF untuk pengurutan pemrosesan pesanan.
-3. Memberi visibilitas real-time status antrian dan pesanan ke semua peran.
-4. Menyediakan data terukur untuk membandingkan kinerja FIFO vs Priority Queue.
+1. Menyediakan POS grosir berbasis web: pemesanan digital, manajemen stok, pembayaran, dan laporan.
+2. Mengimplementasikan Priority Queue berbasis Min-Heap dengan kriteria EWP + waktu kedatangan sebagai tie-breaker.
+3. Mendistribusikan pesanan secara otomatis ke pegawai idle melalui model Single Queue Multiple Server (empat pegawai).
+4. Memberi visibilitas real-time atas status pesanan dan ketersediaan pegawai (idle/sibuk) kepada kasir.
 
-### 3.2 Metrik Keberhasilan
+### 3.2 Metode Pengujian
+Pengujian sistem menggunakan **Black Box Testing** untuk memvalidasi seluruh fungsionalitas sesuai spesifikasi (F-01–F-14), ditambah **verifikasi manual** terhadap kebenaran logika algoritma Min-Heap (insert/extract-min) dan perhitungan EWP.
 
-| Metrik | Target |
-|---|---|
-| Rata-rata waktu tunggu pesanan (Priority Queue vs FIFO) | Penurunan ≥ 20% pada beban simulasi |
-| Akurasi estimasi waktu penyelesaian vs aktual | Deviasi rata-rata ≤ 25% |
-| Operasi enqueue/dequeue antrian | O(log n), respons < 200 ms |
-| Latensi pembaruan papan antrian real-time | < 1 detik |
-| Tidak ada pesanan "kelaparan" (starvation) | 0 pesanan menunggu di atas ambang batas waktu maksimum |
+> Catatan: penelitian ini **tidak** membandingkan performa FIFO vs Priority Queue secara empiris, dan **tidak** menyediakan mode switch FIFO/Priority — fokus pembuktian ada pada kebenaran algoritma dan otomatisasi distribusi ke pegawai.
 
 ---
 
 ## 4. Lingkup (Scope)
 
-### 4.1 Termasuk (In-Scope)
-- Autentikasi & manajemen peran (Pelanggan, Kasir, Staf Gudang, Admin/Owner).
-- Katalog produk & manajemen inventori (stok, lokasi, *reorder level*).
-- Pemesanan mandiri oleh pelanggan (self-order).
-- Mesin Priority Queue (SJF) dengan estimasi waktu penyelesaian + anti-starvation.
-- Papan antrian real-time untuk kasir.
-- Pemrosesan pesanan oleh kasir (picking, packing, perubahan status).
-- Kasir & pembayaran (tunai/transfer/QRIS — pencatatan).
-- Dashboard & laporan (penjualan, inventori, kinerja antrian).
-- Modul evaluasi: log waktu tunggu untuk perbandingan FIFO vs Priority Queue.
+### 4.1 Termasuk (In-Scope) — sesuai Batasan Masalah BAB I
+- Registrasi akun untuk pembeli & login untuk seluruh pengguna (pembeli, kasir, admin).
+- Katalog produk & ketersediaan stok real-time untuk pembeli.
+- Pemesanan mandiri (self-order) oleh pembeli via browser di perangkat mobile.
+- Perhitungan estimasi total harga otomatis.
+- Mesin Priority Queue (Min-Heap) berbasis EWP + tie-breaker waktu kedatangan.
+- Distribusi otomatis pesanan ke pegawai idle (Single Queue Multiple Server, 4 pegawai).
+- Dasbor antrian real-time untuk kasir (urutan prioritas, EWP, status idle/sibuk pegawai).
+- Pencetakan struk pesanan oleh kasir (untuk diserahkan ke pegawai sebagai panduan kerja).
+- Konfirmasi pembayaran oleh kasir (tunai maupun online) — pembeli mengambil barang sendiri, **tanpa fitur pengiriman**.
+- Pembaruan stok otomatis saat pesanan dikonfirmasi selesai.
+- Manajemen produk & pengguna oleh admin.
+- Laporan penjualan dalam bentuk **visualisasi grafik bulanan** dan **produk terlaris**.
 
-### 4.2 Tidak Termasuk (Out-of-Scope) — versi ini
+### 4.2 Tidak Termasuk (Out-of-Scope)
 - Multi-cabang / multi-gudang.
-- Integrasi *payment gateway* otomatis (hanya pencatatan manual + opsi QRIS statis).
+- Fitur pengiriman/delivery — pembeli wajib mengambil barang sendiri ke toko.
+- Login/hak akses untuk pegawai — pegawai hanya entitas fisik yang dilacak sistem (status idle/sibuk), bukan pengguna sistem.
+- Mode perbandingan FIFO vs Priority Queue.
+- Mekanisme *aging*/anti-starvation kontinu — keadilan hanya lewat tie-breaking waktu kedatangan saat EWP sama.
+- Parameter EWP yang dapat dikonfigurasi admin — waktu pengambilan per jenis barang bersifat **tetap/konstan** hasil observasi lapangan.
+- Integrasi payment gateway otomatis, tabel pembayaran terpisah, atau metode transfer/QRIS granular — cukup pencatatan tunai/online pada pesanan.
 - Aplikasi mobile native (web responsif saja).
 - Integrasi akuntansi/pajak eksternal.
-- Pengiriman/logistik pihak ketiga.
 
 ---
 
 ## 5. Persona & Peran Pengguna
 
+Sistem memiliki **tiga level pengguna** (bukan empat — pegawai bukan pengguna sistem).
+
 | Peran | Deskripsi | Akses Utama |
 |---|---|---|
-| **Pelanggan** | Pembeli grosir yang memesan mandiri | Lihat katalog, buat pesanan, pantau status pesanan sendiri |
-| **Kasir** | Memproses pesanan dari antrian sekaligus menyelesaikan pembayaran | Papan antrian prioritas, ubah status (proses/siap), penyesuaian stok saat picking, proses pembayaran, cetak/struk |
-| **Admin/Owner** | Pengelola penuh sistem | Semua modul: produk, inventori, pengguna, parameter antrian, laporan + seluruh akses Kasir |
+| **Pembeli (Customer)** | Registrasi & login, melihat katalog dan stok real-time, membuat & mengonfirmasi pesanan digital dari perangkat mobile | Katalog, buat pesanan, pantau status pesanan sendiri secara real-time |
+| **Kasir** | Menerima pesanan masuk, memantau dasbor antrian yang sudah terurut prioritas, mencetak struk, mengonfirmasi pembayaran | Dasbor antrian real-time (urutan prioritas, EWP, status idle/sibuk pegawai), cetak struk, konfirmasi pembayaran |
+| **Admin** | Pengelola penuh sistem | Kelola data produk & stok, kelola akun pengguna (kasir, pembeli), lihat & unduh laporan penjualan |
+
+**Pegawai (4 orang):** bukan peran login. Entitas ini dilacak lewat tabel `staff` (nama + status idle/sibuk) dan menerima penugasan pesanan secara otomatis dari sistem berdasarkan Min-Heap. Tugasnya murni fisik: menyiapkan barang berdasarkan struk yang dicetak kasir.
 
 ---
 
 ## 6. Alur Pengguna Utama (User Flows)
 
-### 6.1 Alur Inti: Pesanan → Antrian → Gudang → Kasir
-1. **Pelanggan** memilih produk, menentukan kuantitas, dan mengirim pesanan.
-2. Sistem memvalidasi ketersediaan stok dan menghitung **Estimasi Waktu Penyelesaian (ECT)**.
-3. Pesanan masuk **Priority Queue** dengan kunci prioritas = ECT (kecil = didahulukan).
-4. **Kasir** melihat papan antrian terurut prioritas; mengambil pesanan teratas → status `DIPROSES`.
-5. Kasir melakukan picking & packing; stok dikurangi; status → `SIAP`.
-6. **Kasir** memproses pembayaran pesanan `SIAP` → status `SELESAI`.
-7. **Pelanggan** menerima notifikasi real-time pada tiap perubahan status.
+### 6.1 Alur Inti: Pesanan → Min-Heap → Distribusi Otomatis → Kasir
+1. **Pembeli** memilih produk, menentukan kuantitas per item, dan mengonfirmasi pesanan.
+2. Sistem menghitung **estimasi total harga** dan **EWP** (lihat Bagian 8) secara otomatis.
+3. Pesanan dimasukkan ke **Min-Heap** dengan kunci prioritas = EWP (nilai terkecil = prioritas tertinggi).
+4. Sistem mengecek pegawai yang berstatus **idle**; pesanan dengan EWP terkecil (elemen akar heap) **otomatis didistribusikan** ke pegawai idle tersebut (Single Queue Multiple Server) — status pegawai berubah menjadi **sibuk**.
+5. **Kasir** melihat dasbor antrian real-time dan mencetak struk pesanan (berisi item, jumlah, estimasi harga, nama pegawai bertugas) untuk diserahkan ke pegawai.
+6. Pegawai menyiapkan barang secara fisik berdasarkan struk.
+7. **Kasir** mengonfirmasi pembayaran (tunai/online) setelah barang diserahkan → status pesanan menjadi **selesai**, stok produk diperbarui otomatis, status pegawai kembali menjadi **idle**.
+8. **Pembeli** memantau status pesanannya secara real-time di sepanjang alur ini.
 
-### 6.2 Alur Anti-Starvation (Aging)
-- Setiap interval (mis. tiap menit), skor prioritas efektif pesanan yang menunggu lama diturunkan (dibuat lebih mendesak), sehingga pesanan besar tidak tertahan tanpa batas.
+### 6.2 Tie-Breaking (Bukan Aging)
+Jika dua pesanan atau lebih memiliki nilai EWP yang **sama persis**, sistem menggunakan **waktu kedatangan (`created_at`)** sebagai penyeimbang keadilan — pesanan yang datang lebih dulu diprioritaskan. Tidak ada mekanisme penurunan skor prioritas secara berkala (aging).
 
 ### 6.3 Alur Admin
-- Mengatur produk/stok, mengelola pengguna, **mengonfigurasi parameter ECT** (waktu dasar, waktu per-SKU, waktu per-unit, laju aging), dan meninjau laporan kinerja antrian.
+- Mengelola data produk (tambah, ubah, hapus, perbarui stok) dan data pengguna (kasir, pembeli).
+- Melihat dan mengunduh laporan penjualan (visualisasi grafik bulanan + produk terlaris).
 
 ---
 
 ## 7. Kebutuhan Fungsional
 
-Notasi ID: `FR-[MODUL]-[NO]`.
+Notasi ID mengikuti dokumen skripsi: `F-[NO]`.
 
-### 7.1 Autentikasi & Manajemen Pengguna
-- **FR-AUTH-01** Sistem mendukung registrasi & login via Supabase Auth (email/password).
-- **FR-AUTH-02** Setiap pengguna memiliki satu peran tersimpan di `profiles.role`.
-- **FR-AUTH-03** Otorisasi berbasis peran (RBAC) ditegakkan di UI dan di basis data via Row Level Security (RLS).
-- **FR-AUTH-04** Admin dapat membuat/menonaktifkan akun kasir.
+| Kode | Deskripsi | Aktor |
+|---|---|---|
+| **F-01** | Registrasi akun untuk pembeli; login untuk seluruh pengguna (pembeli, kasir, admin) dengan validasi username & password | Pembeli, Kasir, Admin |
+| **F-02** | Katalog produk lengkap dengan harga satuan dan ketersediaan stok real-time | Pembeli |
+| **F-03** | Pemesanan digital melalui browser di perangkat mobile tanpa harus datang ke toko | Pembeli |
+| **F-04** | Perhitungan estimasi total harga pesanan otomatis | Sistem (Otomatis) |
+| **F-05** | Perhitungan **EWP** setiap pesanan secara otomatis: EWP = Σ(Qᵢ × Wᵢ) | Sistem (Otomatis) |
+| **F-06** | Pengelolaan antrian pesanan menggunakan **Min-Heap** — pesanan EWP terkecil selalu di posisi teratas | Sistem (Otomatis) |
+| **F-07** | Distribusi pesanan otomatis ke pegawai idle berdasarkan urutan prioritas Min-Heap (Single Queue Multiple Server, 4 pegawai) | Sistem (Otomatis) |
+| **F-08** | Dasbor antrian real-time untuk kasir: urutan prioritas, nilai EWP, status idle/sibuk pegawai | Kasir |
+| **F-09** | Pencetakan struk pesanan (item, jumlah, estimasi harga, nama pegawai bertugas) | Kasir |
+| **F-10** | Konfirmasi pembayaran (tunai/online); status pesanan → selesai, stok diperbarui, pegawai kembali idle | Kasir |
+| **F-11** | Pengelolaan data produk penuh: tambah, ubah (nama/harga/kategori), hapus, perbarui stok | Admin |
+| **F-12** | Pengelolaan data pengguna: tambah akun kasir, ubah data pengguna, nonaktifkan/hapus akun pembeli | Admin |
+| **F-13** | Lihat & unduh laporan penjualan (visualisasi grafik bulanan, produk terlaris) | Admin |
+| **F-14** | Pembaruan stok otomatis saat pesanan dikonfirmasi selesai oleh kasir | Sistem (Otomatis) |
 
-### 7.2 Katalog Produk & Inventori
-- **FR-INV-01** CRUD produk: SKU, nama, kategori, harga grosir, satuan, berat, foto.
-- **FR-INV-02** Pencatatan stok per produk, lokasi rak, dan *reorder level*.
-- **FR-INV-03** Stok berkurang otomatis saat pesanan diproses (picking) dan tercatat di *stock movement*.
-- **FR-INV-04** Notifikasi/penanda stok rendah saat ≤ *reorder level*.
-- **FR-INV-05** Validasi ketersediaan stok saat pesanan dibuat.
-
-### 7.3 Pelanggan & Self-Order
-- **FR-CUST-01** Pelanggan melihat katalog produk beserta ketersediaan stok.
-- **FR-CUST-02** Pelanggan menambah item ke keranjang dan mengirim pesanan.
-- **FR-CUST-03** Pelanggan memantau status pesanannya secara real-time.
-- **FR-CUST-04** Pelanggan melihat riwayat pesanan sendiri.
-- **FR-CUST-05** Pelanggan dapat membatalkan pesanan selama status masih `ANTRI`.
-
-### 7.4 Antrian Prioritas (Modul Inti)
-- **FR-PQ-01** Saat pesanan dibuat, sistem menghitung **ECT** berdasarkan model estimasi (lihat Bagian 8).
-- **FR-PQ-02** Pesanan dimasukkan ke Priority Queue (min-heap) dengan kunci prioritas = skor prioritas (ECT).
-- **FR-PQ-03** Operasi `enqueue` dan `extract-min` berjalan dalam kompleksitas O(log n).
-- **FR-PQ-04** Mekanisme **aging**: skor prioritas efektif diturunkan seiring lama menunggu untuk mencegah starvation.
-- **FR-PQ-05** Papan antrian menampilkan urutan pemrosesan terkini secara real-time.
-- **FR-PQ-06** Setiap operasi enqueue/dequeue mencatat *timestamp* untuk perhitungan waktu tunggu (evaluasi).
-- **FR-PQ-07** Admin dapat memilih mode pengurutan (Priority Queue / FIFO) untuk keperluan perbandingan/pengujian.
-
-### 7.5 Pemrosesan Pesanan (oleh Kasir)
-- **FR-WH-01** Kasir melihat antrian terurut prioritas (papan real-time).
-- **FR-WH-02** Kasir mengambil pesanan teratas → status `DIPROSES` (dequeue).
-- **FR-WH-03** Kasir menandai item ter-picking; sistem menyesuaikan stok.
-- **FR-WH-04** Kasir menandai pesanan `SIAP` setelah packing selesai.
-- **FR-WH-05** Sistem mencatat waktu aktual pemrosesan (untuk mengukur akurasi ECT).
-
-### 7.6 Kasir & Pembayaran
-- **FR-POS-01** Kasir melihat daftar pesanan berstatus `SIAP`.
-- **FR-POS-02** Kasir memilih metode pembayaran (tunai/transfer/QRIS) dan mencatat pembayaran.
-- **FR-POS-03** Sistem menghitung total, kembalian (tunai), dan menerbitkan struk/ringkasan.
-- **FR-POS-04** Status pesanan → `SELESAI` setelah pembayaran lunas tercatat.
-
-### 7.7 Dashboard & Laporan
-- **FR-RPT-01** Dashboard ringkas: pesanan hari ini, pendapatan, panjang antrian, stok rendah.
-- **FR-RPT-02** Laporan penjualan per periode (harian/mingguan/bulanan) dengan ekspor CSV.
-- **FR-RPT-03** Laporan inventori & pergerakan stok.
-- **FR-RPT-04** **Laporan kinerja antrian**: rata-rata waktu tunggu, perbandingan FIFO vs Priority Queue, distribusi waktu tunggu.
+**Kebutuhan fungsional inti (kontribusi utama penelitian):** F-05, F-06, F-07 — memastikan EWP dihitung deterministik dari data observasi lapangan, antrian dikelola dengan Min-Heap O(log n), dan distribusi ke empat pegawai berjalan otomatis tanpa intervensi manual kasir.
 
 ---
 
 ## 8. Desain Algoritma Priority Queue (Inti Akademik)
 
-### 8.1 Kaidah Prioritas
-Kaidah yang digunakan adalah **Shortest Job First (SJF)** / **Shortest Processing Time (SPT)**: pesanan dengan estimasi waktu penyelesaian terkecil diproses lebih dulu. Secara teori penjadwalan, SPT meminimalkan **rata-rata waktu penyelesaian (mean flow time)** pada satu mesin/titik pemrosesan.
+### 8.1 Pendekatan
+Penelitian ini **tidak mengimplementasikan SJF klasik secara langsung** (yang biasanya memakai *exponential averaging* untuk estimasi *burst time* pada beban kerja berulang). Karena karakteristik pesanan grosir heterogen dan tidak berulang, EWP dihitung **deterministik** berdasarkan data observasi lapangan.
 
-### 8.2 Model Estimasi Waktu Penyelesaian (ECT)
-ECT setiap pesanan dihitung sebagai:
+### 8.2 Model Estimasi Waktu Proses (EWP)
 
-```
-ECT = T_base
-      + (t_pick × jumlah_SKU_distinct)
-      + (t_pack × total_kuantitas × faktor_berat)
-      + penalti_ketersediaan
-```
+$$EWP = \sum_{i=1}^{n} (Q_i \times W_i)$$
 
-| Parameter | Keterangan | Nilai default (dapat dikonfigurasi Admin) |
-|---|---|---|
-| `T_base` | Overhead administrasi/verifikasi per pesanan | 2 menit |
-| `t_pick` | Waktu ambil per jenis barang (SKU) | 1.5 menit/SKU |
-| `t_pack` | Waktu kemas per unit | 0.2 menit/unit |
-| `faktor_berat` | Pengali untuk barang berat/bulky (khas grosir) | 1.0–1.5 |
-| `penalti_ketersediaan` | Penalti bila ada item stok kritis/partial | 0 atau besar |
+| Simbol | Keterangan |
+|---|---|
+| `EWP` | Estimasi Waktu Proses total pesanan (dalam detik) |
+| `n` | Jumlah jenis barang berbeda dalam satu pesanan |
+| `Qᵢ` | Kuantitas dari jenis barang ke-i |
+| `Wᵢ` | Waktu pengambilan spesifik jenis barang ke-i, hasil observasi langsung di Grosir Jasa (dalam detik) |
 
-Parameter dibuat **konfigurabel** agar bisa dilakukan analisis sensitivitas pada bab pengujian.
+`Wᵢ` **bersifat tetap/konstan** selama sistem berjalan (nilai hasil observasi lapangan, bukan parameter yang dikonfigurasi admin melalui UI).
 
 ### 8.3 Struktur Data: Min-Heap
-Priority Queue diimplementasikan sebagai **binary min-heap** di lapisan aplikasi (modul layanan TypeScript), dengan basis data sebagai persistensi:
+Priority Queue diimplementasikan sebagai **binary min-heap** (representasi array) di lapisan aplikasi:
 
-| Operasi | Kompleksitas |
-|---|---|
-| `enqueue` (insert) | O(log n) |
-| `extract-min` (dequeue prioritas tertinggi) | O(log n) |
-| `peek` | O(1) |
-| Membangun ulang heap dari DB | O(n) |
+| Operasi | Kompleksitas | Keterangan |
+|---|---|---|
+| `insert` (heapify-up) | O(log n) | Tambah elemen baru ke posisi terakhir, lalu *bubble up* |
+| `extract-min` (heapify-down) | O(log n) | Ambil elemen akar (EWP terkecil), lalu *trickle down* |
+| `peek` | O(1) | Lihat elemen prioritas tertinggi tanpa menghapus |
 
-Kunci prioritas = **skor prioritas efektif** (lihat aging). Nilai terkecil keluar lebih dulu.
+Kunci prioritas = nilai `EWP`. Nilai terkecil keluar (didistribusikan) lebih dulu.
 
-### 8.4 Anti-Starvation (Aging)
-Agar pesanan besar (ECT tinggi) tidak menunggu selamanya:
+### 8.4 Tie-Breaking (Bukan Anti-Starvation/Aging)
+Jika dua pesanan memiliki `EWP` yang identik, `created_at` (waktu kedatangan) menjadi faktor penyeimbang: pesanan yang datang lebih dulu diproses lebih dulu. **Tidak ada** mekanisme penurunan skor prioritas seiring waktu tunggu (aging).
 
-```
-skor_prioritas_efektif = ECT − (laju_aging × waktu_tunggu_menit)
-```
-
-Semakin lama menunggu, skor turun (menjadi lebih mendesak). `laju_aging` dikonfigurasi Admin. Skor efektif dihitung ulang secara periodik (mis. via Supabase Edge Function + pg_cron atau pada setiap pembacaan antrian).
-
-### 8.5 Mode Perbandingan
-Sistem mendukung dua mode pemrosesan yang dapat di-*switch* Admin:
-- **FIFO** — urut waktu kedatangan (`created_at` ASC).
-- **Priority Queue (SJF)** — urut skor prioritas efektif ASC.
-
-Mode ini memungkinkan pengujian A/B untuk membuktikan klaim penurunan rata-rata waktu tunggu.
+### 8.5 Distribusi: Single Queue Multiple Server (SQMS)
+Satu antrian terpusat (Min-Heap) melayani **empat pegawai** sebagai *server*. Begitu ada pegawai berstatus idle, sistem mengambil elemen akar heap (EWP terkecil) dan menugaskannya ke pegawai tersebut secara otomatis — tanpa intervensi manual kasir.
 
 ---
 
 ## 9. Model Data (Supabase / PostgreSQL)
 
-Tabel inti (kolom audit `created_at`, `updated_at` diasumsikan ada di setiap tabel):
+Skema mengikuti implementasi produksi aktual — **8 tabel inti** (kolom audit `created_at`/`updated_at` diasumsikan ada kecuali disebutkan lain):
 
 ### `profiles`
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id (PK) | uuid | referensi `auth.users` |
 | full_name | text | |
-| role | enum | `pelanggan` \| `kasir` \| `admin` |
+| role | enum | `pembeli` \| `kasir` \| `admin` |
 | is_active | bool | |
+
+### `categories`
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id (PK) | uuid | |
+| name | text | |
 
 ### `products`
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id (PK) | uuid | |
-| sku | text (unik) | |
+| category_id (FK) | uuid | → categories |
 | name | text | |
-| category | text | |
 | price | numeric | harga grosir |
-| unit | text | satuan |
-| weight | numeric | untuk faktor berat ECT |
+| stock_qty | int | |
 | image_url | text | Supabase Storage |
 
-### `inventory`
+### `product_units`
 | Kolom | Tipe | Keterangan |
 |---|---|---|
-| product_id (PK, FK) | uuid | |
-| stock_qty | int | |
-| location | text | rak/lokasi |
-| reorder_level | int | ambang stok rendah |
+| id (PK) | uuid | |
+| product_id (FK) | uuid | → products |
+| unit_name | text | variasi satuan penjualan (mis. karung, bungkus) |
+| pickup_time_seconds | numeric | Wᵢ — waktu pengambilan spesifik per jenis barang (konstan, hasil observasi) |
 
 ### `orders`
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id (PK) | uuid | |
 | customer_id (FK) | uuid | → profiles |
-| status | enum | `ANTRI` \| `DIPROSES` \| `SIAP` \| `SELESAI` \| `BATAL` |
+| staff_id (FK, nullable) | uuid | → staff yang ditugaskan |
+| status | enum | `antri` \| `diproses` \| `selesai` \| `batal` |
 | total_amount | numeric | |
-| estimated_completion_time | numeric | ECT (menit) |
-| priority_score | numeric | skor prioritas efektif |
-| enqueued_at | timestamptz | masuk antrian |
-| dequeued_at | timestamptz | mulai diproses |
+| ewp | numeric | kunci prioritas Min-Heap (detik) |
+| payment_method | enum | `tunai` \| `online` |
+| created_at | timestamptz | waktu kedatangan — dipakai sebagai tie-breaker |
 | completed_at | timestamptz | selesai |
 
 ### `order_items`
@@ -266,43 +231,26 @@ Tabel inti (kolom audit `created_at`, `updated_at` diasumsikan ada di setiap tab
 | id (PK) | uuid | |
 | order_id (FK) | uuid | |
 | product_id (FK) | uuid | |
-| qty | int | |
+| qty | int | Qᵢ |
 | unit_price | numeric | harga saat order |
 
-### `payments`
+### `staff`
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id (PK) | uuid | |
-| order_id (FK) | uuid | |
-| cashier_id (FK) | uuid | → profiles |
-| method | enum | `tunai` \| `transfer` \| `qris` |
-| amount | numeric | |
-| paid_at | timestamptz | |
+| name | text | nama pegawai (bukan akun login) |
+| status | enum | `idle` \| `sibuk` |
 
-### `stock_movements`
+### `notifications`
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id (PK) | uuid | |
-| product_id (FK) | uuid | |
-| change_qty | int | + masuk / − keluar |
-| reason | text | order/penyesuaian |
-| ref_order_id | uuid | opsional |
+| user_id (FK) | uuid | → profiles |
+| order_id (FK, nullable) | uuid | → orders |
+| message | text | |
+| is_read | bool | |
 
-### `queue_logs` (evaluasi)
-| Kolom | Tipe | Keterangan |
-|---|---|---|
-| id (PK) | uuid | |
-| order_id (FK) | uuid | |
-| mode | enum | `fifo` \| `priority` |
-| enqueued_at | timestamptz | |
-| dequeued_at | timestamptz | |
-| wait_time_seconds | int | dihitung untuk laporan |
-
-### `system_settings`
-| Kolom | Tipe | Keterangan |
-|---|---|---|
-| key | text (PK) | mis. `t_base`, `t_pick`, `t_pack`, `aging_rate`, `queue_mode` |
-| value | jsonb/numeric | parameter konfigurabel |
+> Tidak ada tabel `inventory` terpisah (stok melekat pada `products`), tidak ada `payments` (metode & status pembayaran melekat pada `orders`), tidak ada `stock_movements`, `queue_logs`, atau `system_settings` — laporan penjualan dihasilkan secara dinamis dari `orders`/`order_items`, bukan disimpan sebagai tabel tersendiri.
 
 ---
 
@@ -310,39 +258,37 @@ Tabel inti (kolom audit `created_at`, `updated_at` diasumsikan ada di setiap tab
 
 | Lapisan | Teknologi | Peran |
 |---|---|---|
-| Frontend | Next.js (App Router), TypeScript, Tailwind, shadcn/ui | UI semua peran, responsif |
-| Logika Server | Next.js Route Handlers / Server Actions | Validasi, perhitungan ECT, modul Priority Queue (min-heap) |
-| Basis Data | Supabase PostgreSQL + RLS | Persistensi data, otorisasi tingkat baris |
-| Auth | Supabase Auth | Login, sesi, peran |
-| Realtime | Supabase Realtime | Papan antrian & status pesanan live |
-| Storage | Supabase Storage | Foto produk, struk |
-| Penjadwalan | Supabase Edge Functions + pg_cron | Pembaruan aging skor prioritas berkala |
+| Frontend | Next.js 15+ (App Router), TypeScript, Tailwind CSS, shadcn/ui | UI seluruh peran, responsif (mobile untuk pembeli; tablet/desktop untuk kasir & admin) |
+| Logika Server | Next.js Route Handlers / Server Actions | Validasi, perhitungan EWP, modul Min-Heap |
+| Basis Data | Supabase PostgreSQL | Persistensi data |
+| Auth | Supabase Auth | Login, sesi, RBAC (pembeli/kasir/admin) |
+| Realtime | Supabase Realtime | Dasbor antrian & status pesanan/pegawai live (latensi < 1 detik) |
+| Storage | Supabase Storage | Foto produk |
+| State Management | React Context / Zustand | Manajemen state aplikasi sisi klien |
+| Library Pendukung | Tabler Icons, TanStack Table | Ikon antarmuka, manajemen tabel data |
 
-**Catatan implementasi PQ:** min-heap dipelihara sebagai modul layanan; saat *cold start* heap dibangun ulang dari tabel `orders` berstatus `ANTRI`. Sumber kebenaran tetap di Postgres; min-heap mempercepat operasi enqueue/extract-min dan menjadi demonstrasi eksplisit struktur data prioritas.
+**Catatan implementasi Min-Heap:** heap dipelihara sebagai modul layanan di sisi server; Postgres tetap menjadi sumber kebenaran (`orders.ewp` + `orders.created_at`), heap dibangun ulang dari pesanan berstatus `antri` saat diperlukan.
 
 ---
 
 ## 11. Kebutuhan Non-Fungsional (NFR)
 
-| ID | Kategori | Kebutuhan |
+| ID | Aspek | Kebutuhan |
 |---|---|---|
-| NFR-01 | Kinerja | Operasi antrian O(log n); respons API < 200 ms pada beban normal |
-| NFR-02 | Realtime | Pembaruan papan antrian < 1 detik |
-| NFR-03 | Keamanan | RLS aktif di semua tabel; tiap peran hanya mengakses datanya |
-| NFR-04 | Skalabilitas | Mendukung ratusan pesanan aktif tanpa degradasi signifikan |
-| NFR-05 | Keterpakaian | UI responsif (desktop & tablet gudang), konsisten via shadcn/ui |
-| NFR-06 | Auditabilitas | Semua pergerakan stok & transaksi tercatat |
-| NFR-07 | Keterujian | Mode FIFO/Priority dapat di-*switch* untuk pengujian terkontrol |
+| **NF-01** | Keamanan (Security) | Autentikasi terenkripsi (Supabase Auth) + Role-Based Access Control (RBAC) membatasi akses antara pembeli, kasir, dan admin |
+| **NF-02** | Performa (Performance) | Pembaruan status antrian real-time dengan latensi < 1 detik (Supabase Realtime) |
+| **NF-03** | Usabilitas (Usability) | UI responsif di berbagai ukuran layar (mobile, tablet, desktop) via Tailwind CSS + shadcn/ui |
+| **NF-04** | Keandalan (Reliability) | Mekanisme fallback & pencatatan error agar transaksi tidak hilang saat gangguan jaringan |
 
 ---
 
-## 12. Keamanan & RLS (Ringkasan Kebijakan)
+## 12. Keamanan & RBAC (Ringkasan Kebijakan)
 
 | Peran | Kebijakan akses |
 |---|---|
-| Pelanggan | `SELECT/INSERT` pesanan miliknya; baca katalog publik |
-| Kasir | Baca antrian; `UPDATE` status `DIPROSES`/`SIAP`/`SELESAI`; tulis pergerakan stok; `INSERT` pembayaran |
-| Admin | Akses penuh seluruh tabel & pengaturan |
+| Pembeli | Baca katalog publik & stok; buat & pantau pesanan miliknya sendiri |
+| Kasir | Baca dasbor antrian (semua pesanan aktif); cetak struk; konfirmasi pembayaran |
+| Admin | Akses penuh: produk, stok, pengguna, laporan penjualan |
 
 ---
 
@@ -350,25 +296,23 @@ Tabel inti (kolom audit `created_at`, `updated_at` diasumsikan ada di setiap tab
 
 | Fase | Fokus | Output |
 |---|---|---|
-| **Fase 0** | Setup proyek | Next.js + shadcn + Supabase, skema DB, Auth & RLS dasar |
-| **Fase 1** | Inventori & katalog | CRUD produk, manajemen stok, katalog pelanggan |
-| **Fase 2** | Self-order & pesanan | Keranjang, pembuatan pesanan, perhitungan ECT |
-| **Fase 3** | Priority Queue | Min-heap, enqueue/dequeue, aging, papan antrian real-time |
-| **Fase 4** | Gudang & Kasir | Pemrosesan, perubahan status, pembayaran, struk |
-| **Fase 5** | Laporan & evaluasi | Dashboard, laporan, modul perbandingan FIFO vs Priority |
-| **Fase 6** | Pengujian & polish | Uji beban/simulasi, validasi metrik, perbaikan UX |
+| **Fase 0** | Setup proyek | Next.js + shadcn + Supabase, skema DB (8 tabel), Auth & RBAC dasar |
+| **Fase 1** | Katalog & stok | CRUD produk (admin), katalog & stok real-time (pembeli) |
+| **Fase 2** | Self-order & EWP | Keranjang, pembuatan pesanan, perhitungan estimasi harga & EWP |
+| **Fase 3** | Priority Queue & distribusi | Min-Heap, insert/extract-min, tie-breaking waktu kedatangan, distribusi otomatis ke pegawai idle (SQMS) |
+| **Fase 4** | Kasir | Dasbor antrian real-time, cetak struk, konfirmasi pembayaran |
+| **Fase 5** | Laporan | Dashboard admin, visualisasi laporan bulanan & produk terlaris |
+| **Fase 6** | Pengujian & polish | Black Box Testing seluruh fitur, verifikasi manual algoritma Min-Heap/EWP, perbaikan UX |
 
 ---
 
-## 14. Rencana Pengujian & Evaluasi (Pendukung Skripsi)
+## 14. Rencana Pengujian (Pendukung Skripsi)
 
-1. **Simulasi beban** — generate N pesanan dengan profil bervariasi (kecil/besar, stok penuh/kritis).
-2. **Jalankan mode FIFO**, catat `wait_time` tiap pesanan → hitung rata-rata.
-3. **Jalankan mode Priority Queue (SJF)** dengan beban setara, catat ulang.
-4. **Bandingkan** rata-rata waktu tunggu, distribusi, dan throughput.
-5. **Uji starvation** — verifikasi mekanisme aging mencegah pesanan menunggu melampaui ambang.
-6. **Akurasi ECT** — bandingkan estimasi vs waktu aktual pemrosesan gudang.
-7. **Analisis sensitivitas** — variasikan parameter (`t_pick`, `aging_rate`) dan amati pengaruhnya.
+1. **Black Box Testing** — definisikan skenario uji berdasarkan F-01–F-14, verifikasi keluaran sistem sesuai spesifikasi tanpa memeriksa struktur kode internal.
+2. **Verifikasi manual algoritma Min-Heap** — telusuri langkah insert (heapify-up) dan extract-min (heapify-down) pada beberapa kasus pesanan untuk membuktikan urutan prioritas benar.
+3. **Verifikasi manual EWP** — bandingkan hasil perhitungan sistem `Σ(Qᵢ × Wᵢ)` dengan perhitungan manual untuk beberapa kombinasi item.
+4. **Uji tie-breaking** — pastikan dua pesanan dengan EWP identik diurutkan sesuai `created_at`.
+5. **Uji distribusi SQMS** — pastikan pesanan hanya ditugaskan ke pegawai berstatus idle, dan status berubah idle↔sibuk dengan benar di setiap siklus.
 
 ---
 
@@ -376,27 +320,29 @@ Tabel inti (kolom audit `created_at`, `updated_at` diasumsikan ada di setiap tab
 
 | Risiko | Dampak | Mitigasi |
 |---|---|---|
-| Estimasi ECT tidak akurat | Urutan prioritas keliru | Parameter konfigurabel + kalibrasi dari data aktual |
-| Starvation pesanan besar | Ketidakadilan | Mekanisme aging + ambang batas maksimum |
-| Konsistensi heap vs DB | Urutan tidak sinkron | Postgres sebagai sumber kebenaran; rebuild heap saat *cold start* |
-| Lonjakan pesanan bersamaan | Kinerja menurun | Operasi O(log n) + indeks DB pada `priority_score` |
-| Kompleksitas realtime | Bug status | Status pesanan sebagai *single source* + langganan Realtime terfokus |
+| Nilai `Wᵢ` (waktu pengambilan per jenis barang) tidak representatif | Urutan prioritas kurang akurat | Nilai diambil dari observasi langsung dan berulang di Grosir Jasa sebelum sistem berjalan |
+| Konsistensi heap vs DB | Urutan tidak sinkron | Postgres sebagai sumber kebenaran (`orders.ewp`); heap dibangun ulang dari `orders` berstatus `antri` |
+| Semua pegawai sibuk bersamaan | Pesanan menunggu di Min-Heap | Sesuai desain SQMS — pesanan tetap berada di heap dan diproses begitu ada pegawai idle |
+| Lonjakan pesanan bersamaan | Kinerja menurun | Operasi Min-Heap O(log n) |
+| EWP identik pada banyak pesanan | Ambiguitas urutan | Tie-breaking berbasis `created_at` |
 
 ---
 
-## 16. Asumsi & Pertanyaan Terbuka
+## 16. Asumsi & Batasan (Sesuai BAB I Skripsi)
 
 **Asumsi:**
-- Satu titik pemrosesan gudang (single processing station) — sesuai model SJF satu mesin.
-- Pembayaran dicatat manual (belum ada integrasi gateway otomatis).
-- Pelanggan sudah terdaftar untuk dapat self-order.
+- Toko memiliki tepat **empat pegawai** yang berperan sebagai *server* dalam model SQMS.
+- Waktu pengambilan per jenis barang (`Wᵢ`) bersifat tetap/konstan hasil observasi lapangan, tidak dikonfigurasi ulang oleh admin melalui aplikasi.
+- Pembeli sudah terdaftar (registrasi) untuk dapat self-order.
+- Pembeli mengambil barang sendiri ke toko — tidak ada fitur pengiriman.
 
-**Pertanyaan terbuka (untuk dikonfirmasi):**
-1. Apakah ada lebih dari satu kasir yang memproses pesanan secara paralel? (memengaruhi model penjadwalan: 1 mesin vs banyak mesin)
-2. Apakah pembayaran dilakukan **sebelum** pesanan diproses (prabayar) atau **setelah** siap (seperti alur saat ini)?
-3. Apakah perlu peran "supervisor" yang bisa override prioritas pesanan secara manual?
-4. Apakah satuan waktu ECT (menit) dan parameter default sudah sesuai realita Grosir Jasa, atau perlu observasi lapangan dulu?
+**Batasan Masalah:**
+1. Sistem hanya diperuntukkan bagi Grosir Jasa di Aceh Timur sebagai objek penelitian.
+2. Priority Queue menggunakan Min-Heap dengan dua kriteria: EWP dan waktu kedatangan (tie-breaker) — bukan mekanisme aging kontinu.
+3. Pembayaran mendukung tunai dan online saja, tanpa fitur pengiriman.
+4. Tiga level pengguna: pembeli, kasir, admin. Pegawai tidak memiliki hak akses ke sistem.
+5. Pengujian menggunakan Black Box Testing, tanpa studi simulasi komparatif FIFO vs Priority Queue.
 
 ---
 
-*Dokumen ini bersifat hidup dan akan diperbarui seiring keputusan desain dan temuan pengujian.*
+*Dokumen ini bersifat hidup dan akan diperbarui seiring keputusan desain dan temuan pengujian. Direvisi agar konsisten dengan isi PROPOSALKU.docx.*

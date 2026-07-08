@@ -273,6 +273,7 @@ function CartContentComponent() {
       const finalEwp = Math.round(ect + activeEwpSum)
 
       // 7. PANGGIL RPC checkout_order UNTUK TRANSAKSI ATOMIC
+      // queue_logs di-insert di dalam RPC (SECURITY DEFINER) agar bypass RLS
       const { data: orderId, error: checkoutErr } = await supabase.rpc("checkout_order", {
         p_customer_name: trimmedName,
         p_ewp: finalEwp,
@@ -282,33 +283,21 @@ function CartContentComponent() {
           price: item.price
         })),
         p_total_items: totalItems,
-        p_total_price: totalPrice
+        p_total_price: totalPrice,
+        p_queue_mode: settings.queue_mode
       })
 
       if (checkoutErr) throw checkoutErr
 
       if (orderId) {
-        // 8. INSERT KE queue_logs UNTUK PENCATATAN ANTREAN
-        const { error: logErr } = await supabase
-          .from("queue_logs")
-          .insert({
-            order_id: orderId,
-            mode: settings.queue_mode as any,
-            enqueued_at: new Date().toISOString()
-          })
-
-        if (logErr) {
-          console.error("Gagal mencatat ke queue_logs:", logErr.message)
-        }
-
-        // 9. KOSONGKAN KERANJANG
+        // 8. KOSONGKAN KERANJANG
         localStorage.removeItem("pos_grosir_cart")
         setCart([])
         window.dispatchEvent(new Event("storage"))
 
         toast.success(`Pesanan #${orderId.substring(0, 8).toUpperCase()} berhasil dibuat!`)
         
-        // 10. REDIRECT KE PESANAN SAYA
+        // 9. REDIRECT KE PESANAN SAYA
         router.push("/customer/orders")
       }
     } catch (err: any) {

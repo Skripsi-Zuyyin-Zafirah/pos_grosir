@@ -41,7 +41,7 @@ type Product = {
 }
 
 type InventoryItem = {
-  id: string
+  product_id: string
   stock_qty: number
   products: Product | null
 }
@@ -96,7 +96,7 @@ export default function CustomerShopPage() {
       const { data: invData, error: invErr } = await supabase
         .from("inventory")
         .select(`
-          id,
+          product_id,
           stock_qty,
           products:product_id (
             id,
@@ -316,7 +316,7 @@ export default function CustomerShopPage() {
             const isLowStock = item.stock_qty > 0 && item.stock_qty <= 5
 
             return (
-              <Card key={item.id} className="flex flex-col border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-200 bg-background overflow-hidden">
+              <Card key={product.id} className="flex flex-col border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-200 bg-background overflow-hidden">
                 {/* Image / Placeholder */}
                 <div className="h-44 bg-muted/30 relative flex items-center justify-center border-b border-border/50">
                   {product.image_url ? (
