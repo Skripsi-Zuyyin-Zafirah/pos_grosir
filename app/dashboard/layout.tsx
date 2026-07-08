@@ -7,6 +7,7 @@ import { AdminSidebar } from "@/components/admin-sidebar"
 import { CashierSidebar } from "@/components/cashier-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { MobileBottomBar } from "@/components/mobile-bottom-bar"
 import { IconLoader2 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
@@ -86,10 +87,11 @@ export default function DashboardLayout({
       )}
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col pb-24 md:pb-0">
           {children}
         </div>
       </SidebarInset>
+      <MobileBottomBar role={role!} />
     </SidebarProvider>
   )
 }

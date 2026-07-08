@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { CustomerSiteHeader } from "@/components/customer-site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { CustomerMobileBottomBar } from "@/components/customer-mobile-bottom-bar"
 import { IconLoader2 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
@@ -85,8 +86,9 @@ export default function CustomerLayout({
       <CustomerSidebar variant="inset" />
       <SidebarInset>
         <CustomerSiteHeader />
-        {children}
+        <div className="pb-24 md:pb-0">{children}</div>
       </SidebarInset>
+      <CustomerMobileBottomBar />
     </SidebarProvider>
   )
 }

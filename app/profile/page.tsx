@@ -4,6 +4,7 @@ import { CustomerSidebar } from "@/components/customer-sidebar"
 import { CustomerSiteHeader } from "@/components/customer-site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { ProfileContent } from "@/components/profile-content"
+import { CustomerMobileBottomBar } from "@/components/customer-mobile-bottom-bar"
 
 export default function CustomerProfilePage() {
   return (
@@ -18,8 +19,11 @@ export default function CustomerProfilePage() {
       <CustomerSidebar variant="inset" />
       <SidebarInset>
         <CustomerSiteHeader />
-        <ProfileContent />
+        <div className="pb-24 md:pb-0">
+          <ProfileContent />
+        </div>
       </SidebarInset>
+      <CustomerMobileBottomBar />
     </SidebarProvider>
   )
 }
