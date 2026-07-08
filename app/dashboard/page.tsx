@@ -1,9 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+
 import { SectionCards, type DashboardMetrics } from "@/components/section-cards"
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -247,197 +245,182 @@ export default function Page() {
     fetchDashboardData()
   }, [])
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        {loading ? (
-          <div className="flex flex-1 flex-col items-center justify-center space-y-4">
-            <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground text-sm">Menghubungkan ke pusat data POS...</p>
-          </div>
-        ) : (
-          <div className="flex flex-1 flex-col py-6 space-y-6">
-            <div className="px-4 lg:px-6">
-              <h1 className="text-3xl font-bold tracking-tight">Ikhtisar Dashboard</h1>
-              <p className="text-muted-foreground mt-1">
-                Ikhtisar kinerja operasional, penjualan, dan antrean toko grosir secara real-time.
-              </p>
-            </div>
+  return loading ? (
+    <div className="flex flex-1 flex-col items-center justify-center space-y-4 min-h-[60vh]">
+      <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="text-muted-foreground text-sm">Menghubungkan ke pusat data POS...</p>
+    </div>
+  ) : (
+    <div className="flex flex-1 flex-col py-6 space-y-6">
+      <div className="px-4 lg:px-6">
+        <h1 className="text-3xl font-bold tracking-tight">Ikhtisar Dashboard</h1>
+        <p className="text-muted-foreground mt-1">
+          Ikhtisar kinerja operasional, penjualan, dan antrean toko grosir secara real-time.
+        </p>
+      </div>
 
-            {/* Metrics cards */}
-            <SectionCards metrics={metrics} />
+      {/* Metrics cards */}
+      <SectionCards metrics={metrics} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 lg:px-6">
-              {/* Daily revenue chart (2 cols) */}
-              <div className="lg:col-span-2">
-                <ChartAreaInteractive data={chartData} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 lg:px-6">
+        {/* Daily revenue chart (2 cols) */}
+        <div className="lg:col-span-2">
+          <ChartAreaInteractive data={chartData} />
+        </div>
+
+        {/* Recent Orders widget */}
+        <Card className="border-border/50 shadow-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <IconClipboardList className="size-5 text-primary" /> Pesanan Terbaru
+            </CardTitle>
+            <CardDescription>Menampilkan 5 aktivitas pesanan teranyar</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {recentOrders.length === 0 ? (
+              <div className="text-center py-12 text-sm text-muted-foreground">
+                Belum ada aktivitas pesanan
               </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No. Pesanan</TableHead>
+                    <TableHead>Pelanggan</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentOrders.map((order) => (
+                    <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="font-mono text-xs font-semibold text-primary">
+                        #{order.order_number || order.id.substring(0, 8).toUpperCase()}
+                      </TableCell>
+                      <TableCell className="max-w-[80px] truncate text-xs">{order.customer_name}</TableCell>
+                      <TableCell className="text-right font-semibold text-xs">
+                        {formatRupiah(order.total_price)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getStatusBadge(order.status)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-              {/* Recent Orders widget */}
-              <Card className="border-border/50 shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <IconClipboardList className="size-5 text-primary" /> Pesanan Terbaru
-                  </CardTitle>
-                  <CardDescription>Menampilkan 5 aktivitas pesanan teranyar</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {recentOrders.length === 0 ? (
-                    <div className="text-center py-12 text-sm text-muted-foreground">
-                      Belum ada aktivitas pesanan
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>No. Pesanan</TableHead>
-                          <TableHead>Pelanggan</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {recentOrders.map((order) => (
-                          <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
-                            <TableCell className="font-mono text-xs font-semibold text-primary">
-                              #{order.order_number || order.id.substring(0, 8).toUpperCase()}
-                            </TableCell>
-                            <TableCell className="max-w-[80px] truncate text-xs">{order.customer_name}</TableCell>
-                            <TableCell className="text-right font-semibold text-xs">
-                              {formatRupiah(order.total_price)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {getStatusBadge(order.status)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+      {/* Monthly Revenue & Top Products Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4 lg:px-6">
 
-            {/* Monthly Revenue & Top Products Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4 lg:px-6">
+        {/* Monthly Revenue Bar Chart */}
+        <Card className="border-border/50 shadow-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <IconChartBar className="size-5 text-primary" /> Omzet Bulanan
+            </CardTitle>
+            <CardDescription>Tren pendapatan 6 bulan terakhir (pesanan selesai)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {monthlyRevenue.length === 0 || monthlyRevenue.every(m => m.revenue === 0) ? (
+              <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+                Belum ada data pendapatan bulanan
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={monthlyRevenue} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tickFormatter={formatRupiahShort}
+                    width={55}
+                  />
+                  <Tooltip
+                    formatter={(value: unknown) => [formatRupiah(Number(value ?? 0)), "Omzet"]}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                  />
+                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={50} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
 
-              {/* Monthly Revenue Bar Chart */}
-              <Card className="border-border/50 shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <IconChartBar className="size-5 text-primary" /> Omzet Bulanan
-                  </CardTitle>
-                  <CardDescription>Tren pendapatan 6 bulan terakhir (pesanan selesai)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {monthlyRevenue.length === 0 || monthlyRevenue.every(m => m.revenue === 0) ? (
-                    <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
-                      Belum ada data pendapatan bulanan
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={monthlyRevenue} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                        <XAxis
-                          dataKey="month"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                        />
-                        <YAxis
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                          tickFormatter={formatRupiahShort}
-                          width={55}
-                        />
-                        <Tooltip
-                          formatter={(value: unknown) => [formatRupiah(Number(value ?? 0)), "Omzet"]}
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--popover))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px",
-                            fontSize: 12,
-                          }}
-                          labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
-                        />
-                        <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={50} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
+        {/* Top 5 Best Selling Products */}
+        <Card className="border-border/50 shadow-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <IconTrophy className="size-5 text-amber-500" /> Produk Terlaris
+            </CardTitle>
+            <CardDescription>5 produk dengan penjualan unit terbanyak (pesanan selesai)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {topProducts.length === 0 ? (
+              <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+                Belum ada data penjualan produk
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart
+                  data={topProducts}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                  <XAxis
+                    type="number"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    width={100}
+                    tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
+                    tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
+                  />
+                  <Tooltip
+                    formatter={(value: unknown) => [`${Number(value ?? 0)} unit`, "Terjual"]}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                  />
+                  <Bar dataKey="total_qty" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                    {topProducts.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
 
-              {/* Top 5 Best Selling Products */}
-              <Card className="border-border/50 shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <IconTrophy className="size-5 text-amber-500" /> Produk Terlaris
-                  </CardTitle>
-                  <CardDescription>5 produk dengan penjualan unit terbanyak (pesanan selesai)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {topProducts.length === 0 ? (
-                    <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
-                      Belum ada data penjualan produk
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart
-                        data={topProducts}
-                        layout="vertical"
-                        margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
-                        <XAxis
-                          type="number"
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                        />
-                        <YAxis
-                          type="category"
-                          dataKey="name"
-                          tickLine={false}
-                          axisLine={false}
-                          width={100}
-                          tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
-                          tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
-                        />
-                        <Tooltip
-                          formatter={(value: unknown) => [`${Number(value ?? 0)} unit`, "Terjual"]}
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--popover))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px",
-                            fontSize: 12,
-                          }}
-                          labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
-                        />
-                        <Bar dataKey="total_qty" radius={[0, 6, 6, 0]} maxBarSize={28}>
-                          {topProducts.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
-
-            </div>
-          </div>
-        )}
-      </SidebarInset>
-    </SidebarProvider>
+      </div>
+    </div>
   )
 }

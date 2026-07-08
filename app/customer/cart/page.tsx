@@ -183,7 +183,11 @@ function CartContentComponent() {
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
   // Rumus EWP: sum(Q_i * W_i)
-  const totalEwpSeconds = cart.reduce((sum, item) => sum + (item.quantity * item.pickupTimeSeconds), 0)
+  const totalEwpSeconds = cart.reduce((sum, item) => {
+    const pickupTime = Number(item.pickupTimeSeconds)
+    const validPickupTime = isNaN(pickupTime) || pickupTime <= 0 ? 5 : pickupTime
+    return sum + (item.quantity * validPickupTime)
+  }, 0)
 
   // ── Open Checkout Form ─────────────────────────────────────────────────────
   const handleCheckoutInit = () => {
@@ -245,12 +249,23 @@ function CartContentComponent() {
       // 3. PANGGIL RPC checkout_order
       const { data: orderId, error: checkoutErr } = await supabase.rpc("checkout_order", {
         p_customer_name: trimmedName,
-        p_ewp: totalEwpSeconds,
-        p_items: cart.map(item => ({
-          product_id: item.productId,
-          qty: item.quantity * item.multiplier, // Kuantitas unit dasar (pcs)
-          unit_price: item.price / item.multiplier // Harga satuan unit dasar (pcs)
-        })),
+        p_ewp: isNaN(totalEwpSeconds) || totalEwpSeconds <= 0 ? 5 : totalEwpSeconds,
+        p_items: cart.map(item => {
+          const mult = Number(item.multiplier)
+          const validMultiplier = isNaN(mult) || mult <= 0 ? 1 : mult
+          
+          const qtyVal = Math.round(Number(item.quantity) * validMultiplier)
+          const validQty = isNaN(qtyVal) || qtyVal <= 0 ? 1 : qtyVal
+          
+          const priceVal = Number(item.price) / validMultiplier
+          const validPrice = isNaN(priceVal) || priceVal < 0 ? 0 : priceVal
+
+          return {
+            product_id: item.productId,
+            qty: validQty,
+            unit_price: validPrice
+          }
+        }),
         p_total_items: totalItems,
         p_total_price: totalPrice
       })

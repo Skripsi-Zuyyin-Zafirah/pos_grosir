@@ -1,9 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -219,136 +217,120 @@ export default function ProductsPage() {
   }
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col p-6 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Kelola Produk</h1>
-              <p className="text-muted-foreground mt-1">
-                Kelola daftar produk, SKU, harga, dan kategori barang grosir Anda.
-              </p>
-            </div>
-            <Button onClick={handleAdd} className="w-full md:w-auto">
-              <IconPlus className="size-4 mr-2" /> Tambah Produk
-            </Button>
-          </div>
-
-          <Card className="border-border/50 shadow-md">
-            <CardHeader className="pb-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <CardTitle>Daftar Produk</CardTitle>
-                  <CardDescription>
-                    Menampilkan total {filteredProducts.length} produk terdaftar
-                  </CardDescription>
-                </div>
-                <div className="relative w-full md:w-80">
-                  <IconSearch className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Cari SKU atau Nama Produk..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                  <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-muted-foreground text-sm">Memuat data produk...</p>
-                </div>
-              ) : filteredProducts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-muted rounded-lg">
-                  <IconPackage className="size-12 text-muted-foreground/60 mb-2" />
-                  <h3 className="font-semibold text-lg">Tidak Ada Produk</h3>
-                  <p className="text-sm text-muted-foreground max-w-sm mt-1">
-                    Silakan tambahkan produk baru untuk mengisi katalog produk.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[80px]">Foto</TableHead>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Nama Produk</TableHead>
-                        <TableHead>Kategori</TableHead>
-                        <TableHead className="text-right">Harga Dasar</TableHead>
-                        <TableHead className="text-right">Stok (pcs)</TableHead>
-                        <TableHead className="w-[100px] text-center">Aksi</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProducts.map((product) => (
-                        <TableRow key={product.id} className="hover:bg-muted/30 transition-colors">
-                          <TableCell>
-                            {product.image_url ? (
-                              <img
-                                src={product.image_url}
-                                alt={product.name}
-                                className="h-10 w-10 object-cover rounded-md border border-border"
-                              />
-                            ) : (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground border border-border">
-                                <IconPhoto className="size-5" />
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs font-semibold">
-                            {product.sku || "-"}
-                          </TableCell>
-                          <TableCell className="font-medium">{product.name}</TableCell>
-                          <TableCell>
-                            {product.categories?.name || "-"}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-primary">
-                            {formatRupiah(product.price)}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold">
-                            {product.stock_qty ?? 0}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handleEdit(product)}
-                                className="size-8"
-                              >
-                                <IconEdit className="size-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handleDelete(product.id)}
-                                className="size-8 text-destructive hover:bg-destructive/10"
-                              >
-                                <IconTrash className="size-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+    <div className="flex flex-1 flex-col p-6 space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Kelola Produk</h1>
+          <p className="text-muted-foreground mt-1">
+            Kelola daftar produk, SKU, harga, dan kategori barang grosir Anda.
+          </p>
         </div>
+        <Button onClick={handleAdd} className="w-full md:w-auto">
+          <IconPlus className="size-4 mr-2" /> Tambah Produk
+        </Button>
+      </div>
+
+      <Card className="border-border/50 shadow-md">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle>Daftar Produk</CardTitle>
+              <CardDescription>
+                Menampilkan total {filteredProducts.length} produk terdaftar
+              </CardDescription>
+            </div>
+            <div className="relative w-full md:w-80">
+              <IconSearch className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari SKU atau Nama Produk..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 bg-background"
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-2">
+              <IconLoader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-xs text-muted-foreground">Memuat data produk...</span>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-16 text-sm text-muted-foreground">
+              {search ? "Tidak ada produk yang cocok dengan pencarian" : "Belum ada produk yang terdaftar"}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">Foto</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Nama Produk</TableHead>
+                    <TableHead>Kategori</TableHead>
+                    <TableHead className="text-right">Harga Dasar</TableHead>
+                    <TableHead className="text-right">Stok (pcs)</TableHead>
+                    <TableHead className="w-[100px] text-center">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map((product) => (
+                    <TableRow key={product.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell>
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="h-10 w-10 object-cover rounded-md border border-border"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground border border-border">
+                            <IconPhoto className="size-5" />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs font-semibold">
+                        {product.sku || "-"}
+                      </TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>
+                        {product.categories?.name || "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-primary">
+                        {formatRupiah(product.price)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {product.stock_qty ?? 0}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleEdit(product)}
+                            className="size-8"
+                          >
+                            <IconEdit className="size-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleDelete(product.id)}
+                            className="size-8 text-destructive hover:bg-destructive/10"
+                          >
+                            <IconTrash className="size-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
         {/* Create/Edit Product Dialog */}
         <Dialog open={open} onOpenChange={setOpen}>
@@ -550,7 +532,6 @@ export default function ProductsPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </SidebarInset>
-    </SidebarProvider>
+      </div>
   )
 }

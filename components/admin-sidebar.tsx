@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -18,71 +19,49 @@ import {
 } from "@/components/ui/sidebar"
 import {
   IconDashboard,
-  IconSettings,
   IconReport,
   IconPackage,
   IconClipboardList,
-  IconCash,
-  IconClock
+  IconClock,
+  IconUser,
 } from "@tabler/icons-react"
 
-const data = {
+const adminMenu = {
   navMain: [
     {
       title: "Dashboard",
       url: "/dashboard",
-      icon: (
-        <IconDashboard />
-      ),
+      icon: <IconDashboard />,
     },
     {
       title: "Kelola Produk",
       url: "/dashboard/products",
-      icon: (
-        <IconPackage />
-      ),
-    },
-    {
-      title: "Kasir & Pembayaran",
-      url: "/dashboard/cashier",
-      icon: (
-        <IconCash />
-      ),
+      icon: <IconPackage />,
     },
     {
       title: "Papan Antrian",
       url: "/dashboard/queue",
-      icon: (
-        <IconClipboardList />
-      ),
+      icon: <IconClipboardList />,
     },
     {
       title: "Waktu Pengambilan",
       url: "/dashboard/picking-time",
-      icon: (
-        <IconClock />
-      ),
+      icon: <IconClock />,
     },
     {
       title: "Laporan & Evaluasi",
       url: "/dashboard/reports",
-      icon: (
-        <IconReport />
-      ),
+      icon: <IconReport />,
     },
-  ],
-  navSecondary: [
     {
-      title: "Pengaturan",
-      url: "/dashboard/settings",
-      icon: (
-        <IconSettings />
-      ),
+      title: "Profil Saya",
+      url: "/dashboard/profile",
+      icon: <IconUser />,
     },
   ],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const supabase = createClient()
   const [currentUser, setCurrentUser] = useState({
     name: "Admin POS",
@@ -96,12 +75,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name")
+          .select("full_name, role")
           .eq("id", session.user.id)
           .single()
 
         setCurrentUser({
-          name: profile?.full_name || session.user.email?.split("@")[0] || "User",
+          name: profile?.full_name || session.user.email?.split("@")[0] || "Admin",
           email: session.user.email || "",
           avatar: "",
         })
@@ -111,29 +90,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [])
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-            >
-              <Link href="/">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-xs">
-                  PG
+            <SidebarMenuButton size="lg" asChild>
+              <Link href="/dashboard">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <span className="font-bold text-xs">POS</span>
                 </div>
-                <span className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-indigo-900 to-purple-800 dark:from-indigo-100 dark:to-purple-200 bg-clip-text text-transparent">
-                  POS Grosir Jasa
-                </span>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="font-semibold truncate">Grosir Jasa</span>
+                  <span className="text-[10px] text-muted-foreground truncate font-mono">ROLE: ADMIN</span>
+                </div>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={adminMenu.navMain} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={currentUser} />

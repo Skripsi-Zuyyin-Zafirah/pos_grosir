@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -133,8 +131,8 @@ export default function CashierPage() {
   }
 
   // Submit payment
-  const handlePaymentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handlePaymentSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
     if (!selectedOrder) return
     setSubmitting(true)
 
@@ -178,11 +176,6 @@ export default function CashierPage() {
     }
   }
 
-  const calculatedChange =
-    selectedOrder && !isNaN(parseFloat(amountPaid))
-      ? parseFloat(amountPaid) - selectedOrder.total_price
-      : 0
-
   const filteredOrders = processingOrders.filter(
     (o) =>
       o.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -194,322 +187,288 @@ export default function CashierPage() {
     window.print()
   }
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col p-6 space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Kasir & Pembayaran</h1>
-            <p className="text-muted-foreground mt-1">
-              Proses pembayaran pesanan yang sedang dikerjakan pegawai fisik di gudang.
-            </p>
-          </div>
+  return loading ? (
+    <div className="flex flex-1 flex-col items-center justify-center space-y-4 min-h-[60vh]">
+      <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="text-muted-foreground text-sm">Menghubungkan ke pusat data POS...</p>
+    </div>
+  ) : (
+    <div className="flex flex-1 flex-col p-6 space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Kasir & Pembayaran</h1>
+        <p className="text-muted-foreground mt-1">
+          Proses pembayaran pesanan yang sedang dikerjakan pegawai fisik di gudang.
+        </p>
+      </div>
 
-          <Card className="border-border/50 shadow-md">
-            <CardHeader className="pb-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <CardTitle>Pesanan Sedang Diproses</CardTitle>
-                  <CardDescription>
-                    Menampilkan {filteredOrders.length} pesanan yang sedang dikerjakan pegawai — siap dikonfirmasi bayar
-                  </CardDescription>
+      <Card className="border-border/50 shadow-md">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle>Pesanan Sedang Diproses</CardTitle>
+              <CardDescription>
+                Menampilkan {filteredOrders.length} pesanan yang sedang dikerjakan pegawai — siap dikonfirmasi bayar
+              </CardDescription>
+            </div>
+            <div className="relative w-full md:w-80">
+              <IconSearch className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari No. Pesanan atau Nama..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 bg-background"
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredOrders.length === 0 ? (
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              Tidak ada pesanan aktif yang sedang diproses pegawai saat ini
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No. Pesanan</TableHead>
+                    <TableHead>Waktu Masuk</TableHead>
+                    <TableHead>Pelanggan</TableHead>
+                    <TableHead className="text-center">EWP</TableHead>
+                    <TableHead className="text-right">Total Item</TableHead>
+                    <TableHead className="text-right">Total Tagihan</TableHead>
+                    <TableHead className="w-[120px] text-center">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOrders.map((order) => (
+                    <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="font-mono text-xs font-bold text-primary">
+                        #{order.order_number || order.id.substring(0, 8).toUpperCase()}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(order.created_at).toLocaleString("id-ID")}
+                      </TableCell>
+                      <TableCell className="font-semibold">{order.customer_name}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="text-xs font-semibold">
+                          <IconClock className="size-3 mr-1" />
+                          {formatTime(order.ewp)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{order.total_items} unit</TableCell>
+                      <TableCell className="text-right font-bold text-primary">
+                        {formatRupiah(order.total_price)}
+                      </TableCell>
+                      <TableCell>
+                        <Button onClick={() => handlePayOpen(order)} size="sm" className="w-full font-semibold">
+                          <IconCash className="size-4 mr-1.5" /> Bayar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Payment Modal */}
+      <Dialog open={payOpen} onOpenChange={setPayOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Proses Transaksi Pembayaran</DialogTitle>
+            <DialogDescription>
+              Pilih metode pembayaran untuk pesanan atas nama{" "}
+              <strong>{selectedOrder?.customer_name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-4 pt-2">
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-1.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Nomor Nota:</span>
+                  <span className="font-mono font-bold text-primary">
+                    #{selectedOrder.order_number || selectedOrder.id.substring(0, 8).toUpperCase()}
+                  </span>
                 </div>
-                <div className="relative w-full md:w-80">
-                  <IconSearch className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Cari No. Pesanan atau Nama..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9"
-                  />
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Petugas Ambil:</span>
+                  <span className="font-semibold text-foreground">
+                    {selectedOrder._staff_name || "Pegawai Fisik"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-base font-bold border-t pt-2 mt-2">
+                  <span>Total Tagihan:</span>
+                  <span className="text-lg text-primary">{formatRupiah(selectedOrder.total_price)}</span>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                  <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-muted-foreground text-sm">Memuat daftar kasir...</p>
-                </div>
-              ) : filteredOrders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-muted rounded-lg bg-background/50">
-                  <IconFileCheck className="size-12 text-muted-foreground/60 mb-2" />
-                  <h3 className="font-semibold text-lg">Belum Ada Pesanan Sedang Diproses</h3>
-                  <p className="text-sm text-muted-foreground max-w-sm mt-1">
-                    Pesanan baru akan muncul di sini secara otomatis saat pegawai mendapatkan tugas dari antrean.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>No. Pesanan</TableHead>
-                        <TableHead>Waktu Masuk</TableHead>
-                        <TableHead>Pelanggan</TableHead>
-                        <TableHead className="text-center">EWP</TableHead>
-                        <TableHead className="text-right">Total Item</TableHead>
-                        <TableHead className="text-right">Total Tagihan</TableHead>
-                        <TableHead className="w-[120px] text-center">Aksi</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredOrders.map((order) => (
-                        <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
-                          <TableCell className="font-mono text-xs font-bold text-primary">
-                            #{order.order_number || order.id.substring(0, 8).toUpperCase()}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {new Date(order.created_at).toLocaleString("id-ID")}
-                          </TableCell>
-                          <TableCell className="font-semibold">{order.customer_name}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="text-xs font-semibold">
-                              <IconClock className="size-3 mr-1" />
-                              {formatTime(order.ewp)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">{order.total_items} unit</TableCell>
-                          <TableCell className="text-right font-bold text-primary">
-                            {formatRupiah(order.total_price)}
-                          </TableCell>
-                          <TableCell>
-                            <Button onClick={() => handlePayOpen(order)} size="sm" className="w-full font-semibold">
-                              <IconCash className="size-4 mr-1.5" /> Bayar
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Payment Modal */}
-        <Dialog open={payOpen} onOpenChange={setPayOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Proses Transaksi Pembayaran</DialogTitle>
-              <DialogDescription>
-                Pilih metode pembayaran untuk pesanan atas nama{" "}
-                <strong>{selectedOrder?.customer_name}</strong>.
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedOrder && (
-              <form onSubmit={handlePaymentSubmit} className="space-y-4">
-                <div className="bg-muted/40 border rounded-lg p-3 text-sm space-y-1.5">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">No. Pesanan:</span>
-                    <span className="font-mono font-semibold">
-                      #{selectedOrder.order_number || selectedOrder.id.substring(0, 8).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">EWP Pesanan:</span>
-                    <span className="font-semibold">{formatTime(selectedOrder.ewp)}</span>
-                  </div>
-                  {selectedOrder.staff_id && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Dikerjakan oleh:</span>
-                      <span className="font-semibold flex items-center gap-1">
-                        <IconUser className="size-3" />
-                        Pegawai bertugas
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-base border-t pt-1.5">
-                    <span>Total Tagihan:</span>
-                    <span className="text-primary">{formatRupiah(selectedOrder.total_price)}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="payMethod">Metode Pembayaran</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(val) => {
-                      setPaymentMethod(val as any)
-                      if (val === "online") {
-                        setAmountPaid(selectedOrder.total_price.toString())
-                      }
-                    }}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih Metode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tunai">
-                        <div className="flex items-center gap-2">
-                          <IconCash className="size-4" />
-                          Tunai / Cash
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="online">
-                        <div className="flex items-center gap-2">
-                          <IconCreditCard className="size-4" />
-                          Online / Transfer / QRIS
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {paymentMethod === "tunai" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="amtPaid">Jumlah Uang Diterima (IDR)</Label>
-                    <Input
-                      id="amtPaid"
-                      type="number"
-                      value={amountPaid}
-                      onChange={(e) => setAmountPaid(e.target.value)}
-                      required
-                      disabled={submitting}
-                    />
-                  </div>
-                )}
-
-                {paymentMethod === "tunai" && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex justify-between items-center text-sm">
-                    <span className="font-semibold text-primary">Kembalian:</span>
-                    <span
-                      className={`text-lg font-bold ${
-                        calculatedChange < 0 ? "text-rose-500" : "text-primary"
-                      }`}
-                    >
-                      {calculatedChange < 0 ? "Kurang bayar" : formatRupiah(calculatedChange)}
-                    </span>
-                  </div>
-                )}
-
-                <DialogFooter className="mt-6">
+              <div className="space-y-2">
+                <Label>Metode Pembayaran</Label>
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={() => setPayOpen(false)}
-                    disabled={submitting}
+                    variant={paymentMethod === "tunai" ? "default" : "outline"}
+                    onClick={() => setPaymentMethod("tunai")}
+                    className="font-semibold h-11"
                   >
-                    Batal
+                    Uang Tunai
                   </Button>
                   <Button
-                    type="submit"
-                    disabled={
-                      submitting ||
-                      (paymentMethod === "tunai" &&
-                        (isNaN(parseFloat(amountPaid)) ||
-                          parseFloat(amountPaid) < selectedOrder.total_price))
-                    }
+                    type="button"
+                    variant={paymentMethod === "online" ? "default" : "outline"}
+                    onClick={() => setPaymentMethod("online")}
+                    className="font-semibold h-11"
                   >
-                    {submitting ? (
-                      <>
-                        <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Memproses...
-                      </>
-                    ) : (
-                      "Selesaikan Transaksi"
-                    )}
+                    Transfer Online
                   </Button>
-                </DialogFooter>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
+                </div>
+              </div>
 
-        {/* Receipt Modal */}
-        <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-1.5">
-                <IconPrinter className="size-5" /> Pembayaran Selesai
-              </DialogTitle>
-              <DialogDescription>
-                Ringkasan transaksi. Cetak atau tutup untuk melanjutkan.
-              </DialogDescription>
-            </DialogHeader>
+              {paymentMethod === "tunai" && (
+                <div className="space-y-2 pt-1 border-t border-dashed">
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor="payAmt">Jumlah Bayar Tunai</Label>
+                    {amountPaid && parseFloat(amountPaid) > 0 && (
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        Kembalian: {formatRupiah(Math.max(0, parseFloat(amountPaid) - selectedOrder.total_price))}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    id="payAmt"
+                    type="number"
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(e.target.value)}
+                    placeholder="Masukkan jumlah uang tunai..."
+                    className="bg-background"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[selectedOrder.total_price, 10000, 20000, 50000, 100000].map((val, i) => {
+                      const valueToSet = i === 0 ? val : Math.ceil(selectedOrder.total_price / val) * val
+                      return (
+                        <Button
+                          key={i}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setAmountPaid(valueToSet.toString())}
+                          className="text-xs"
+                        >
+                          {formatRupiah(valueToSet)}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
-            {selectedOrder && (
-              <div className="space-y-3 text-sm border rounded-lg p-4 bg-muted/30 font-mono">
-                <div className="text-center space-y-0.5">
-                  <p className="font-bold text-base">GROSIR JASA</p>
-                  <p className="text-xs text-muted-foreground">Aceh Timur</p>
-                </div>
-                <div className="border-t border-dashed pt-2 space-y-1">
-                  <div className="flex justify-between">
-                    <span>No. Pesanan</span>
-                    <span className="font-bold">
-                      #{selectedOrder.order_number || selectedOrder.id.substring(0, 8).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Nama</span>
-                    <span>{selectedOrder.customer_name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Metode</span>
-                    <span>{selectedOrder._payment_label || selectedOrder.payment_method}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Waktu</span>
-                    <span>{new Date().toLocaleString("id-ID")}</span>
-                  </div>
-                </div>
-                <div className="border-t border-dashed pt-2 space-y-0.5">
-                  {selectedOrder.order_items.map((item) => (
-                    <div key={item.id} className="flex justify-between text-xs">
-                      <span className="truncate max-w-[160px]">{item.products?.name} x{item.qty}</span>
-                      <span>{formatRupiah(item.unit_price * item.qty)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-dashed pt-2 space-y-1">
-                  <div className="flex justify-between font-bold text-base">
-                    <span>TOTAL</span>
-                    <span>{formatRupiah(selectedOrder.total_price)}</span>
-                  </div>
-                  {selectedOrder.payment_method === "tunai" && (
-                    <>
-                      <div className="flex justify-between">
-                        <span>Bayar</span>
-                        <span>{formatRupiah(selectedOrder._paid_amount || 0)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-emerald-600">
-                        <span>Kembali</span>
-                        <span>{formatRupiah(selectedOrder._change_amount || 0)}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <p className="text-center text-xs text-muted-foreground border-t border-dashed pt-2">
-                  Terima kasih telah berbelanja!
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" onClick={() => setPayOpen(false)} disabled={submitting}>
+              Batal
+            </Button>
+            <Button onClick={() => handlePaymentSubmit()} disabled={submitting} className="flex-1 font-bold">
+              {submitting ? (
+                <>
+                  <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Mengkonfirmasi...
+                </>
+              ) : (
+                "Konfirmasi Lunas"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Dialog */}
+      <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
+        <DialogContent className="max-w-xs p-5">
+          {selectedOrder && (
+            <div id="receipt-print-area" className="text-xs font-mono space-y-4">
+              <div className="text-center space-y-1">
+                <h3 className="font-bold text-sm">POS GROSIR JASA</h3>
+                <p className="text-[10px] text-muted-foreground">Aceh Timur, Indonesia</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Tanggal: {new Date().toLocaleString("id-ID")}
                 </p>
               </div>
-            )}
 
-            <DialogFooter className="mt-4 gap-2">
-              <Button variant="outline" size="sm" onClick={handlePrintReceipt}>
-                <IconPrinter className="size-4 mr-1.5" />
-                Cetak Struk
-              </Button>
-              <Button className="flex-1" onClick={() => setReceiptOpen(false)}>
-                Tutup & Kembali
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </SidebarInset>
-    </SidebarProvider>
+              <div className="border-t border-b border-dashed py-2 space-y-1">
+                <div className="flex justify-between">
+                  <span>Nota:</span>
+                  <span className="font-bold">
+                    #{selectedOrder.order_number || selectedOrder.id.substring(0, 8).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Pelanggan:</span>
+                  <span>{selectedOrder.customer_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Pegawai Ambil:</span>
+                  <span>{selectedOrder._staff_name || "Staf Fisik"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Metode:</span>
+                  <span className="uppercase">{selectedOrder.payment_method}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                {selectedOrder.order_items?.map((item: any) => (
+                  <div key={item.id} className="flex justify-between leading-tight">
+                    <div className="max-w-[140px] truncate">
+                      <span>{item.products?.name}</span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {item.qty} x {formatRupiah(item.unit_price)}
+                      </span>
+                    </div>
+                    <span>{formatRupiah(item.qty * item.unit_price)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-dashed pt-2 space-y-1 font-bold">
+                <div className="flex justify-between text-sm">
+                  <span>Total</span>
+                  <span>{formatRupiah(selectedOrder.total_price)}</span>
+                </div>
+                {selectedOrder.payment_method === "tunai" && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Bayar</span>
+                      <span>{formatRupiah(selectedOrder._paid_amount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-emerald-600">
+                      <span>Kembali</span>
+                      <span>{formatRupiah(selectedOrder._change_amount || 0)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+              <p className="text-center text-xs text-muted-foreground border-t border-dashed pt-2">
+                Terima kasih telah berbelanja!
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" size="sm" onClick={handlePrintReceipt}>
+              <IconPrinter className="size-4 mr-1.5" />
+              Cetak Struk
+            </Button>
+            <Button className="flex-1" onClick={() => setReceiptOpen(false)}>
+              Tutup & Kembali
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

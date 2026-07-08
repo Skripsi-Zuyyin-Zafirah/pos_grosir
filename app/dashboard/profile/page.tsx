@@ -1,13 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { ProfileContent } from "@/components/profile-content"
 
-export default function RedirectDashboardProfile() {
-  const router = useRouter()
-  useEffect(() => {
-    router.replace("/profile")
-  }, [router])
-
-  return null
+export default function DashboardProfilePage() {
+  return <ProfileContent />
 }
