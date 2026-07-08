@@ -20,13 +20,14 @@ import {
   IconHistory,
 } from "@tabler/icons-react"
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type OrderItem = {
   id: string
-  price: number
-  quantity: number
+  unit_price: number
+  qty: number
   products: {
     name: string
-    unit: string | null
   } | null
 }
 
@@ -38,26 +39,76 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  payment_status: "unpaid" | "paid" | null
+  status: "antri" | "diproses" | "selesai" | "batal"
+  payment_method: "tunai" | "online" | null
   order_items: OrderItem[]
 }
 
-const ACTIVE_STATUSES = ["waiting", "processing", "ready"] as const
+const ACTIVE_STATUSES = ["antri", "diproses"] as const
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const formatRupiah = (val: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(val)
+
+const formatTime = (seconds: number) => {
+  if (seconds < 60) return `${Math.round(seconds)} detik`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.round(seconds % 60)
+  return remainingSeconds > 0 ? `${minutes} menit ${remainingSeconds} detik` : `${minutes} menit`
+}
+
+// ─── Status Badge ──────────────────────────────────────────────────────────────
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case "antri":
+      return (
+        <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold">
+          ANTRI
+        </Badge>
+      )
+    case "diproses":
+      return (
+        <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold">
+          DIPROSES
+        </Badge>
+      )
+    case "selesai":
+      return (
+        <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold">
+          SELESAI
+        </Badge>
+      )
+    case "batal":
+      return (
+        <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold">
+          BATAL
+        </Badge>
+      )
+    default:
+      return <Badge variant="outline">{status}</Badge>
+  }
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CustomerOrdersPage() {
   const router = useRouter()
   const supabase = createClient()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
 
   // Details Modal
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
 
-  const fetchUserAndOrders = async () => {
+  const fetchOrders = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
@@ -65,13 +116,12 @@ export default function CustomerOrdersPage() {
         router.push("/login")
         return
       }
-      setUser(session.user)
 
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items (*, products ( name, unit ))")
+        .select("*, order_items (id, qty, unit_price, products ( name ))")
         .eq("user_id", session.user.id)
-        .in("status", ACTIVE_STATUSES)   // hanya pesanan aktif
+        .in("status", ACTIVE_STATUSES)
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -84,16 +134,15 @@ export default function CustomerOrdersPage() {
   }
 
   useEffect(() => {
-    fetchUserAndOrders()
+    fetchOrders()
 
-    // Subscribe to real-time order updates
     const channel = supabase
       .channel("customer-orders-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
         () => {
-          fetchUserAndOrders()
+          fetchOrders()
         }
       )
       .subscribe()
@@ -116,7 +165,7 @@ export default function CustomerOrdersPage() {
 
       toast.success("Pesanan berhasil dibatalkan!")
       setDetailsOpen(false)
-      fetchUserAndOrders()
+      fetchOrders()
     } catch (err: any) {
       toast.error("Gagal membatalkan pesanan: " + err.message)
     } finally {
@@ -124,56 +173,10 @@ export default function CustomerOrdersPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "waiting":
-        return (
-          <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold">
-            ANTRI
-          </Badge>
-        )
-      case "processing":
-        return (
-          <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold">
-            DIPROSES
-          </Badge>
-        )
-      case "ready":
-        return (
-          <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none font-semibold">
-            SIAP DIAMBIL
-          </Badge>
-        )
-      case "done":
-        return (
-          <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold">
-            SELESAI
-          </Badge>
-        )
-      case "cancelled":
-        return (
-          <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold">
-            BATAL
-          </Badge>
-        )
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val)
-  }
-
-  // ── Main render ───────────────────────────────────────────────────────────
   return (
     <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
 
-      {/* ── Page Header ── */}
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Pesanan Saya</h1>
@@ -184,7 +187,7 @@ export default function CustomerOrdersPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={fetchUserAndOrders}
+          onClick={fetchOrders}
           className="w-fit"
         >
           <IconRefresh className="size-4 mr-1.5" />
@@ -192,7 +195,7 @@ export default function CustomerOrdersPage() {
         </Button>
       </div>
 
-      {/* ── Content ── */}
+      {/* Content */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-4">
           <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
@@ -203,12 +206,11 @@ export default function CustomerOrdersPage() {
           <IconPackage className="size-16 text-muted-foreground/60 mb-2" />
           <h3 className="font-semibold text-lg">Tidak Ada Pesanan Aktif</h3>
           <p className="text-sm text-muted-foreground max-w-sm mt-1">
-            Anda tidak memiliki pesanan yang sedang berjalan saat ini. Pesanan yang
-            sudah selesai atau dibatalkan dapat dilihat di Riwayat Transaksi.
+            Anda tidak memiliki pesanan yang sedang berjalan saat ini.
           </p>
           <div className="flex gap-2 mt-4">
             <Button asChild>
-              <Link href="/">Mulai Belanja</Link>
+              <Link href="/customer/shop">Mulai Belanja</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/customer/transactions">
@@ -251,18 +253,18 @@ export default function CustomerOrdersPage() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <IconClock className="size-4" />
                   <span>
-                    Estimasi Waktu Proses (ECT):{" "}
-                    <strong>{order.ewp} menit</strong>
+                    Estimasi Waktu Proses (EWP):{" "}
+                    <strong>{formatTime(order.ewp)}</strong>
                   </span>
                 </div>
-                <div className="text-sm">
-                  Status Bayar:{" "}
-                  {order.payment_status === "paid" ? (
-                    <span className="text-emerald-600 font-semibold">Sudah Lunas</span>
-                  ) : (
-                    <span className="text-rose-500 font-semibold">Belum Dibayar</span>
-                  )}
-                </div>
+                {order.payment_method && (
+                  <div className="text-sm">
+                    Metode Bayar:{" "}
+                    <span className="font-semibold capitalize">
+                      {order.payment_method === "tunai" ? "Tunai" : "Online"}
+                    </span>
+                  </div>
+                )}
               </CardContent>
 
               <CardFooter className="pt-3 border-t border-border/50 flex gap-2 justify-end bg-muted/5">
@@ -276,7 +278,7 @@ export default function CustomerOrdersPage() {
                 >
                   <IconEye className="size-4 mr-1.5" /> Detail
                 </Button>
-                {order.status === "waiting" && (
+                {order.status === "antri" && (
                   <Button
                     variant="destructive"
                     size="sm"
@@ -301,7 +303,7 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
-      {/* ── Details Modal ── */}
+      {/* Details Modal */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -324,6 +326,14 @@ export default function CustomerOrdersPage() {
                   <p className="text-muted-foreground">Atas Nama</p>
                   <p className="font-medium">{selectedOrder.customer_name}</p>
                 </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Estimasi EWP</p>
+                  <p className="font-medium">{formatTime(selectedOrder.ewp)}</p>
+                </div>
               </div>
 
               <div className="border rounded-md overflow-hidden">
@@ -342,10 +352,10 @@ export default function CustomerOrdersPage() {
                           {item.products?.name}
                         </TableCell>
                         <TableCell className="text-right">
-                          {item.quantity} {item.products?.unit || "pcs"}
+                          {item.qty} pcs
                         </TableCell>
                         <TableCell className="text-right font-semibold">
-                          {formatRupiah(item.price * item.quantity)}
+                          {formatRupiah(item.unit_price * item.qty)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -354,10 +364,6 @@ export default function CustomerOrdersPage() {
               </div>
 
               <div className="space-y-1.5 text-sm border-t pt-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Item:</span>
-                  <span className="font-semibold">{selectedOrder.total_items} unit</span>
-                </div>
                 <div className="flex justify-between text-base border-t pt-2">
                   <span className="font-semibold">Total Pembayaran:</span>
                   <span className="font-bold text-lg text-primary">
@@ -369,7 +375,7 @@ export default function CustomerOrdersPage() {
           )}
 
           <DialogFooter className="mt-4">
-            {selectedOrder?.status === "waiting" && (
+            {selectedOrder?.status === "antri" && (
               <Button
                 variant="destructive"
                 onClick={() => handleCancelOrder(selectedOrder.id)}

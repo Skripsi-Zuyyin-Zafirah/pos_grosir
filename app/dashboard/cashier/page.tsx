@@ -8,21 +8,31 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Receipt } from "@/components/receipt"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { IconLoader2, IconSearch, IconCash, IconCreditCard, IconQrcode, IconFileCheck, IconPrinter } from "@tabler/icons-react"
+import {
+  IconLoader2,
+  IconSearch,
+  IconCash,
+  IconCreditCard,
+  IconFileCheck,
+  IconPrinter,
+  IconUser,
+  IconClock,
+} from "@tabler/icons-react"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrderItem = {
   id: string
-  quantity: number
-  price: number
+  qty: number
+  unit_price: number
   products: {
     name: string
-    unit: string | null
   } | null
 }
 
@@ -34,69 +44,78 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  payment_status: "unpaid" | "paid" | null
-  payment_method?: string
-  payment_amount?: number
-  change_amount?: number
+  status: "antri" | "diproses" | "selesai" | "batal"
+  staff_id: string | null
+  payment_method: "tunai" | "online" | null
   order_items: OrderItem[]
+  // Runtime-only for receipt
+  _paid_amount?: number
+  _change_amount?: number
+  _payment_label?: string
+  _staff_name?: string
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const formatRupiah = (val: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(val)
+
+const formatTime = (seconds: number) => {
+  if (seconds < 60) return `${Math.round(seconds)} detik`
+  const minutes = Math.floor(seconds / 60)
+  const remaining = Math.round(seconds % 60)
+  return remaining > 0 ? `${minutes} menit ${remaining} detik` : `${minutes} menit`
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CashierPage() {
   const supabase = createClient()
-  const [readyOrders, setReadyOrders] = useState<Order[]>([])
+  const [processingOrders, setProcessingOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
 
-  // Modals state
+  // Modal state
   const [payOpen, setPayOpen] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Selected order and transaction fields
+  // Selected order & payment fields
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<"tunai" | "transfer" | "qris">("tunai")
+  const [paymentMethod, setPaymentMethod] = useState<"tunai" | "online">("tunai")
   const [amountPaid, setAmountPaid] = useState("")
-  const [currentUser, setCurrentUser] = useState<any>(null)
 
-  const fetchReadyOrders = async () => {
+  const fetchProcessingOrders = async () => {
     try {
       setLoading(true)
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items (*, products ( name, unit ))")
-        .eq("status", "ready")
-        .order("created_at", { ascending: false })
+        .select("*, order_items (id, qty, unit_price, products ( name ))")
+        .eq("status", "diproses")
+        .order("dequeued_at", { ascending: true })
 
       if (error) throw error
-      setReadyOrders((data as any) || [])
+      setProcessingOrders((data as any) || [])
     } catch (err: any) {
-      toast.error("Gagal memuat pesanan siap bayar: " + err.message)
+      toast.error("Gagal memuat pesanan diproses: " + err.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchCurrentUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      setCurrentUser(session.user)
-    }
-  }
-
   useEffect(() => {
-    fetchCurrentUser()
-    fetchReadyOrders()
+    fetchProcessingOrders()
 
-    // Real-time subscription to order status updates
     const channel = supabase
-      .channel("cashier-ready-orders-realtime")
+      .channel("cashier-processing-orders-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
-        () => {
-          fetchReadyOrders()
-        }
+        () => fetchProcessingOrders()
       )
       .subscribe()
 
@@ -116,40 +135,42 @@ export default function CashierPage() {
   // Submit payment
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedOrder || !currentUser) return
+    if (!selectedOrder) return
     setSubmitting(true)
 
     const paidVal = parseFloat(amountPaid)
-    if (isNaN(paidVal) || paidVal < selectedOrder.total_price) {
+    if (paymentMethod === "tunai" && (isNaN(paidVal) || paidVal < selectedOrder.total_price)) {
       toast.error("Jumlah bayar kurang atau tidak valid")
       setSubmitting(false)
       return
     }
 
     try {
-      // Call Postgres procedure to write transaction & complete order status
+      const finalPaid = paymentMethod === "online" ? selectedOrder.total_price : paidVal
+
       const { error } = await supabase.rpc("finalize_order_payment", {
         p_order_id: selectedOrder.id,
-        p_cashier_id: currentUser.id,
-        p_method: paymentMethod,
-        p_amount: paidVal,
+        p_staff_id: selectedOrder.staff_id,
+        p_payment_method: paymentMethod,
       })
 
       if (error) throw error
 
       toast.success("Pembayaran berhasil diselesaikan!")
 
-      // Append transaction details to selected order before loading receipt
+      // Build receipt data
       setSelectedOrder({
         ...selectedOrder,
-        payment_method: paymentMethod === "tunai" ? "Tunai" : paymentMethod === "transfer" ? "Transfer Bank" : "QRIS",
-        payment_amount: paidVal,
-        change_amount: paidVal - selectedOrder.total_price,
+        status: "selesai",
+        payment_method: paymentMethod,
+        _paid_amount: finalPaid,
+        _change_amount: paymentMethod === "tunai" ? finalPaid - selectedOrder.total_price : 0,
+        _payment_label: paymentMethod === "tunai" ? "Tunai / Cash" : "Online / Transfer",
       })
 
       setPayOpen(false)
-      setReceiptOpen(true) // trigger receipt printing modal!
-      fetchReadyOrders()
+      setReceiptOpen(true)
+      fetchProcessingOrders()
     } catch (err: any) {
       toast.error("Transaksi gagal: " + err.message)
     } finally {
@@ -157,24 +178,20 @@ export default function CashierPage() {
     }
   }
 
-  // Calculations
   const calculatedChange =
     selectedOrder && !isNaN(parseFloat(amountPaid))
       ? parseFloat(amountPaid) - selectedOrder.total_price
       : 0
 
-  const filteredOrders = readyOrders.filter(
+  const filteredOrders = processingOrders.filter(
     (o) =>
       o.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
       (o.order_number && o.order_number.toLowerCase().includes(search.toLowerCase()))
   )
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val)
+  // ── Receipt Print Handler ──────────────────────────────────────────────────
+  const handlePrintReceipt = () => {
+    window.print()
   }
 
   return (
@@ -193,7 +210,7 @@ export default function CashierPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Kasir & Pembayaran</h1>
             <p className="text-muted-foreground mt-1">
-              Proses checkout kasir untuk pesanan yang telah dikemas siap diambil oleh pelanggan.
+              Proses pembayaran pesanan yang sedang dikerjakan pegawai fisik di gudang.
             </p>
           </div>
 
@@ -201,9 +218,9 @@ export default function CashierPage() {
             <CardHeader className="pb-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <CardTitle>Daftar Antrian Pembayaran</CardTitle>
+                  <CardTitle>Pesanan Sedang Diproses</CardTitle>
                   <CardDescription>
-                    Menampilkan total {filteredOrders.length} pesanan siap bayar
+                    Menampilkan {filteredOrders.length} pesanan yang sedang dikerjakan pegawai — siap dikonfirmasi bayar
                   </CardDescription>
                 </div>
                 <div className="relative w-full md:w-80">
@@ -226,9 +243,9 @@ export default function CashierPage() {
               ) : filteredOrders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-muted rounded-lg bg-background/50">
                   <IconFileCheck className="size-12 text-muted-foreground/60 mb-2" />
-                  <h3 className="font-semibold text-lg">Belum Ada Pesanan Siap Bayar</h3>
+                  <h3 className="font-semibold text-lg">Belum Ada Pesanan Sedang Diproses</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mt-1">
-                    Silakan tunggu petugas gudang menyelesaikan picking dan menandai order SIAP.
+                    Pesanan baru akan muncul di sini secara otomatis saat pegawai mendapatkan tugas dari antrean.
                   </p>
                 </div>
               ) : (
@@ -239,6 +256,7 @@ export default function CashierPage() {
                         <TableHead>No. Pesanan</TableHead>
                         <TableHead>Waktu Masuk</TableHead>
                         <TableHead>Pelanggan</TableHead>
+                        <TableHead className="text-center">EWP</TableHead>
                         <TableHead className="text-right">Total Item</TableHead>
                         <TableHead className="text-right">Total Tagihan</TableHead>
                         <TableHead className="w-[120px] text-center">Aksi</TableHead>
@@ -254,6 +272,12 @@ export default function CashierPage() {
                             {new Date(order.created_at).toLocaleString("id-ID")}
                           </TableCell>
                           <TableCell className="font-semibold">{order.customer_name}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-xs font-semibold">
+                              <IconClock className="size-3 mr-1" />
+                              {formatTime(order.ewp)}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right">{order.total_items} unit</TableCell>
                           <TableCell className="text-right font-bold text-primary">
                             {formatRupiah(order.total_price)}
@@ -279,7 +303,8 @@ export default function CashierPage() {
             <DialogHeader>
               <DialogTitle>Proses Transaksi Pembayaran</DialogTitle>
               <DialogDescription>
-                Masukkan jumlah pembayaran dan pilih metode bayar untuk pelanggan {selectedOrder?.customer_name}.
+                Pilih metode pembayaran untuk pesanan atas nama{" "}
+                <strong>{selectedOrder?.customer_name}</strong>.
               </DialogDescription>
             </DialogHeader>
 
@@ -292,6 +317,19 @@ export default function CashierPage() {
                       #{selectedOrder.order_number || selectedOrder.id.substring(0, 8).toUpperCase()}
                     </span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">EWP Pesanan:</span>
+                    <span className="font-semibold">{formatTime(selectedOrder.ewp)}</span>
+                  </div>
+                  {selectedOrder.staff_id && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Dikerjakan oleh:</span>
+                      <span className="font-semibold flex items-center gap-1">
+                        <IconUser className="size-3" />
+                        Pegawai bertugas
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-base border-t pt-1.5">
                     <span>Total Tagihan:</span>
                     <span className="text-primary">{formatRupiah(selectedOrder.total_price)}</span>
@@ -304,8 +342,7 @@ export default function CashierPage() {
                     value={paymentMethod}
                     onValueChange={(val) => {
                       setPaymentMethod(val as any)
-                      // Pre-fill amount for non-cash payments
-                      if (val !== "tunai") {
+                      if (val === "online") {
                         setAmountPaid(selectedOrder.total_price.toString())
                       }
                     }}
@@ -315,29 +352,44 @@ export default function CashierPage() {
                       <SelectValue placeholder="Pilih Metode" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="tunai">Tunai / Cash</SelectItem>
-                      <SelectItem value="transfer">Transfer Bank</SelectItem>
-                      <SelectItem value="qris">QRIS Digital</SelectItem>
+                      <SelectItem value="tunai">
+                        <div className="flex items-center gap-2">
+                          <IconCash className="size-4" />
+                          Tunai / Cash
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="online">
+                        <div className="flex items-center gap-2">
+                          <IconCreditCard className="size-4" />
+                          Online / Transfer / QRIS
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="amtPaid">Jumlah Uang Diterima (IDR)</Label>
-                  <Input
-                    id="amtPaid"
-                    type="number"
-                    value={amountPaid}
-                    onChange={(e) => setAmountPaid(e.target.value)}
-                    required
-                    disabled={submitting || paymentMethod !== "tunai"}
-                  />
-                </div>
+                {paymentMethod === "tunai" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="amtPaid">Jumlah Uang Diterima (IDR)</Label>
+                    <Input
+                      id="amtPaid"
+                      type="number"
+                      value={amountPaid}
+                      onChange={(e) => setAmountPaid(e.target.value)}
+                      required
+                      disabled={submitting}
+                    />
+                  </div>
+                )}
 
                 {paymentMethod === "tunai" && (
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex justify-between items-center text-sm">
                     <span className="font-semibold text-primary">Kembalian:</span>
-                    <span className={`text-lg font-bold ${calculatedChange < 0 ? "text-rose-500" : "text-primary"}`}>
+                    <span
+                      className={`text-lg font-bold ${
+                        calculatedChange < 0 ? "text-rose-500" : "text-primary"
+                      }`}
+                    >
                       {calculatedChange < 0 ? "Kurang bayar" : formatRupiah(calculatedChange)}
                     </span>
                   </div>
@@ -356,8 +408,9 @@ export default function CashierPage() {
                     type="submit"
                     disabled={
                       submitting ||
-                      isNaN(parseFloat(amountPaid)) ||
-                      parseFloat(amountPaid) < selectedOrder.total_price
+                      (paymentMethod === "tunai" &&
+                        (isNaN(parseFloat(amountPaid)) ||
+                          parseFloat(amountPaid) < selectedOrder.total_price))
                     }
                   >
                     {submitting ? (
@@ -375,20 +428,82 @@ export default function CashierPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Receipt Printing Modal */}
+        {/* Receipt Modal */}
         <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-1.5"><IconPrinter className="size-5" /> Pembayaran Selesai</DialogTitle>
+              <DialogTitle className="flex items-center gap-1.5">
+                <IconPrinter className="size-5" /> Pembayaran Selesai
+              </DialogTitle>
               <DialogDescription>
-                Cetak struk belanja thermal untuk diserahkan kepada pelanggan.
+                Ringkasan transaksi. Cetak atau tutup untuk melanjutkan.
               </DialogDescription>
             </DialogHeader>
 
-            {selectedOrder && <Receipt order={selectedOrder} />}
+            {selectedOrder && (
+              <div className="space-y-3 text-sm border rounded-lg p-4 bg-muted/30 font-mono">
+                <div className="text-center space-y-0.5">
+                  <p className="font-bold text-base">GROSIR JASA</p>
+                  <p className="text-xs text-muted-foreground">Aceh Timur</p>
+                </div>
+                <div className="border-t border-dashed pt-2 space-y-1">
+                  <div className="flex justify-between">
+                    <span>No. Pesanan</span>
+                    <span className="font-bold">
+                      #{selectedOrder.order_number || selectedOrder.id.substring(0, 8).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Nama</span>
+                    <span>{selectedOrder.customer_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Metode</span>
+                    <span>{selectedOrder._payment_label || selectedOrder.payment_method}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Waktu</span>
+                    <span>{new Date().toLocaleString("id-ID")}</span>
+                  </div>
+                </div>
+                <div className="border-t border-dashed pt-2 space-y-0.5">
+                  {selectedOrder.order_items.map((item) => (
+                    <div key={item.id} className="flex justify-between text-xs">
+                      <span className="truncate max-w-[160px]">{item.products?.name} x{item.qty}</span>
+                      <span>{formatRupiah(item.unit_price * item.qty)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-dashed pt-2 space-y-1">
+                  <div className="flex justify-between font-bold text-base">
+                    <span>TOTAL</span>
+                    <span>{formatRupiah(selectedOrder.total_price)}</span>
+                  </div>
+                  {selectedOrder.payment_method === "tunai" && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Bayar</span>
+                        <span>{formatRupiah(selectedOrder._paid_amount || 0)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-emerald-600">
+                        <span>Kembali</span>
+                        <span>{formatRupiah(selectedOrder._change_amount || 0)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <p className="text-center text-xs text-muted-foreground border-t border-dashed pt-2">
+                  Terima kasih telah berbelanja!
+                </p>
+              </div>
+            )}
 
-            <DialogFooter className="mt-4">
-              <Button variant="outline" className="w-full" onClick={() => setReceiptOpen(false)}>
+            <DialogFooter className="mt-4 gap-2">
+              <Button variant="outline" size="sm" onClick={handlePrintReceipt}>
+                <IconPrinter className="size-4 mr-1.5" />
+                Cetak Struk
+              </Button>
+              <Button className="flex-1" onClick={() => setReceiptOpen(false)}>
                 Tutup & Kembali
               </Button>
             </DialogFooter>

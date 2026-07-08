@@ -16,8 +16,8 @@ import { IconLoader2, IconClock, IconDeviceFloppy, IconSearch } from "@tabler/ic
 
 type ProductUnit = {
   id: string
-  name: string
-  time_weight: number | null
+  unit_name: string
+  pickup_time_seconds: number | null
   products: {
     id: string
     name: string
@@ -38,7 +38,7 @@ export default function PickingTimePage() {
       setLoading(true)
       const { data, error } = await supabase
         .from("product_units")
-        .select("id, name, time_weight, products ( id, name, sku )")
+        .select("id, unit_name, pickup_time_seconds, products ( id, name, sku )")
         .order("id", { ascending: true })
 
       if (error) throw error
@@ -48,7 +48,7 @@ export default function PickingTimePage() {
       const initValues: Record<string, string> = {}
       if (data) {
         data.forEach((pu: any) => {
-          initValues[pu.id] = pu.time_weight != null ? String(pu.time_weight) : ""
+          initValues[pu.id] = pu.pickup_time_seconds != null ? String(pu.pickup_time_seconds) : ""
         })
       }
       setEditValues(initValues)
@@ -75,7 +75,7 @@ export default function PickingTimePage() {
       setSaving(unitId)
       const { error } = await supabase
         .from("product_units")
-        .update({ time_weight: rawValue === "" ? null : parsed })
+        .update({ pickup_time_seconds: rawValue === "" ? null : parsed })
         .eq("id", unitId)
 
       if (error) throw error
@@ -83,7 +83,7 @@ export default function PickingTimePage() {
       // Update local state
       setProductUnits((prev) =>
         prev.map((pu) =>
-          pu.id === unitId ? { ...pu, time_weight: rawValue === "" ? null : parsed } : pu
+          pu.id === unitId ? { ...pu, pickup_time_seconds: rawValue === "" ? null : parsed } : pu
         )
       )
     } catch (err: any) {
@@ -98,7 +98,7 @@ export default function PickingTimePage() {
     return (
       pu.products?.name?.toLowerCase().includes(q) ||
       pu.products?.sku?.toLowerCase().includes(q) ||
-      pu.name?.toLowerCase().includes(q)
+      pu.unit_name?.toLowerCase().includes(q)
     )
   })
 
@@ -116,9 +116,9 @@ export default function PickingTimePage() {
         <SiteHeader />
         <div className="flex flex-1 flex-col p-6 space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Waktu Pengambilan Barang</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Waktu Pengambilan Barang ($W_i$)</h1>
             <p className="text-muted-foreground mt-1">
-              Kelola estimasi waktu pengambilan (dalam menit) per unit produk di gudang. Digunakan untuk kalkulasi prioritas antrian.
+              Kelola nilai estimasi waktu pengambilan ($W_i$ dalam detik) per unit kemasan produk di gudang untuk perhitungan antrean prioritas.
             </p>
           </div>
 
@@ -127,12 +127,10 @@ export default function PickingTimePage() {
             <CardContent className="flex gap-3 items-start pt-5">
               <IconClock className="size-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                <p className="font-semibold">Cara Penggunaan</p>
+                <p className="font-semibold">Perhitungan Prioritas EWP (Estimasi Waktu Proses)</p>
                 <p>
-                  Isikan estimasi waktu (menit) yang dibutuhkan untuk mengambil setiap unit produk dari gudang.
-                  Misalnya: Produk dijual dalam <strong>Pcs</strong> (1 mnt) dan <strong>Dus</strong> (3 mnt) karena
-                  memiliki berat dan kerumitan pengambilan yang berbeda.
-                  Nilai ini digunakan oleh sistem antrian untuk memprioritaskan pesanan terkecil terlebih dahulu (Shortest Job First).
+                  Sistem antrean memprioritaskan pesanan dengan EWP terkecil (Shortest Job First).
+                  Rumus EWP pesanan: <strong>$EWP = \sum (Q_i \times W_i)$</strong> di mana $Q_i$ adalah jumlah item kemasan dan $W_i$ adalah waktu pengambilan (detik) per unit yang Anda tentukan di bawah ini.
                 </p>
               </div>
             </CardContent>
@@ -141,7 +139,7 @@ export default function PickingTimePage() {
           <Card className="border-border/50 shadow-md">
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 gap-4">
               <div>
-                <CardTitle>Daftar Unit Produk</CardTitle>
+                <CardTitle>Daftar Unit Kemasan Produk</CardTitle>
                 <CardDescription>
                   {filteredUnits.length} unit produk ditemukan
                 </CardDescription>
@@ -149,7 +147,7 @@ export default function PickingTimePage() {
               <div className="relative w-full sm:w-72">
                 <IconSearch className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
                 <Input
-                  placeholder="Cari nama produk, SKU, atau satuan..."
+                  placeholder="Cari nama produk, SKU, atau kemasan..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 bg-background"
@@ -173,15 +171,15 @@ export default function PickingTimePage() {
                       <TableRow>
                         <TableHead>Produk</TableHead>
                         <TableHead>SKU</TableHead>
-                        <TableHead className="text-center">Satuan</TableHead>
-                        <TableHead className="text-center w-[180px]">Waktu Pengambilan (mnt)</TableHead>
+                        <TableHead className="text-center">Kemasan</TableHead>
+                        <TableHead className="text-center w-[220px]">Waktu Ambil ($W_i$ - detik)</TableHead>
                         <TableHead className="text-center w-[120px]">Status</TableHead>
                         <TableHead className="text-center w-[100px]">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredUnits.map((pu) => {
-                        const isDirty = editValues[pu.id] !== (pu.time_weight != null ? String(pu.time_weight) : "")
+                        const isDirty = editValues[pu.id] !== (pu.pickup_time_seconds != null ? String(pu.pickup_time_seconds) : "")
                         return (
                           <TableRow key={pu.id} className="hover:bg-muted/30 transition-colors">
                             <TableCell className="font-medium">
@@ -191,8 +189,8 @@ export default function PickingTimePage() {
                               {pu.products?.sku || "-"}
                             </TableCell>
                             <TableCell className="text-center">
-                              <Badge variant="outline" className="font-semibold uppercase tracking-wide">
-                                {pu.name}
+                              <Badge variant="outline" className="font-bold px-3 py-1 bg-muted/30">
+                                {pu.unit_name}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center">
@@ -205,15 +203,15 @@ export default function PickingTimePage() {
                                   onChange={(e) =>
                                     setEditValues((prev) => ({ ...prev, [pu.id]: e.target.value }))
                                   }
-                                  placeholder="e.g. 1.5"
+                                  placeholder="e.g. 15"
                                   className="w-24 text-center bg-background"
                                 />
-                                <span className="text-xs text-muted-foreground">mnt</span>
+                                <span className="text-xs text-muted-foreground">detik</span>
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
-                              {pu.time_weight != null ? (
-                                <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none text-white">
+                              {pu.pickup_time_seconds != null ? (
+                                <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none text-white font-semibold">
                                   Diatur
                                 </Badge>
                               ) : (

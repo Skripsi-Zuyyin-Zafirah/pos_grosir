@@ -15,7 +15,6 @@ import {
   IconShoppingCart,
   IconBuildingStore,
   IconCirclePlus,
-  IconAlertCircle,
   IconRefresh,
 } from "@tabler/icons-react"
 
@@ -26,35 +25,39 @@ type Category = {
   name: string
 }
 
+type ProductUnit = {
+  id: string
+  unit_name: string
+  price: number
+  pickup_time_seconds: number | null
+  multiplier: number
+}
+
 type Product = {
   id: string
   sku: string | null
   name: string
   price: number
-  unit: string | null
-  weight: number | null
+  stock_qty: number | null
   image_url: string | null
   categories: {
     id: string
     name: string
   } | null
-}
-
-type InventoryItem = {
-  product_id: string
-  stock_qty: number
-  products: Product | null
+  product_units: ProductUnit[]
 }
 
 type CartItem = {
   productId: string
+  unitId: string
   name: string
+  unitName: string
   price: number
-  unit: string | null
-  weight: number | null
+  pickupTimeSeconds: number
   quantity: number
   stockQty: number
   imageUrl: string | null
+  multiplier: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,9 +74,12 @@ export default function CustomerShopPage() {
 
   // Data states
   const [loading, setLoading] = useState(true)
-  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [cartCount, setCartCount] = useState(0)
+
+  // Selected units mapping state: { [productId]: selectedUnitId }
+  const [selectedUnits, setSelectedUnits] = useState<{ [key: string]: string }>({})
 
   // Filter & Search states
   const [search, setSearch] = useState("")
@@ -92,29 +98,45 @@ export default function CustomerShopPage() {
       if (catErr) throw catErr
       setCategories(catData || [])
 
-      // Fetch Inventory with Products and Categories join
-      const { data: invData, error: invErr } = await supabase
-        .from("inventory")
+      // Fetch Products with Categories and Units
+      const { data: prodData, error: prodErr } = await supabase
+        .from("products")
         .select(`
-          product_id,
+          id,
+          sku,
+          name,
+          price,
+          image_url,
           stock_qty,
-          products:product_id (
+          categories:category_id (
             id,
-            sku,
-            name,
+            name
+          ),
+          product_units (
+            id,
+            unit_name,
             price,
-            unit,
-            weight,
-            image_url,
-            categories:category_id (
-              id,
-              name
-            )
+            pickup_time_seconds,
+            multiplier
           )
         `)
+        .order("name")
 
-      if (invErr) throw invErr
-      setInventory((invData as any) || [])
+      if (prodErr) throw prodErr
+
+      const mappedProducts = (prodData as any) || []
+      setProducts(mappedProducts)
+
+      // Initialize default selected units (first unit available for each product)
+      const defaultUnits: { [key: string]: string } = {}
+      mappedProducts.forEach((p: Product) => {
+        if (p.product_units && p.product_units.length > 0) {
+          // Sort by multiplier ASC (usually Pcs is smallest)
+          const sortedUnits = [...p.product_units].sort((a, b) => a.multiplier - b.multiplier)
+          defaultUnits[p.id] = sortedUnits[0].id
+        }
+      })
+      setSelectedUnits(defaultUnits)
     } catch (err: any) {
       toast.error("Gagal memuat produk: " + err.message)
     } finally {
@@ -145,16 +167,9 @@ export default function CustomerShopPage() {
     // Listen to localstorage change from other tabs
     window.addEventListener("storage", updateCartCount)
 
-    // ── Supabase Realtime Channels ──
-    const inventoryChannel = supabase
-      .channel("realtime-shop-inventory")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "inventory" },
-        () => {
-          fetchProductsAndCategories()
-        }
-      )
+    // Realtime channel for product/stock changes
+    const productsChannel = supabase
+      .channel("realtime-shop-products")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
@@ -166,17 +181,25 @@ export default function CustomerShopPage() {
 
     return () => {
       window.removeEventListener("storage", updateCartCount)
-      supabase.removeChannel(inventoryChannel)
+      supabase.removeChannel(productsChannel)
     }
   }, [])
 
   // ── Add to Cart Handler ────────────────────────────────────────────────────
-  const handleAddToCart = (item: InventoryItem) => {
-    const product = item.products
-    if (!product) return
+  const handleAddToCart = (product: Product) => {
+    const selectedUnitId = selectedUnits[product.id]
+    const unit = product.product_units?.find((u) => u.id === selectedUnitId)
 
-    if (item.stock_qty <= 0) {
-      toast.error("Stok produk habis!")
+    if (!unit) {
+      toast.error("Silakan pilih unit produk terlebih dahulu!")
+      return
+    }
+
+    const baseStock = product.stock_qty || 0
+    const maxQtyForUnit = Math.floor(baseStock / unit.multiplier)
+
+    if (maxQtyForUnit <= 0) {
+      toast.error("Stok untuk unit yang dipilih tidak mencukupi!")
       return
     }
 
@@ -184,55 +207,59 @@ export default function CustomerShopPage() {
       const stored = localStorage.getItem("pos_grosir_cart")
       let cart: CartItem[] = stored ? JSON.parse(stored) : []
 
-      const existingIndex = cart.findIndex((i) => i.productId === product.id)
+      // Find if same product with same unit exists
+      const existingIndex = cart.findIndex(
+        (i) => i.productId === product.id && i.unitId === unit.id
+      )
 
       if (existingIndex > -1) {
         const currentQty = cart[existingIndex].quantity
-        if (currentQty >= item.stock_qty) {
-          toast.warning(`Gagal menambahkan: Batas maksimal stok (${item.stock_qty} ${product.unit || 'pcs'}) tercapai.`)
+        if (currentQty >= maxQtyForUnit) {
+          toast.warning(
+            `Gagal menambahkan: Batas maksimal stok (${maxQtyForUnit} ${unit.unit_name}) tercapai.`
+          )
           return
         }
         cart[existingIndex].quantity += 1
       } else {
         cart.push({
           productId: product.id,
+          unitId: unit.id,
           name: product.name,
-          price: product.price,
-          unit: product.unit,
-          weight: product.weight,
+          unitName: unit.unit_name,
+          price: unit.price,
+          pickupTimeSeconds: unit.pickup_time_seconds || 5,
           quantity: 1,
-          stockQty: item.stock_qty,
+          stockQty: baseStock, // Store base stock qty
           imageUrl: product.image_url,
+          multiplier: unit.multiplier,
         })
       }
 
       localStorage.setItem("pos_grosir_cart", JSON.stringify(cart))
       updateCartCount()
-      toast.success(`${product.name} ditambahkan ke keranjang.`)
+      toast.success(`${product.name} (${unit.unit_name}) ditambahkan ke keranjang.`)
     } catch (e: any) {
       toast.error("Gagal menambahkan ke keranjang: " + e.message)
     }
   }
 
   // ── Filtered Products ──────────────────────────────────────────────────────
-  const filtered = inventory.filter((item) => {
-    const product = item.products
-    if (!product) return false
+  const filtered = products.filter((product) => {
+    const matchesSearch =
+      product.name.toLowerCase().includes(search.toLowerCase()) ||
+      (product.sku && product.sku.toLowerCase().includes(search.toLowerCase()))
 
-    const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) || 
-                          (product.sku && product.sku.toLowerCase().includes(search.toLowerCase()))
-    
-    const matchesCategory = selectedCategory === "all" || 
-                            (product.categories && product.categories.id === selectedCategory)
+    const matchesCategory =
+      selectedCategory === "all" ||
+      (product.categories && product.categories.id === selectedCategory)
 
     return matchesSearch && matchesCategory
   })
 
-  // ── Main Render ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
-      
-      {/* ── Page Header ── */}
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Katalog Belanja</h1>
@@ -240,7 +267,7 @@ export default function CustomerShopPage() {
             Pilih produk grosir berkualitas kami dengan ketersediaan stok real-time.
           </p>
         </div>
-        
+
         {/* Cart Button */}
         <Button asChild className="w-full sm:w-auto relative shadow-md" size="lg">
           <Link href="/customer/cart" className="flex items-center gap-2">
@@ -255,9 +282,8 @@ export default function CustomerShopPage() {
         </Button>
       </div>
 
-      {/* ── Search & Filter Controls ── */}
+      {/* Search & Filter Controls */}
       <div className="flex flex-col md:flex-row gap-3">
-        {/* Search */}
         <div className="relative flex-1">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -269,7 +295,6 @@ export default function CustomerShopPage() {
           />
         </div>
 
-        {/* Category Filter */}
         <div className="w-full md:w-56">
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
             <SelectTrigger>
@@ -286,13 +311,12 @@ export default function CustomerShopPage() {
           </Select>
         </div>
 
-        {/* Refresh Button */}
         <Button variant="outline" size="icon" onClick={fetchProductsAndCategories}>
           <IconRefresh className="size-4" />
         </Button>
       </div>
 
-      {/* ── Product Grid ── */}
+      {/* Product Grid */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-4">
           <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
@@ -308,16 +332,25 @@ export default function CustomerShopPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((item) => {
-            const product = item.products
-            if (!product) return null
+          {filtered.map((product) => {
+            const activeUnitId = selectedUnits[product.id]
+            const activeUnit = product.product_units?.find((u) => u.id === activeUnitId)
 
-            const isOutOfStock = item.stock_qty <= 0
-            const isLowStock = item.stock_qty > 0 && item.stock_qty <= 5
+            const baseStock = product.stock_qty || 0
+            const displayPrice = activeUnit ? activeUnit.price : product.price
+            const displayUnitName = activeUnit ? activeUnit.unit_name : "pcs"
+            const displayMultiplier = activeUnit ? activeUnit.multiplier : 1
+            const displayStock = Math.floor(baseStock / displayMultiplier)
+
+            const isOutOfStock = displayStock <= 0
+            const isLowStock = displayStock > 0 && displayStock <= 5
 
             return (
-              <Card key={product.id} className="flex flex-col border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-200 bg-background overflow-hidden">
-                {/* Image / Placeholder */}
+              <Card
+                key={product.id}
+                className="flex flex-col border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-200 bg-background overflow-hidden"
+              >
+                {/* Image */}
                 <div className="h-44 bg-muted/30 relative flex items-center justify-center border-b border-border/50">
                   {product.image_url ? (
                     <img
@@ -329,9 +362,12 @@ export default function CustomerShopPage() {
                     <IconBuildingStore className="size-12 text-muted-foreground/30" />
                   )}
 
-                  {/* Kategori Badge */}
+                  {/* Category Badge */}
                   {product.categories && (
-                    <Badge variant="secondary" className="absolute top-3 left-3 text-[10px] font-bold px-2 py-0.5 bg-background/90 backdrop-blur-sm border shadow-sm">
+                    <Badge
+                      variant="secondary"
+                      className="absolute top-3 left-3 text-[10px] font-bold px-2 py-0.5 bg-background/90 backdrop-blur-sm border shadow-sm"
+                    >
                       {product.categories.name}
                     </Badge>
                   )}
@@ -339,16 +375,22 @@ export default function CustomerShopPage() {
                   {/* Stock Status Badge */}
                   <div className="absolute top-3 right-3">
                     {isOutOfStock ? (
-                      <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-bold text-[10px]">HABIS</Badge>
+                      <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-bold text-[10px]">
+                        HABIS
+                      </Badge>
                     ) : isLowStock ? (
-                      <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-bold text-[10px]">STOK MENIPIS</Badge>
+                      <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-bold text-[10px]">
+                        STOK MENIPIS
+                      </Badge>
                     ) : (
-                      <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-bold text-[10px]">Tersedia</Badge>
+                      <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-bold text-[10px]">
+                        Tersedia
+                      </Badge>
                     )}
                   </div>
                 </div>
 
-                {/* Card Content */}
+                {/* Header */}
                 <CardHeader className="p-4 pb-2 space-y-1">
                   <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-wider">
                     {product.sku || "NO SKU"}
@@ -358,37 +400,72 @@ export default function CustomerShopPage() {
                   </CardTitle>
                 </CardHeader>
 
-                <CardContent className="p-4 pt-0 pb-2 flex-1 flex flex-col justify-end space-y-2">
+                {/* Content */}
+                <CardContent className="p-4 pt-0 pb-2 flex-1 flex flex-col justify-end space-y-3">
+                  {/* Pilihan Kemasan Dropdown */}
+                  {product.product_units && product.product_units.length > 0 && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground">
+                        Pilih Kemasan Grosir:
+                      </label>
+                      <Select
+                        value={activeUnitId}
+                        onValueChange={(val) =>
+                          setSelectedUnits((prev) => ({ ...prev, [product.id]: val }))
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Kemasan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {product.product_units
+                            .sort((a, b) => a.multiplier - b.multiplier)
+                            .map((u) => (
+                              <SelectItem key={u.id} value={u.id} className="text-xs">
+                                {u.unit_name} ({formatRupiah(u.price)})
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   {/* Price */}
                   <div>
                     <span className="text-xl font-extrabold text-primary">
-                      {formatRupiah(product.price)}
+                      {formatRupiah(displayPrice)}
                     </span>
                     <span className="text-xs text-muted-foreground ml-1">
-                      / {product.unit || "pcs"}
+                      / {displayUnitName}
                     </span>
                   </div>
 
                   {/* Stock Quantity */}
                   <div className="text-xs flex items-center gap-1.5 text-muted-foreground">
                     <span>Sisa Stok:</span>
-                    <strong className={`font-bold ${isOutOfStock ? "text-rose-500" : isLowStock ? "text-amber-500" : "text-emerald-600 dark:text-emerald-400"}`}>
-                      {item.stock_qty} {product.unit || "unit"}
+                    <strong
+                      className={`font-bold ${
+                        isOutOfStock
+                          ? "text-rose-500"
+                          : isLowStock
+                            ? "text-amber-500"
+                            : "text-emerald-600 dark:text-emerald-400"
+                      }`}
+                    >
+                      {displayStock} {displayUnitName}
                     </strong>
+                    {displayMultiplier > 1 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        ({baseStock} pcs)
+                      </span>
+                    )}
                   </div>
-
-                  {/* Weight */}
-                  {product.weight && (
-                    <div className="text-[10px] text-muted-foreground">
-                      Berat: {product.weight} kg
-                    </div>
-                  )}
                 </CardContent>
 
                 {/* Footer Action */}
                 <CardFooter className="p-4 pt-0">
                   <Button
-                    onClick={() => handleAddToCart(item)}
+                    onClick={() => handleAddToCart(product)}
                     disabled={isOutOfStock}
                     className="w-full font-bold shadow-sm"
                     variant={isOutOfStock ? "secondary" : "default"}

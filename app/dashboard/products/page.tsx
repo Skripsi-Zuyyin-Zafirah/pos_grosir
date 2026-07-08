@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
@@ -21,8 +20,7 @@ type Product = {
   name: string
   description: string | null
   price: number
-  unit: string | null
-  weight: number | null
+  stock_qty: number | null
   image_url: string | null
   category_id: string | null
   categories?: {
@@ -52,8 +50,7 @@ export default function ProductsPage() {
   const [name, setName] = useState("")
   const [categoryId, setCategoryId] = useState("")
   const [price, setPrice] = useState("")
-  const [unit, setUnit] = useState("")
-  const [weight, setWeight] = useState("")
+  const [stockQty, setStockQty] = useState("0")
   const [description, setDescription] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imageUrl, setImageUrl] = useState("")
@@ -95,8 +92,7 @@ export default function ProductsPage() {
     setName("")
     setCategoryId("")
     setPrice("")
-    setUnit("pcs")
-    setWeight("")
+    setStockQty("0")
     setDescription("")
     setImageFile(null)
     setImageUrl("")
@@ -110,8 +106,7 @@ export default function ProductsPage() {
     setName(product.name)
     setCategoryId(product.category_id || "")
     setPrice(product.price.toString())
-    setUnit(product.unit || "pcs")
-    setWeight(product.weight ? product.weight.toString() : "")
+    setStockQty(product.stock_qty != null ? product.stock_qty.toString() : "0")
     setDescription(product.description || "")
     setImageFile(null)
     setImageUrl(product.image_url || "")
@@ -156,8 +151,7 @@ export default function ProductsPage() {
         name,
         category_id: categoryId || null,
         price: parseFloat(price),
-        unit: unit || "pcs",
-        weight: weight ? parseFloat(weight) : null,
+        stock_qty: stockQty !== "" ? parseInt(stockQty, 10) : 0,
         description: description || null,
         image_url: finalImageUrl || null,
       }
@@ -173,29 +167,11 @@ export default function ProductsPage() {
         toast.success("Produk berhasil diperbarui!")
       } else {
         // Create product
-        const { data: newProd, error } = await supabase
+        const { error } = await supabase
           .from("products")
           .insert(productPayload)
-          .select("id")
-          .single()
 
         if (error) throw error
-
-        // Automatically create matching inventory row for the new product
-        if (newProd) {
-          const { error: invErr } = await supabase
-            .from("inventory")
-            .insert({
-              product_id: newProd.id,
-              stock_qty: 0,
-              location: null,
-              reorder_level: 5,
-            })
-          if (invErr) {
-            console.error("Gagal membuat baris inventori:", invErr.message)
-          }
-        }
-
         toast.success("Produk berhasil ditambahkan!")
       }
 
@@ -309,8 +285,8 @@ export default function ProductsPage() {
                         <TableHead>SKU</TableHead>
                         <TableHead>Nama Produk</TableHead>
                         <TableHead>Kategori</TableHead>
-                        <TableHead className="text-right">Harga Grosir</TableHead>
-                        <TableHead>Satuan</TableHead>
+                        <TableHead className="text-right">Harga Dasar</TableHead>
+                        <TableHead className="text-right">Stok (pcs)</TableHead>
                         <TableHead className="w-[100px] text-center">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -340,7 +316,9 @@ export default function ProductsPage() {
                           <TableCell className="text-right font-semibold text-primary">
                             {formatRupiah(product.price)}
                           </TableCell>
-                          <TableCell>{product.unit || "pcs"}</TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {product.stock_qty ?? 0}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center gap-2">
                               <Button
@@ -434,38 +412,32 @@ export default function ProductsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="price">Harga Grosir (IDR)</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    placeholder="15000"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    required
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unit">Satuan</Label>
-                  <Select value={unit} onValueChange={setUnit} disabled={submitting}>
-                    <SelectTrigger id="unit">
-                      <SelectValue placeholder="Pilih Satuan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pcs">pcs (Pcs)</SelectItem>
-                      <SelectItem value="pack">pack (Pack)</SelectItem>
-                      <SelectItem value="dus">dus (Dus)</SelectItem>
-                      <SelectItem value="karton">karton (Karton)</SelectItem>
-                      <SelectItem value="slop">slop (Slop)</SelectItem>
-                      <SelectItem value="kg">kg (Kilogram)</SelectItem>
-                      <SelectItem value="liter">liter (Liter)</SelectItem>
-                      <SelectItem value="box">box (Box)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                   <Label htmlFor="price">Harga Dasar per Pcs (IDR)</Label>
+                   <Input
+                     id="price"
+                     type="number"
+                     placeholder="5000"
+                     value={price}
+                     onChange={(e) => setPrice(e.target.value)}
+                     required
+                     disabled={submitting}
+                   />
+                 </div>
+                 <div className="space-y-2">
+                   <Label htmlFor="stockQty">Stok Awal (pcs)</Label>
+                   <Input
+                     id="stockQty"
+                     type="number"
+                     placeholder="0"
+                     value={stockQty}
+                     onChange={(e) => setStockQty(e.target.value)}
+                     disabled={submitting}
+                   />
+                   <p className="text-[10px] text-muted-foreground">Stok dalam satuan unit terkecil (pcs/unit).</p>
+                 </div>
+               </div>
 
               <div className="space-y-2">
                 <Label>Foto Produk</Label>

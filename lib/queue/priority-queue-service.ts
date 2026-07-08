@@ -8,25 +8,13 @@ export type QueueItem = {
   total_price: number
   total_items: number
   ewp: number
-  priority_score: number
   created_at: string
 }
 
 export class PriorityQueueService {
   /**
-   * Recalculates aging priority scores directly in the database.
-   */
-  public static async refreshAgingScores(): Promise<void> {
-    const supabase = await createClient()
-    const { error } = await supabase.rpc("update_aging_scores")
-    if (error) {
-      console.error("Gagal melakukan aging score update:", error.message)
-      throw error
-    }
-  }
-
-  /**
    * Dequeues (pops) the next order and assigns it to a staff member.
+   * Model: Single Queue Multiple Server (SQMS)
    */
   public static async popNextOrder(staffId: string): Promise<string | null> {
     const supabase = await createClient()
@@ -44,16 +32,14 @@ export class PriorityQueueService {
 
   /**
    * Loads current waiting orders into an in-memory MinHeap and returns the sorted array.
+   * Priority key is EWP (lowest first). Tie-breaker is created_at (earliest first).
    */
   public static async getSortedQueue(): Promise<QueueItem[]> {
-    // Refresh aging scores in DB first
-    await this.refreshAgingScores()
-
     const supabase = await createClient()
     const { data: orders, error } = await supabase
       .from("orders")
-      .select("id, order_number, customer_name, total_price, total_items, ewp, priority_score, created_at")
-      .eq("status", "waiting")
+      .select("id, order_number, customer_name, total_price, total_items, ewp, created_at")
+      .eq("status", "antri")
 
     if (error) {
       console.error("Gagal memuat antrian:", error.message)
@@ -63,7 +49,13 @@ export class PriorityQueueService {
     if (!orders || orders.length === 0) return []
 
     // Instantiate generic binary Min-Heap
-    const heap = new MinHeap<QueueItem>((a, b) => a.priority_score - b.priority_score)
+    // Priority comparison: ewp ASC, created_at (arrival time) ASC
+    const heap = new MinHeap<QueueItem>((a, b) => {
+      if (a.ewp !== b.ewp) {
+        return a.ewp - b.ewp
+      }
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    })
 
     // Insert items into heap
     orders.forEach((item) => {
@@ -73,8 +65,7 @@ export class PriorityQueueService {
         customer_name: item.customer_name,
         total_price: item.total_price,
         total_items: item.total_items,
-        ewp: item.ewp,
-        priority_score: item.priority_score || 0,
+        ewp: item.ewp || 0,
         created_at: item.created_at,
       })
     })

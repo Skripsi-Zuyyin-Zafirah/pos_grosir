@@ -17,13 +17,15 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { IconLoader2, IconClipboardList, IconChartBar, IconTrophy } from "@tabler/icons-react"
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type RecentOrder = {
   id: string
   order_number: string | null
   created_at: string
   customer_name: string | null
   total_price: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
+  status: "antri" | "diproses" | "selesai" | "batal"
 }
 
 type RevenueDay = {
@@ -41,6 +43,8 @@ type TopProduct = {
   total_qty: number
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const CHART_COLORS = [
   "hsl(var(--primary))",
   "#06b6d4",
@@ -48,6 +52,40 @@ const CHART_COLORS = [
   "#f59e0b",
   "#10b981",
 ]
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"]
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const formatRupiah = (val: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(val)
+
+const formatRupiahShort = (val: number) => {
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}Jt`
+  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}Rb`
+  return val.toString()
+}
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case "antri":
+      return <Badge className="bg-sky-500 hover:bg-sky-600 border-none text-xs">ANTRI</Badge>
+    case "diproses":
+      return <Badge className="bg-amber-500 hover:bg-amber-600 border-none text-xs">DIPROSES</Badge>
+    case "selesai":
+      return <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none text-xs">SELESAI</Badge>
+    case "batal":
+      return <Badge className="bg-rose-500 hover:bg-rose-600 border-none text-xs">BATAL</Badge>
+    default:
+      return <Badge variant="outline" className="text-xs">{status}</Badge>
+  }
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Page() {
   const supabase = createClient()
@@ -67,14 +105,15 @@ export default function Page() {
     try {
       setLoading(true)
 
-      // 1. Calculate Total Revenue
-      const { data: payData, error: payErr } = await supabase
-        .from("payments")
-        .select("amount")
-      if (payErr) throw payErr
-      const totalRev = payData ? payData.reduce((sum, p) => sum + p.amount, 0) : 0
+      // 1. Total Revenue — agregasi dari orders berstatus 'selesai'
+      const { data: doneOrders, error: revErr } = await supabase
+        .from("orders")
+        .select("total_price")
+        .eq("status", "selesai")
+      if (revErr) throw revErr
+      const totalRev = doneOrders ? doneOrders.reduce((sum, o) => sum + o.total_price, 0) : 0
 
-      // 2. Calculate Today's Orders
+      // 2. Pesanan hari ini (semua status)
       const startOfToday = new Date()
       startOfToday.setHours(0, 0, 0, 0)
       const { count: todayCount, error: todayErr } = await supabase
@@ -83,19 +122,20 @@ export default function Page() {
         .gte("created_at", startOfToday.toISOString())
       if (todayErr) throw todayErr
 
-      // 3. Calculate Active Queue Length (waiting & processing)
+      // 3. Antrean aktif (antri + diproses)
       const { count: activeCount, error: activeErr } = await supabase
         .from("orders")
         .select("*", { count: "exact", head: true })
-        .in("status", ["waiting", "processing"])
+        .in("status", ["antri", "diproses"])
       if (activeErr) throw activeErr
 
-      // 4. Calculate Critical Stock Level
-      const { data: invData, error: invErr } = await supabase
-        .from("inventory")
-        .select("stock_qty, reorder_level")
-      if (invErr) throw invErr
-      const lowCount = invData ? invData.filter((i) => i.stock_qty <= i.reorder_level).length : 0
+      // 4. Produk stok rendah (< 10 pcs) — langsung dari tabel products
+      const { data: lowStockData, error: lowStockErr } = await supabase
+        .from("products")
+        .select("stock_qty")
+        .lt("stock_qty", 10)
+      if (lowStockErr) throw lowStockErr
+      const lowCount = lowStockData ? lowStockData.length : 0
 
       setMetrics({
         totalRevenue: totalRev,
@@ -104,111 +144,98 @@ export default function Page() {
         lowStockCount: lowCount,
       })
 
-      // 5. Fetch Daily Revenue (Last 7 Days)
+      // 5. Grafik Harian 7 Hari Terakhir — dari orders selesai
       const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
       sevenDaysAgo.setHours(0, 0, 0, 0)
 
-      const { data: chartPayments, error: chartErr } = await supabase
-        .from("payments")
-        .select("amount, paid_at")
-        .gte("paid_at", sevenDaysAgo.toISOString())
-      if (chartErr) throw chartErr
+      const { data: dailyOrders, error: dailyErr } = await supabase
+        .from("orders")
+        .select("total_price, completed_at")
+        .eq("status", "selesai")
+        .gte("completed_at", sevenDaysAgo.toISOString())
+      if (dailyErr) throw dailyErr
 
-      // Group payments by date
       const dailyMap: Record<string, number> = {}
       for (let i = 6; i >= 0; i--) {
         const d = new Date()
         d.setDate(d.getDate() - i)
-        const dateStr = d.toISOString().split("T")[0]
-        dailyMap[dateStr] = 0
+        dailyMap[d.toISOString().split("T")[0]] = 0
       }
-
-      if (chartPayments) {
-        chartPayments.forEach((p) => {
-          const dateStr = p.paid_at.split("T")[0]
+      if (dailyOrders) {
+        dailyOrders.forEach((o) => {
+          if (!o.completed_at) return
+          const dateStr = o.completed_at.split("T")[0]
           if (dailyMap[dateStr] !== undefined) {
-            dailyMap[dateStr] += p.amount
+            dailyMap[dateStr] += o.total_price
           }
         })
       }
+      setChartData(Object.entries(dailyMap).map(([date, revenue]) => ({ date, revenue })))
 
-      const formattedChartData = Object.entries(dailyMap).map(([date, revenue]) => ({
-        date,
-        revenue,
-      }))
-      setChartData(formattedChartData)
-
-      // 6. Fetch Recent Orders (last 5)
+      // 6. Pesanan terbaru (5 terakhir semua status)
       const { data: recent, error: recentErr } = await supabase
         .from("orders")
         .select("id, order_number, created_at, customer_name, total_price, status")
         .order("created_at", { ascending: false })
         .limit(5)
       if (recentErr) throw recentErr
-
       setRecentOrders((recent as any) || [])
 
-      // 7. Fetch Monthly Revenue (last 6 months)
+      // 7. Grafik Omzet Bulanan 6 Bulan Terakhir — dari orders selesai
       const sixMonthsAgo = new Date()
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
       sixMonthsAgo.setDate(1)
       sixMonthsAgo.setHours(0, 0, 0, 0)
 
-      const { data: monthlyPayments, error: monthlyErr } = await supabase
-        .from("payments")
-        .select("amount, paid_at")
-        .gte("paid_at", sixMonthsAgo.toISOString())
+      const { data: monthlyOrders, error: monthlyErr } = await supabase
+        .from("orders")
+        .select("total_price, completed_at")
+        .eq("status", "selesai")
+        .gte("completed_at", sixMonthsAgo.toISOString())
       if (monthlyErr) throw monthlyErr
 
       const monthlyMap: Record<string, number> = {}
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"]
       for (let i = 5; i >= 0; i--) {
         const d = new Date()
         d.setMonth(d.getMonth() - i)
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-        monthlyMap[key] = 0
+        monthlyMap[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`] = 0
       }
-
-      if (monthlyPayments) {
-        monthlyPayments.forEach((p) => {
-          const d = new Date(p.paid_at)
+      if (monthlyOrders) {
+        monthlyOrders.forEach((o) => {
+          if (!o.completed_at) return
+          const d = new Date(o.completed_at)
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-          if (monthlyMap[key] !== undefined) {
-            monthlyMap[key] += p.amount
-          }
+          if (monthlyMap[key] !== undefined) monthlyMap[key] += o.total_price
         })
       }
+      setMonthlyRevenue(
+        Object.entries(monthlyMap).map(([key, revenue]) => {
+          const [year, month] = key.split("-")
+          return { month: `${MONTH_NAMES[parseInt(month) - 1]} '${year.slice(2)}`, revenue }
+        })
+      )
 
-      const formattedMonthly: MonthlyRevenue[] = Object.entries(monthlyMap).map(([key, revenue]) => {
-        const [year, month] = key.split("-")
-        return {
-          month: `${monthNames[parseInt(month) - 1]} '${year.slice(2)}`,
-          revenue,
-        }
-      })
-      setMonthlyRevenue(formattedMonthly)
-
-      // 8. Fetch Top 5 Best Selling Products
+      // 8. Top 5 Produk Terlaris — dari order_items pesanan selesai (join ke orders)
       const { data: orderItems, error: itemsErr } = await supabase
         .from("order_items")
-        .select("quantity, products ( name )")
+        .select("qty, products ( name ), orders!inner(status)")
+        .eq("orders.status", "selesai")
       if (itemsErr) throw itemsErr
 
       const productMap: Record<string, number> = {}
       if (orderItems) {
         orderItems.forEach((item: any) => {
           const name = item.products?.name || "Tidak diketahui"
-          productMap[name] = (productMap[name] || 0) + item.quantity
+          productMap[name] = (productMap[name] || 0) + item.qty
         })
       }
-
-      const sortedProducts = Object.entries(productMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([name, total_qty]) => ({ name, total_qty }))
-
-      setTopProducts(sortedProducts)
+      setTopProducts(
+        Object.entries(productMap)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name, total_qty]) => ({ name, total_qty }))
+      )
     } catch (err: any) {
       toast.error("Gagal memuat dashboard: " + err.message)
     } finally {
@@ -219,37 +246,6 @@ export default function Page() {
   useEffect(() => {
     fetchDashboardData()
   }, [])
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "waiting":
-        return <Badge className="bg-sky-500 hover:bg-sky-600 border-none">ANTRI</Badge>
-      case "processing":
-        return <Badge className="bg-amber-500 hover:bg-amber-600 border-none">DIPROSES</Badge>
-      case "ready":
-        return <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none">SIAP</Badge>
-      case "done":
-        return <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none">SELESAI</Badge>
-      case "cancelled":
-        return <Badge className="bg-rose-500 hover:bg-rose-600 border-none">BATAL</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val)
-  }
-
-  const formatRupiahShort = (val: number) => {
-    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}Jt`
-    if (val >= 1_000) return `${(val / 1_000).toFixed(0)}Rb`
-    return val.toString()
-  }
 
   return (
     <SidebarProvider
@@ -273,20 +269,20 @@ export default function Page() {
             <div className="px-4 lg:px-6">
               <h1 className="text-3xl font-bold tracking-tight">Ikhtisar Dashboard</h1>
               <p className="text-muted-foreground mt-1">
-                Ikhtisar kinerja operasional, penjualan, dan inventori toko grosir Anda secara real-time.
+                Ikhtisar kinerja operasional, penjualan, dan antrean toko grosir secara real-time.
               </p>
             </div>
 
-            {/* Metrics cards widgets */}
+            {/* Metrics cards */}
             <SectionCards metrics={metrics} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 lg:px-6">
-              {/* Daily revenue interactive chart (Left/Center 2 cols) */}
+              {/* Daily revenue chart (2 cols) */}
               <div className="lg:col-span-2">
                 <ChartAreaInteractive data={chartData} />
               </div>
 
-              {/* Recent Orders List widget (Right 1 col) */}
+              {/* Recent Orders widget */}
               <Card className="border-border/50 shadow-md">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -315,7 +311,7 @@ export default function Page() {
                             <TableCell className="font-mono text-xs font-semibold text-primary">
                               #{order.order_number || order.id.substring(0, 8).toUpperCase()}
                             </TableCell>
-                            <TableCell className="max-w-[80px] truncate">{order.customer_name}</TableCell>
+                            <TableCell className="max-w-[80px] truncate text-xs">{order.customer_name}</TableCell>
                             <TableCell className="text-right font-semibold text-xs">
                               {formatRupiah(order.total_price)}
                             </TableCell>
@@ -340,10 +336,10 @@ export default function Page() {
                   <CardTitle className="flex items-center gap-2">
                     <IconChartBar className="size-5 text-primary" /> Omzet Bulanan
                   </CardTitle>
-                  <CardDescription>Tren pendapatan 6 bulan terakhir</CardDescription>
+                  <CardDescription>Tren pendapatan 6 bulan terakhir (pesanan selesai)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {monthlyRevenue.length === 0 ? (
+                  {monthlyRevenue.length === 0 || monthlyRevenue.every(m => m.revenue === 0) ? (
                     <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
                       Belum ada data pendapatan bulanan
                     </div>
@@ -381,13 +377,13 @@ export default function Page() {
                 </CardContent>
               </Card>
 
-              {/* Top 5 Best Selling Products Bar Chart */}
+              {/* Top 5 Best Selling Products */}
               <Card className="border-border/50 shadow-md">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <IconTrophy className="size-5 text-amber-500" /> Produk Terlaris
                   </CardTitle>
-                  <CardDescription>5 produk dengan penjualan unit terbanyak</CardDescription>
+                  <CardDescription>5 produk dengan penjualan unit terbanyak (pesanan selesai)</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {topProducts.length === 0 ? (

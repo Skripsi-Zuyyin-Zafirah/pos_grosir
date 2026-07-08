@@ -8,7 +8,24 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { IconLoader2, IconClock, IconAlertTriangle, IconCheck, IconUser, IconActivity, IconHourglassHigh } from "@tabler/icons-react"
+import {
+  IconLoader2,
+  IconClock,
+  IconUser,
+  IconHourglassHigh,
+  IconPackage,
+  IconCircleCheck,
+  IconCircleDashed,
+} from "@tabler/icons-react"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Staff = {
+  id: string
+  name: string
+  status: "idle" | "sibuk"
+  currentOrder?: Order | null
+}
 
 type Order = {
   id: string
@@ -18,41 +35,72 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  priority_score: number | null
-  assigned_staff_id: string | null
+  status: "antri" | "diproses" | "selesai" | "batal"
+  staff_id: string | null
+  dequeued_at: string | null
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const formatTime = (seconds: number) => {
+  if (seconds < 60) return `${Math.round(seconds)} dtk`
+  const minutes = Math.floor(seconds / 60)
+  const remaining = Math.round(seconds % 60)
+  return remaining > 0 ? `${minutes}m ${remaining}d` : `${minutes} menit`
+}
+
+const formatRupiah = (val: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(val)
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function QueueMonitorPage() {
   const supabase = createClient()
-  const [orders, setOrders] = useState<Order[]>([])
+  const [waitingOrders, setWaitingOrders] = useState<Order[]>([])
+  const [staff, setStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
-  const [queueMode, setQueueMode] = useState<string>("fifo")
-  const [agingRate, setAgingRate] = useState<number>(1.0)
   const [now, setNow] = useState<Date>(new Date())
 
   const fetchQueueData = async () => {
     try {
-      // 1. Fetch system settings
-      const { data: settings } = await supabase
-        .from("system_settings")
-        .select("key, value")
+      // 1. Fetch semua staf
+      const { data: staffData, error: staffErr } = await supabase
+        .from("staff")
+        .select("id, name, status")
+        .order("name")
 
-      if (settings) {
-        settings.forEach((s) => {
-          if (s.key === "queue_mode") setQueueMode(String(s.value))
-          if (s.key === "aging_rate") setAgingRate(Number(s.value))
-        })
-      }
+      if (staffErr) throw staffErr
 
-      // 2. Fetch active waiting, processing, and ready orders
-      const { data: activeOrders, error } = await supabase
+      // 2. Fetch semua pesanan aktif (antri + diproses)
+      const { data: activeOrders, error: ordersErr } = await supabase
         .from("orders")
-        .select("*")
-        .in("status", ["waiting", "processing", "ready"])
+        .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, staff_id, dequeued_at")
+        .in("status", ["antri", "diproses"])
 
-      if (error) throw error
-      setOrders(activeOrders || [])
+      if (ordersErr) throw ordersErr
+
+      const orders = (activeOrders || []) as Order[]
+
+      // 3. Gabungkan: Map pesanan yang sedang diproses ke staf-nya
+      const staffWithOrders: Staff[] = (staffData || []).map((s: any) => {
+        const currentOrder = orders.find(
+          (o) => o.status === "diproses" && o.staff_id === s.id
+        ) || null
+        return { ...s, currentOrder }
+      })
+
+      setStaff(staffWithOrders)
+
+      // 4. Set antrean: hanya pesanan dengan status 'antri', urut EWP ASC, created_at ASC (min-heap)
+      const queue = orders
+        .filter((o) => o.status === "antri")
+        .sort((a, b) => a.ewp - b.ewp || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+      setWaitingOrders(queue)
     } catch (err: any) {
       toast.error("Gagal memperbarui antrian: " + err.message)
     } finally {
@@ -63,22 +111,21 @@ export default function QueueMonitorPage() {
   useEffect(() => {
     fetchQueueData()
 
-    // Subscribe to real-time updates for orders table
     const channel = supabase
       .channel("monitor-queue-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
-        () => {
-          fetchQueueData()
-        }
+        () => fetchQueueData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "staff" },
+        () => fetchQueueData()
       )
       .subscribe()
 
-    // Clock and countdown tick every 5 seconds
-    const interval = setInterval(() => {
-      setNow(new Date())
-    }, 5000)
+    const interval = setInterval(() => setNow(new Date()), 5000)
 
     return () => {
       supabase.removeChannel(channel)
@@ -86,27 +133,8 @@ export default function QueueMonitorPage() {
     }
   }, [])
 
-  // Calculate dynamic sisa waktu (time left in minutes)
-  const getTimeLeft = (createdAtStr: string, ewpMinutes: number) => {
-    const createdAt = new Date(createdAtStr)
-    const deadline = new Date(createdAt.getTime() + ewpMinutes * 60 * 1000)
-    const diffMs = deadline.getTime() - now.getTime()
-    return Math.ceil(diffMs / 1000 / 60) // return rounded up minutes left
-  }
-
-  // Filter columns
-  const waitingOrders = orders
-    .filter((o) => o.status === "waiting")
-    // Sort waiting: Priority mode sorts by priority_score ASC; FIFO mode sorts by created_at ASC
-    .sort((a, b) => {
-      if (queueMode === "priority") {
-        return (a.priority_score || 0) - (b.priority_score || 0)
-      }
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    })
-
-  const processingOrders = orders.filter((o) => o.status === "processing")
-  const readyOrders = orders.filter((o) => o.status === "ready")
+  const totalActive = waitingOrders.length + staff.filter((s) => s.status === "sibuk").length
+  const idleCount = staff.filter((s) => s.status === "idle").length
 
   return (
     <SidebarProvider
@@ -121,18 +149,19 @@ export default function QueueMonitorPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col p-6 space-y-6">
-          {/* Header Dashboard */}
+
+          {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-background border border-border/50 rounded-xl p-4 shadow-sm">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Papan Antrian Real-time</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Papan Antrean Real-time</h1>
               <p className="text-muted-foreground mt-1">
-                Monitor status antrian pengambilan dan pengepakan barang grosir.
+                Monitor distribusi pesanan ke 4 pegawai fisik secara otomatis (SQMS Min-Heap EWP).
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="font-semibold px-3 py-1 bg-primary/5 text-primary border-primary/20">
-                <IconActivity className="size-3.5 mr-1" />
-                Mode: {queueMode === "priority" ? "SJF Prioritas (Aging)" : "FIFO (First In First Out)"}
+                <IconPackage className="size-3.5 mr-1" />
+                {totalActive} Pesanan Aktif
               </Badge>
               <Badge variant="outline" className="font-semibold px-3 py-1">
                 <IconClock className="size-3.5 mr-1" />
@@ -144,189 +173,150 @@ export default function QueueMonitorPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 space-y-4">
               <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-muted-foreground text-sm">Menghubungkan ke database antrian...</p>
+              <p className="text-muted-foreground text-sm">Menghubungkan ke database antrean...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              {/* 1. WAITING COLUMN */}
-              <Card className="border-border/50 shadow-md">
-                <CardHeader className="bg-sky-500/10 border-b border-sky-500/20 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-sky-700 text-lg flex items-center gap-2">
-                        <IconHourglassHigh className="size-5" /> ANTRI (Waiting)
-                      </CardTitle>
-                      <CardDescription className="text-sky-700/70 text-xs">
-                        Pesanan menunggu giliran kemas
-                      </CardDescription>
-                    </div>
-                    <Badge className="bg-sky-500 text-white font-bold size-6 rounded-full flex items-center justify-center p-0">
-                      {waitingOrders.length}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 space-y-3 min-h-[400px]">
-                  {waitingOrders.length === 0 ? (
-                    <div className="text-center py-12 text-sm text-muted-foreground">
-                      Tidak ada antrean tunggu
-                    </div>
-                  ) : (
-                    waitingOrders.map((order, idx) => {
-                      const timeLeft = getTimeLeft(order.created_at, order.ewp)
-                      const isOverdue = timeLeft <= 0
+            <>
+              {/* ── PANEL PEGAWAI (4 SERVER) ───────────────────────────────────── */}
+              <div>
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                  <IconUser className="size-5 text-muted-foreground" />
+                  Status Pegawai ({idleCount}/{staff.length} Idle)
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {staff.map((s) => (
+                    <Card
+                      key={s.id}
+                      className={`border-2 shadow-md transition-all duration-300 ${
+                        s.status === "idle"
+                          ? "border-emerald-400/50 bg-emerald-500/5"
+                          : "border-amber-400/50 bg-amber-500/5"
+                      }`}
+                    >
+                      <CardHeader className="pb-2 pt-4 px-4">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base font-bold">{s.name}</CardTitle>
+                          {s.status === "idle" ? (
+                            <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none text-xs font-bold">
+                              <IconCircleDashed className="size-3 mr-1" />
+                              Idle
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-amber-500 hover:bg-amber-600 border-none text-xs font-bold animate-pulse">
+                              <IconCircleCheck className="size-3 mr-1" />
+                              Sibuk
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4">
+                        {s.status === "idle" ? (
+                          <p className="text-xs text-muted-foreground">
+                            Siap menerima pesanan berikutnya dari antrean.
+                          </p>
+                        ) : s.currentOrder ? (
+                          <div className="space-y-1.5 mt-1">
+                            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                              Sedang memproses:
+                            </p>
+                            <p className="font-mono text-xs font-bold text-primary">
+                              #{s.currentOrder.order_number || s.currentOrder.id.substring(0, 8).toUpperCase()}
+                            </p>
+                            <p className="text-sm font-semibold">
+                              {s.currentOrder.customer_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {s.currentOrder.total_items} item • EWP: {formatTime(s.currentOrder.ewp)}
+                            </p>
+                            {s.currentOrder.dequeued_at && (
+                              <p className="text-[10px] text-muted-foreground">
+                                Mulai: {new Date(s.currentOrder.dequeued_at).toLocaleTimeString("id-ID")}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Memproses pesanan...
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
 
-                      return (
+              {/* ── ANTREAN MENUNGGU (MIN-HEAP) ───────────────────────────────── */}
+              <div>
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                  <IconHourglassHigh className="size-5 text-muted-foreground" />
+                  Antrean Menunggu ({waitingOrders.length} Pesanan)
+                </h2>
+
+                <Card className="border-border/50 shadow-md">
+                  <CardHeader className="bg-sky-500/10 border-b border-sky-500/20 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-sky-700 text-lg flex items-center gap-2">
+                          <IconHourglassHigh className="size-5" /> Antrean Prioritas (Min-Heap EWP)
+                        </CardTitle>
+                        <CardDescription className="text-sky-700/70 text-xs">
+                          Diurutkan berdasarkan EWP terkecil (prioritas tertinggi) — tie-breaker: waktu kedatangan
+                        </CardDescription>
+                      </div>
+                      <Badge className="bg-sky-500 text-white font-bold text-base h-8 w-8 rounded-full flex items-center justify-center p-0">
+                        {waitingOrders.length}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-3 min-h-[200px]">
+                    {waitingOrders.length === 0 ? (
+                      <div className="text-center py-12 text-sm text-muted-foreground">
+                        Tidak ada pesanan dalam antrean
+                      </div>
+                    ) : (
+                      waitingOrders.map((order, idx) => (
                         <div
                           key={order.id}
-                          className="p-3 border rounded-lg hover:border-sky-300 transition-colors bg-background flex flex-col gap-2 relative overflow-hidden"
+                          className={`p-3 border rounded-lg transition-colors bg-background flex flex-col gap-2 relative overflow-hidden ${
+                            idx === 0
+                              ? "border-sky-400 ring-1 ring-sky-400/30 bg-sky-500/5"
+                              : "hover:border-sky-200"
+                          }`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-sm font-bold text-sky-600">
                               #{order.order_number || order.id.substring(0, 8).toUpperCase()}
                             </span>
-                            <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                              No. {idx + 1}
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                idx === 0
+                                  ? "bg-sky-500 text-white"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {idx === 0 ? "⭐ Prioritas #1" : `No. ${idx + 1}`}
                             </span>
                           </div>
                           <div>
                             <p className="text-sm font-semibold flex items-center gap-1">
-                              <IconUser className="size-3 text-muted-foreground" /> {order.customer_name}
+                              <IconUser className="size-3 text-muted-foreground" />
+                              {order.customer_name}
                             </p>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                              {order.total_items} item • {new Date(order.created_at).toLocaleTimeString("id-ID")}
+                              {order.total_items} item • Masuk: {new Date(order.created_at).toLocaleTimeString("id-ID")}
                             </p>
                           </div>
-                          <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs">
-                            <span className="text-muted-foreground">ECT: {order.ewp}m</span>
-                            {isOverdue ? (
-                              <Badge className="bg-rose-500 text-white border-none font-bold animate-pulse text-[10px] py-0.5 px-2">
-                                <IconAlertTriangle className="size-3 mr-0.5" /> Terlambat!
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-sky-500 text-white border-none font-semibold text-[10px] py-0.5 px-2">
-                                Sisa {timeLeft}m
-                              </Badge>
-                            )}
+                          <div className="flex items-center justify-between mt-1 pt-2 border-t text-xs">
+                            <span className="text-muted-foreground">EWP: <strong className="text-foreground">{formatTime(order.ewp)}</strong></span>
+                            <span className="text-muted-foreground font-semibold">{formatRupiah(order.total_price)}</span>
                           </div>
                         </div>
-                      )
-                    })
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* 2. PROCESSING COLUMN */}
-              <Card className="border-border/50 shadow-md">
-                <CardHeader className="bg-amber-500/10 border-b border-amber-500/20 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-amber-700 text-lg flex items-center gap-2">
-                        <IconClock className="size-5" /> DIPROSES (Packing)
-                      </CardTitle>
-                      <CardDescription className="text-amber-700/70 text-xs">
-                        Sedang dikemas oleh petugas gudang
-                      </CardDescription>
-                    </div>
-                    <Badge className="bg-amber-500 text-white font-bold size-6 rounded-full flex items-center justify-center p-0">
-                      {processingOrders.length}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 space-y-3 min-h-[400px]">
-                  {processingOrders.length === 0 ? (
-                    <div className="text-center py-12 text-sm text-muted-foreground">
-                      Tidak ada pesanan sedang dikemas
-                    </div>
-                  ) : (
-                    processingOrders.map((order) => {
-                      const timeLeft = getTimeLeft(order.created_at, order.ewp)
-                      const isOverdue = timeLeft <= 0
-
-                      return (
-                        <div
-                          key={order.id}
-                          className="p-3 border rounded-lg hover:border-amber-300 transition-colors bg-background flex flex-col gap-2 relative overflow-hidden"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-sm font-bold text-amber-600">
-                              #{order.order_number || order.id.substring(0, 8).toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold flex items-center gap-1">
-                              <IconUser className="size-3 text-muted-foreground" /> {order.customer_name}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {order.total_items} item • Diproses mulai:{" "}
-                              {order.created_at ? new Date(order.created_at).toLocaleTimeString("id-ID") : "-"}
-                            </p>
-                          </div>
-                          <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs">
-                            <span className="text-muted-foreground">Target: {order.ewp}m</span>
-                            {isOverdue ? (
-                              <Badge className="bg-rose-500 text-white border-none font-bold animate-pulse text-[10px] py-0.5 px-2">
-                                <IconAlertTriangle className="size-3 mr-0.5" /> Terlambat!
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-amber-500 text-white border-none font-semibold text-[10px] py-0.5 px-2">
-                                Sisa {timeLeft}m
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* 3. READY COLUMN */}
-              <Card className="border-border/50 shadow-md">
-                <CardHeader className="bg-emerald-500/10 border-b border-emerald-500/20 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-emerald-700 text-lg flex items-center gap-2">
-                        <IconCheck className="size-5" /> SIAP (Ready)
-                      </CardTitle>
-                      <CardDescription className="text-emerald-700/70 text-xs">
-                        Kemasan selesai, siap diambil / bayar di kasir
-                      </CardDescription>
-                    </div>
-                    <Badge className="bg-emerald-500 text-white font-bold size-6 rounded-full flex items-center justify-center p-0">
-                      {readyOrders.length}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 space-y-3 min-h-[400px]">
-                  {readyOrders.length === 0 ? (
-                    <div className="text-center py-12 text-sm text-muted-foreground">
-                      Belum ada pesanan siap diambil
-                    </div>
-                  ) : (
-                    readyOrders.map((order) => (
-                      <div
-                        key={order.id}
-                        className="p-3 border-2 border-emerald-500 rounded-lg bg-emerald-500/5 flex flex-col gap-2 relative overflow-hidden animate-pulse"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono text-sm font-bold text-emerald-600">
-                            #{order.order_number || order.id.substring(0, 8).toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-emerald-950 flex items-center gap-1">
-                            <IconUser className="size-3 text-emerald-700" /> {order.customer_name}
-                          </p>
-                          <p className="text-xs text-emerald-700/80 mt-0.5">
-                            {order.total_items} item • Siap!
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
           )}
         </div>
       </SidebarInset>

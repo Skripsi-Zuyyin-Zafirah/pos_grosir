@@ -32,107 +32,62 @@ export type Database = {
         }
         Relationships: []
       }
-      inventory: {
-        Row: {
-          created_at: string
-          location: string | null
-          product_id: string
-          reorder_level: number
-          stock_qty: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          location?: string | null
-          product_id: string
-          reorder_level?: number
-          stock_qty?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          location?: string | null
-          product_id?: string
-          reorder_level?: number
-          stock_qty?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inventory_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: true
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       notifications: {
         Row: {
           created_at: string | null
           id: string
           is_read: boolean | null
-          link: string | null
           message: string
-          target_role: Database["public"]["Enums"]["user_role"] | null
-          title: string
-          type: string | null
+          order_id: string | null
           user_id: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           is_read?: boolean | null
-          link?: string | null
           message: string
-          target_role?: Database["public"]["Enums"]["user_role"] | null
-          title: string
-          type?: string | null
+          order_id?: string | null
           user_id?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           is_read?: boolean | null
-          link?: string | null
           message?: string
-          target_role?: Database["public"]["Enums"]["user_role"] | null
-          title?: string
-          type?: string | null
+          order_id?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_items: {
         Row: {
           id: string
           order_id: string
-          price: number
           product_id: string | null
-          quantity: number
-          time_weight: number | null
-          unit_id: string | null
-          unit_name: string | null
+          qty: number
+          unit_price: number
         }
         Insert: {
           id?: string
           order_id: string
-          price?: number
           product_id?: string | null
-          quantity?: number
-          time_weight?: number | null
-          unit_id?: string | null
-          unit_name?: string | null
+          qty?: number
+          unit_price?: number
         }
         Update: {
           id?: string
           order_id?: string
-          price?: number
           product_id?: string | null
-          quantity?: number
-          time_weight?: number | null
-          unit_id?: string | null
-          unit_name?: string | null
+          qty?: number
+          unit_price?: number
         }
         Relationships: [
           {
@@ -149,19 +104,10 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "order_items_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "product_units"
-            referencedColumns: ["id"]
-          },
         ]
       }
       orders: {
         Row: {
-          assigned_staff_id: string | null
-          cashier_id: string | null
           completed_at: string | null
           created_at: string
           customer_name: string | null
@@ -170,18 +116,14 @@ export type Database = {
           ewp: number
           id: string
           order_number: string | null
-          payment_proof_url: string | null
-          payment_status: Database["public"]["Enums"]["payment_status"] | null
-          payment_type: string | null
-          priority_score: number | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          staff_id: string | null
           status: Database["public"]["Enums"]["order_status"]
           total_items: number
           total_price: number
           user_id: string | null
         }
         Insert: {
-          assigned_staff_id?: string | null
-          cashier_id?: string | null
           completed_at?: string | null
           created_at?: string
           customer_name?: string | null
@@ -190,18 +132,14 @@ export type Database = {
           ewp?: number
           id?: string
           order_number?: string | null
-          payment_proof_url?: string | null
-          payment_status?: Database["public"]["Enums"]["payment_status"] | null
-          payment_type?: string | null
-          priority_score?: number | null
-          status?: Database["public"]["Enums"]["order_status"]
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          staff_id?: string | null
+          status: Database["public"]["Enums"]["order_status"]
           total_items?: number
           total_price?: number
           user_id?: string | null
         }
         Update: {
-          assigned_staff_id?: string | null
-          cashier_id?: string | null
           completed_at?: string | null
           created_at?: string
           customer_name?: string | null
@@ -210,10 +148,8 @@ export type Database = {
           ewp?: number
           id?: string
           order_number?: string | null
-          payment_proof_url?: string | null
-          payment_status?: Database["public"]["Enums"]["payment_status"] | null
-          payment_type?: string | null
-          priority_score?: number | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          staff_id?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total_items?: number
           total_price?: number
@@ -222,61 +158,9 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "orders_assigned_staff_id_fkey"
-            columns: ["assigned_staff_id"]
+            columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_cashier_id_fkey"
-            columns: ["cashier_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payments: {
-        Row: {
-          amount: number
-          cashier_id: string | null
-          created_at: string
-          id: string
-          method: Database["public"]["Enums"]["payment_method"]
-          order_id: string
-          paid_at: string
-        }
-        Insert: {
-          amount?: number
-          cashier_id?: string | null
-          created_at?: string
-          id?: string
-          method?: Database["public"]["Enums"]["payment_method"]
-          order_id: string
-          paid_at?: string
-        }
-        Update: {
-          amount?: number
-          cashier_id?: string | null
-          created_at?: string
-          id?: string
-          method?: Database["public"]["Enums"]["payment_method"]
-          order_id?: string
-          paid_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payments_cashier_id_fkey"
-            columns: ["cashier_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -286,28 +170,28 @@ export type Database = {
           created_at: string | null
           id: string
           multiplier: number
-          name: string
+          pickup_time_seconds: number | null
           price: number
           product_id: string | null
-          time_weight: number | null
+          unit_name: string
         }
         Insert: {
           created_at?: string | null
           id?: string
           multiplier: number
-          name: string
+          pickup_time_seconds?: number | null
           price?: number
           product_id?: string | null
-          time_weight?: number | null
+          unit_name: string
         }
         Update: {
           created_at?: string | null
           id?: string
           multiplier?: number
-          name?: string
+          pickup_time_seconds?: number | null
           price?: number
           product_id?: string | null
-          time_weight?: number | null
+          unit_name?: string
         }
         Relationships: [
           {
@@ -329,9 +213,7 @@ export type Database = {
           name: string
           price: number
           sku: string | null
-          stock: number
-          unit: string | null
-          weight: number | null
+          stock_qty: number | null
         }
         Insert: {
           category_id?: string | null
@@ -342,9 +224,7 @@ export type Database = {
           name: string
           price?: number
           sku?: string | null
-          stock?: number
-          unit?: string | null
-          weight?: number | null
+          stock_qty?: number | null
         }
         Update: {
           category_id?: string | null
@@ -355,9 +235,7 @@ export type Database = {
           name?: string
           price?: number
           sku?: string | null
-          stock?: number
-          unit?: string | null
-          weight?: number | null
+          stock_qty?: number | null
         }
         Relationships: [
           {
@@ -396,48 +274,9 @@ export type Database = {
         }
         Relationships: []
       }
-      queue_logs: {
-        Row: {
-          created_at: string
-          dequeued_at: string | null
-          enqueued_at: string
-          id: string
-          mode: Database["public"]["Enums"]["queue_mode"]
-          order_id: string
-          wait_time_seconds: number | null
-        }
-        Insert: {
-          created_at?: string
-          dequeued_at?: string | null
-          enqueued_at?: string
-          id?: string
-          mode?: Database["public"]["Enums"]["queue_mode"]
-          order_id: string
-          wait_time_seconds?: number | null
-        }
-        Update: {
-          created_at?: string
-          dequeued_at?: string | null
-          enqueued_at?: string
-          id?: string
-          mode?: Database["public"]["Enums"]["queue_mode"]
-          order_id?: string
-          wait_time_seconds?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "queue_logs_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       staff: {
         Row: {
           created_at: string | null
-          current_order_id: string | null
           id: string
           name: string
           status: Database["public"]["Enums"]["staff_status"] | null
@@ -445,7 +284,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          current_order_id?: string | null
           id?: string
           name: string
           status?: Database["public"]["Enums"]["staff_status"] | null
@@ -453,82 +291,10 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          current_order_id?: string | null
           id?: string
           name?: string
           status?: Database["public"]["Enums"]["staff_status"] | null
           updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "staff_current_order_id_fkey"
-            columns: ["current_order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      stock_movements: {
-        Row: {
-          change_qty: number
-          created_at: string
-          id: string
-          product_id: string
-          reason: string
-          ref_order_id: string | null
-        }
-        Insert: {
-          change_qty: number
-          created_at?: string
-          id?: string
-          product_id: string
-          reason: string
-          ref_order_id?: string | null
-        }
-        Update: {
-          change_qty?: number
-          created_at?: string
-          id?: string
-          product_id?: string
-          reason?: string
-          ref_order_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stock_movements_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_movements_ref_order_id_fkey"
-            columns: ["ref_order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      system_settings: {
-        Row: {
-          created_at: string
-          key: string
-          updated_at: string
-          value: Json
-        }
-        Insert: {
-          created_at?: string
-          key: string
-          updated_at?: string
-          value: Json
-        }
-        Update: {
-          created_at?: string
-          key?: string
-          updated_at?: string
-          value?: Json
         }
         Relationships: []
       }
@@ -551,18 +317,23 @@ export type Database = {
         }
         Returns: string
       }
-      finalize_order_transaction: {
-        Args: { p_order_id: string; p_staff_id: string }
+      finalize_order_payment: {
+        Args: {
+          p_order_id: string
+          p_payment_method: Database["public"]["Enums"]["payment_method"]
+          p_staff_id: string
+        }
         Returns: undefined
       }
       is_admin: { Args: never; Returns: boolean }
+      pop_next_order: { Args: { p_staff_id: string }; Returns: string }
     }
     Enums: {
-      order_status: "waiting" | "processing" | "done" | "cancelled" | "ready"
-      payment_method: "tunai" | "transfer" | "qris"
+      order_status: "antri" | "diproses" | "selesai" | "batal"
+      payment_method: "tunai" | "online"
       payment_status: "unpaid" | "paid"
       queue_mode: "fifo" | "priority"
-      staff_status: "idle" | "busy"
+      staff_status: "idle" | "sibuk"
       user_role: "admin" | "cashier" | "customer"
     }
     CompositeTypes: {
@@ -691,11 +462,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      order_status: ["waiting", "processing", "done", "cancelled", "ready"],
-      payment_method: ["tunai", "transfer", "qris"],
+      order_status: ["antri", "diproses", "selesai", "batal"],
+      payment_method: ["tunai", "online"],
       payment_status: ["unpaid", "paid"],
       queue_mode: ["fifo", "priority"],
-      staff_status: ["idle", "busy"],
+      staff_status: ["idle", "sibuk"],
       user_role: ["admin", "cashier", "customer"],
     },
   },

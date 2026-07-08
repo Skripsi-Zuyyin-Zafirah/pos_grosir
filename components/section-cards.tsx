@@ -66,7 +66,7 @@ export function SectionCards({ metrics }: SectionCardsProps) {
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
-          <p>Pesanan berstatus ANTRI & DIPROSES.</p>
+          <p>Pesanan berstatus ANTRI & DIPROSES saat ini.</p>
         </CardFooter>
       </Card>
 
@@ -81,7 +81,7 @@ export function SectionCards({ metrics }: SectionCardsProps) {
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
-          <p>Jumlah produk di bawah reorder level.</p>
+          <p>Produk dengan stok kurang dari 10 unit (pcs).</p>
         </CardFooter>
       </Card>
     </div>

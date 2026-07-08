@@ -30,20 +30,15 @@ import {
 
 type CartItem = {
   productId: string
+  unitId: string
   name: string
+  unitName: string
   price: number
-  unit: string | null
-  weight: number | null
+  pickupTimeSeconds: number
   quantity: number
   stockQty: number
   imageUrl: string | null
-}
-
-type SystemSettings = {
-  t_base: number
-  t_pick: number
-  t_pack: number
-  queue_mode: string
+  multiplier: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -54,6 +49,15 @@ const formatRupiah = (val: number) =>
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(val)
+
+const formatTime = (seconds: number) => {
+  if (seconds < 60) {
+    return `${seconds} detik`
+  }
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.round(seconds % 60)
+  return remainingSeconds > 0 ? `${minutes} menit ${remainingSeconds} detik` : `${minutes} menit`
+}
 
 function CartContentComponent() {
   const router = useRouter()
@@ -107,7 +111,6 @@ function CartContentComponent() {
         setUserProfileLoaded(true)
       }
     } catch (e) {
-      // Fallback
       setCustomerName("Pelanggan Grosir")
     }
   }
@@ -127,14 +130,16 @@ function CartContentComponent() {
   }
 
   // ── Increment Qty ──────────────────────────────────────────────────────────
-  const handleIncrement = (productId: string) => {
+  const handleIncrement = (productId: string, unitId: string) => {
     const updated = cart.map((item) => {
-      if (item.productId === productId) {
-        if (item.quantity >= item.stockQty) {
-          toast.warning(`Stok tidak mencukupi! Batas maksimal stok adalah ${item.stockQty} ${item.unit || 'pcs'}.`)
+      if (item.productId === productId && item.unitId === unitId) {
+        const nextQty = item.quantity + 1
+        const requiredBaseStock = nextQty * item.multiplier
+        if (requiredBaseStock > item.stockQty) {
+          toast.warning(`Stok tidak mencukupi! Batas maksimal stok adalah ${Math.floor(item.stockQty / item.multiplier)} ${item.unitName}.`)
           return item
         }
-        return { ...item, quantity: item.quantity + 1 }
+        return { ...item, quantity: nextQty }
       }
       return item
     })
@@ -142,17 +147,17 @@ function CartContentComponent() {
   }
 
   // ── Decrement Qty ──────────────────────────────────────────────────────────
-  const handleDecrement = (productId: string) => {
-    const item = cart.find((i) => i.productId === productId)
+  const handleDecrement = (productId: string, unitId: string) => {
+    const item = cart.find((i) => i.productId === productId && i.unitId === unitId)
     if (!item) return
 
     if (item.quantity <= 1) {
-      handleRemove(productId)
+      handleRemove(productId, unitId)
       return
     }
 
     const updated = cart.map((i) => {
-      if (i.productId === productId) {
+      if (i.productId === productId && i.unitId === unitId) {
         return { ...i, quantity: i.quantity - 1 }
       }
       return i
@@ -161,21 +166,23 @@ function CartContentComponent() {
   }
 
   // ── Remove Item ────────────────────────────────────────────────────────────
-  const handleRemove = (productId: string) => {
-    const item = cart.find((i) => i.productId === productId)
+  const handleRemove = (productId: string, unitId: string) => {
+    const item = cart.find((i) => i.productId === productId && i.unitId === unitId)
     if (!item) return
 
-    if (confirm(`Hapus ${item.name} dari keranjang?`)) {
-      const updated = cart.filter((i) => i.productId !== productId)
+    if (confirm(`Hapus ${item.name} (${item.unitName}) dari keranjang?`)) {
+      const updated = cart.filter((i) => !(i.productId === productId && i.unitId === unitId))
       saveCart(updated)
-      toast.success(`${item.name} dihapus dari keranjang.`)
+      toast.success(`${item.name} (${item.unitName}) dihapus dari keranjang.`)
     }
   }
 
   // ── Totals Calculation ─────────────────────────────────────────────────────
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
-  const totalWeight = cart.reduce((sum, item) => sum + (item.weight || 0) * item.quantity, 0)
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  // Rumus EWP: sum(Q_i * W_i)
+  const totalEwpSeconds = cart.reduce((sum, item) => sum + (item.quantity * item.pickupTimeSeconds), 0)
 
   // ── Open Checkout Form ─────────────────────────────────────────────────────
   const handleCheckoutInit = () => {
@@ -183,7 +190,7 @@ function CartContentComponent() {
     router.push("/customer/cart?checkout=active")
   }
 
-  // ── Process Checkout (Milestone 8) ─────────────────────────────────────────
+  // ── Process Checkout ───────────────────────────────────────────────────────
   const handleCheckoutConfirm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (cart.length === 0 || checkingOut) return
@@ -204,25 +211,28 @@ function CartContentComponent() {
         return
       }
 
-      // 2. VALIDASI STOK AKHIR: Cek ketersediaan stok riil di database saat ini
-      const productIds = cart.map(item => item.productId)
-      const { data: dbInventory, error: stockCheckErr } = await supabase
-        .from("inventory")
-        .select("product_id, stock_qty")
-        .in("product_id", productIds)
+      // 2. VALIDASI STOK AKHIR: Cek ketersediaan stok riil di database tabel products
+      const productIds = Array.from(new Set(cart.map(item => item.productId)))
+      const { data: dbProducts, error: stockCheckErr } = await supabase
+        .from("products")
+        .select("id, stock_qty")
+        .in("id", productIds)
 
       if (stockCheckErr) throw stockCheckErr
 
       for (const item of cart) {
-        const dbStock = dbInventory?.find(i => i.product_id === item.productId)
-        const currentStock = dbStock ? dbStock.stock_qty : 0
-        if (currentStock < item.quantity) {
-          toast.error(`Gagal Checkout: Stok produk "${item.name}" baru saja berubah di sistem dan tidak mencukupi (Tersedia: ${currentStock} ${item.unit || 'unit'}). Silakan sesuaikan keranjang belanja Anda.`)
+        const dbProd = dbProducts?.find(p => p.id === item.productId)
+        const currentBaseStock = dbProd ? (dbProd.stock_qty || 0) : 0
+        const requiredBaseQty = item.quantity * item.multiplier
+
+        if (currentBaseStock < requiredBaseQty) {
+          toast.error(`Gagal Checkout: Stok produk "${item.name}" baru saja berubah di sistem dan tidak mencukupi. Silakan sesuaikan keranjang belanja Anda.`)
           setCheckingOut(false)
-          // Update stok_qty lokal agar keranjang mendeteksi stok baru
+          
+          // Update stockQty lokal
           const updated = cart.map(c => {
             if (c.productId === item.productId) {
-              return { ...c, stockQty: currentStock }
+              return { ...c, stockQty: currentBaseStock }
             }
             return c
           })
@@ -231,73 +241,28 @@ function CartContentComponent() {
         }
       }
 
-      // 3. FETCH SETTING SISTEM untuk ECT
-      const { data: settingsData, error: settingsErr } = await supabase
-        .from("system_settings")
-        .select("key, value")
-
-      if (settingsErr) throw settingsErr
-
-      const settings: SystemSettings = {
-        t_base: 2,
-        t_pick: 1,
-        t_pack: 0.5,
-        queue_mode: "fifo"
-      }
-
-      if (settingsData) {
-        settingsData.forEach((s) => {
-          if (s.key === "t_base") settings.t_base = Number(s.value)
-          if (s.key === "t_pick") settings.t_pick = Number(s.value)
-          if (s.key === "t_pack") settings.t_pack = Number(s.value)
-          if (s.key === "queue_mode") settings.queue_mode = String(s.value)
-        })
-      }
-
-      // 4. HITUNG ECT PESANAN BARU
-      const distinctSKUs = cart.length
-      const weightFactor = totalWeight > 20 ? 1.5 : 1.0
-      const ect = settings.t_base + (settings.t_pick * distinctSKUs) + (settings.t_pack * totalItems * weightFactor)
-
-      // 5. FETCH TOTAL EWP ANTREAN AKTIF LAINNYA
-      const { data: activeOrders, error: activeOrdersErr } = await supabase
-        .from("orders")
-        .select("ewp")
-        .in("status", ["waiting", "processing"])
-
-      if (activeOrdersErr) throw activeOrdersErr
-
-      const activeEwpSum = activeOrders?.reduce((sum, o) => sum + (o.ewp || 0), 0) || 0
-
-      // 6. EWP FINAL PESANAN INI
-      const finalEwp = Math.round(ect + activeEwpSum)
-
-      // 7. PANGGIL RPC checkout_order UNTUK TRANSAKSI ATOMIC
-      // queue_logs di-insert di dalam RPC (SECURITY DEFINER) agar bypass RLS
+      // 3. PANGGIL RPC checkout_order
       const { data: orderId, error: checkoutErr } = await supabase.rpc("checkout_order", {
         p_customer_name: trimmedName,
-        p_ewp: finalEwp,
+        p_ewp: totalEwpSeconds,
         p_items: cart.map(item => ({
           product_id: item.productId,
-          quantity: item.quantity,
-          price: item.price
+          qty: item.quantity * item.multiplier, // Kuantitas unit dasar (pcs)
+          unit_price: item.price / item.multiplier // Harga satuan unit dasar (pcs)
         })),
         p_total_items: totalItems,
-        p_total_price: totalPrice,
-        p_queue_mode: settings.queue_mode
+        p_total_price: totalPrice
       })
 
       if (checkoutErr) throw checkoutErr
 
       if (orderId) {
-        // 8. KOSONGKAN KERANJANG
+        // KOSONGKAN KERANJANG
         localStorage.removeItem("pos_grosir_cart")
         setCart([])
         window.dispatchEvent(new Event("storage"))
 
         toast.success(`Pesanan #${orderId.substring(0, 8).toUpperCase()} berhasil dibuat!`)
-        
-        // 9. REDIRECT KE PESANAN SAYA
         router.push("/customer/orders")
       }
     } catch (err: any) {
@@ -307,7 +272,6 @@ function CartContentComponent() {
     }
   }
 
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -321,10 +285,8 @@ function CartContentComponent() {
   if (isCheckoutActive && cart.length > 0) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Column: Form Checkout & Preview */}
+        {/* Left Column: Form Checkout */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Card Form */}
           <Card className="border-border/50 shadow-md">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -402,12 +364,12 @@ function CartContentComponent() {
                 </TableHeader>
                 <TableBody>
                   {cart.map((item) => (
-                    <TableRow key={item.productId} className="hover:bg-transparent">
+                    <TableRow key={`${item.productId}-${item.unitId}`} className="hover:bg-transparent">
                       <TableCell className="text-sm font-semibold">
-                        {item.name}
+                        {item.name} <span className="text-xs text-muted-foreground font-normal">({item.unitName})</span>
                       </TableCell>
                       <TableCell className="text-center text-sm font-medium">
-                        {item.quantity} {item.unit || "unit"}
+                        {item.quantity} {item.unitName}
                       </TableCell>
                       <TableCell className="text-right text-sm font-bold text-primary">
                         {formatRupiah(item.price * item.quantity)}
@@ -428,27 +390,26 @@ function CartContentComponent() {
                 <IconClock className="size-4 text-primary" />
                 Estimasi Penyiapan
               </CardTitle>
-              <CardDescription>Perkiraan waktu tunggu barang siap diambil</CardDescription>
+              <CardDescription>Perkiraan waktu pengambilan fisik barang di toko</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
               <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-sm">
                   <IconClock className="size-5 shrink-0" />
-                  <span>Estimasi Waktu Tunggu (EWP)</span>
+                  <span>Estimasi Waktu Proses (EWP)</span>
                 </div>
                 <p className="text-xs leading-relaxed">
-                  Pesanan Anda disusun secara cerdas berdasarkan antrean prioritas Min-Heap.
+                  EWP dihitung secara linear berdasarkan unit kemasan barang belanjaan Anda:
+                </p>
+                <p className="text-lg font-black text-amber-600 dark:text-amber-400">
+                  {formatTime(totalEwpSeconds)}
                 </p>
               </div>
 
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Kuantitas:</span>
-                  <span className="font-semibold">{totalItems} unit</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Berat Barang:</span>
-                  <span className="font-semibold">{totalWeight.toFixed(2)} kg</span>
+                  <span className="font-semibold">{totalItems} kemasan</span>
                 </div>
               </div>
 
@@ -464,15 +425,28 @@ function CartContentComponent() {
             </CardContent>
           </Card>
         </div>
-
       </div>
     )
   }
 
   // ── Render Tabel Keranjang (Default) ───────────────────────────────────────
+  if (cart.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-muted rounded-xl bg-background">
+        <IconShoppingCart className="size-16 text-muted-foreground/35 mb-3" />
+        <h3 className="font-semibold text-lg">Keranjang Belanja Kosong</h3>
+        <p className="text-sm text-muted-foreground max-w-sm mt-1 mb-4">
+          Anda belum menambahkan barang apapun ke keranjang belanja Anda.
+        </p>
+        <Button asChild>
+          <Link href="/customer/shop">Mulai Belanja</Link>
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      
       {/* Left Column: Cart Table */}
       <div className="lg:col-span-2">
         <Card className="border-border/50 shadow-sm">
@@ -499,7 +473,7 @@ function CartContentComponent() {
                 </TableHeader>
                 <TableBody>
                   {cart.map((item) => (
-                    <TableRow key={item.productId} className="hover:bg-muted/30 transition-colors">
+                    <TableRow key={`${item.productId}-${item.unitId}`} className="hover:bg-muted/30 transition-colors">
                       <TableCell className="font-medium text-sm">
                         <div className="flex items-center gap-3">
                           {item.imageUrl ? (
@@ -515,11 +489,9 @@ function CartContentComponent() {
                           )}
                           <div>
                             <p className="font-semibold leading-tight">{item.name}</p>
-                            {item.weight && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5">
-                                Berat: {item.weight} kg
-                              </p>
-                            )}
+                            <Badge variant="secondary" className="text-[10px] mt-1 font-bold">
+                              {item.unitName}
+                            </Badge>
                           </div>
                         </div>
                       </TableCell>
@@ -534,7 +506,7 @@ function CartContentComponent() {
                             variant="outline"
                             size="icon"
                             className="h-7 w-7 rounded-md"
-                            onClick={() => handleDecrement(item.productId)}
+                            onClick={() => handleDecrement(item.productId, item.unitId)}
                           >
                             <IconMinus className="size-3.5" />
                           </Button>
@@ -543,8 +515,8 @@ function CartContentComponent() {
                             variant="outline"
                             size="icon"
                             className="h-7 w-7 rounded-md"
-                            onClick={() => handleIncrement(item.productId)}
-                            disabled={item.quantity >= item.stockQty}
+                            onClick={() => handleIncrement(item.productId, item.unitId)}
+                            disabled={item.quantity * item.multiplier >= item.stockQty}
                           >
                             <IconPlus className="size-3.5" />
                           </Button>
@@ -560,7 +532,7 @@ function CartContentComponent() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
-                          onClick={() => handleRemove(item.productId)}
+                          onClick={() => handleRemove(item.productId, item.unitId)}
                         >
                           <IconTrash className="size-4" />
                         </Button>
@@ -582,21 +554,23 @@ function CartContentComponent() {
               <IconCreditCard className="size-4 text-primary" />
               Ringkasan Belanja
             </CardTitle>
-            <CardDescription>Rincian harga dan beban fisik belanjaan</CardDescription>
+            <CardDescription>Rincian harga dan estimasi waktu penyiapan</CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-4">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total Kuantitas:</span>
-              <span className="font-semibold">{totalItems} unit</span>
+              <span className="text-muted-foreground">Total Item Kemasan:</span>
+              <span className="font-semibold">{totalItems} kemasan</span>
             </div>
 
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground flex items-center gap-1">
-                <IconScale className="size-3.5" />
-                Total Berat:
+                <IconClock className="size-3.5" />
+                Estimasi EWP:
               </span>
-              <span className="font-semibold">{totalWeight.toFixed(2)} kg</span>
+              <span className="font-semibold text-amber-600 dark:text-amber-400 font-bold">
+                {formatTime(totalEwpSeconds)}
+              </span>
             </div>
 
             <Separator />
@@ -620,7 +594,6 @@ function CartContentComponent() {
           </CardFooter>
         </Card>
       </div>
-
     </div>
   )
 }
