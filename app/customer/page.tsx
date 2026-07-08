@@ -48,8 +48,8 @@ type RecentOrder = {
   created_at: string
   total_items: number
   total_price: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  payment_status: "unpaid" | "paid" | null
+  status: "antri" | "diproses" | "selesai" | "batal"
+  payment_method: "tunai" | "online" | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -71,88 +71,40 @@ const formatRupiahShort = (val: number) => {
 
 function getStatusBadge(status: string) {
   switch (status) {
-    case "waiting":
+    case "antri":
       return (
-        <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold text-xs">
+        <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold text-xs text-white">
           ANTRI
         </Badge>
       )
-    case "processing":
+    case "diproses":
       return (
-        <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold text-xs">
+        <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold text-xs text-white">
           DIPROSES
         </Badge>
       )
-    case "ready":
+    case "selesai":
       return (
-        <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none font-semibold text-xs">
-          SIAP DIAMBIL
-        </Badge>
-      )
-    case "done":
-      return (
-        <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold text-xs">
+        <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold text-xs text-white">
           SELESAI
         </Badge>
       )
-    case "cancelled":
+    case "batal":
       return (
-        <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold text-xs">
+        <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold text-xs text-white">
           BATAL
         </Badge>
       )
     default:
-      return (
-        <Badge variant="outline" className="text-xs">
-          {status}
-        </Badge>
-      )
+      return <Badge variant="outline" className="text-xs">{status}</Badge>
   }
 }
-
-// ─── Summary Card Component ───────────────────────────────────────────────────
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-  sub,
-  iconBg,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string | number
-  sub?: string
-  iconBg: string
-}) {
-  return (
-    <Card className="border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground font-medium">{label}</p>
-            <p className="text-2xl font-bold tracking-tight">{value}</p>
-            {sub && (
-              <p className="text-xs text-muted-foreground">{sub}</p>
-            )}
-          </div>
-          <div
-            className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg}`}
-          >
-            {icon}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CustomerDashboardPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  // State
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState("")
   const [metrics, setMetrics] = useState<CustomerMetrics>({
@@ -163,6 +115,7 @@ export default function CustomerDashboardPage() {
   })
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
 
+  // ── Fetch Dashboard Data ───────────────────────────────────────────────────
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
@@ -193,7 +146,7 @@ export default function CustomerDashboardPage() {
       // 3. Fetch ALL orders for this user (for metrics)
       const { data: allOrders, error: ordersErr } = await supabase
         .from("orders")
-        .select("id, status, total_price, payment_status")
+        .select("id, status, total_price")
         .eq("user_id", userId)
 
       if (ordersErr) throw ordersErr
@@ -203,11 +156,11 @@ export default function CustomerDashboardPage() {
       // Calculate metrics
       const totalOrders = orders.length
       const activeOrders = orders.filter((o) =>
-        ["waiting", "processing", "ready"].includes(o.status)
+        ["antri", "diproses"].includes(o.status)
       ).length
-      const completedOrders = orders.filter((o) => o.status === "done").length
+      const completedOrders = orders.filter((o) => o.status === "selesai").length
       const totalSpending = orders
-        .filter((o) => o.status === "done")
+        .filter((o) => o.status === "selesai")
         .reduce((sum, o) => sum + (o.total_price || 0), 0)
 
       setMetrics({ totalOrders, activeOrders, completedOrders, totalSpending })
@@ -216,7 +169,7 @@ export default function CustomerDashboardPage() {
       const { data: recent, error: recentErr } = await supabase
         .from("orders")
         .select(
-          "id, order_number, created_at, total_items, total_price, status, payment_status"
+          "id, order_number, created_at, total_items, total_price, status, payment_method"
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
@@ -248,82 +201,120 @@ export default function CustomerDashboardPage() {
   // ── Main Render ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-1 flex-col py-6 space-y-6">
-      {/* ── Page Header ── */}
+      {/* ── Welcome Header ── */}
       <div className="px-4 lg:px-6">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Selamat datang, {userName}! 👋
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          Halo, {userName}!
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Berikut ringkasan aktivitas pesanan Anda secara real-time.
+        <p className="text-muted-foreground mt-1.5 text-sm">
+          Selamat datang kembali di portal belanja POS Grosir Jasa. Berikut ringkasan belanja Anda.
         </p>
       </div>
 
-      {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 px-4 lg:px-6">
-        <SummaryCard
-          icon={
-            <IconShoppingCart className="size-5 text-blue-600 dark:text-blue-400" />
-          }
-          label="Total Pesanan"
-          value={metrics.totalOrders}
-          sub="Semua pesanan yang pernah dibuat"
-          iconBg="bg-blue-500/10"
-        />
-        <SummaryCard
-          icon={
-            <IconClock className="size-5 text-amber-600 dark:text-amber-400" />
-          }
-          label="Pesanan Aktif"
-          value={metrics.activeOrders}
-          sub="Sedang antri, diproses, atau siap diambil"
-          iconBg="bg-amber-500/10"
-        />
-        <SummaryCard
-          icon={
-            <IconCircleCheck className="size-5 text-emerald-600 dark:text-emerald-400" />
-          }
-          label="Pesanan Selesai"
-          value={metrics.completedOrders}
-          sub="Pesanan yang telah berhasil diambil"
-          iconBg="bg-emerald-500/10"
-        />
-        <SummaryCard
-          icon={
-            <IconCurrencyDollar className="size-5 text-purple-600 dark:text-purple-400" />
-          }
-          label="Total Pengeluaran"
-          value={formatRupiahShort(metrics.totalSpending)}
-          sub={formatRupiah(metrics.totalSpending)}
-          iconBg="bg-purple-500/10"
-        />
+      {/* ── Metrics Cards Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 px-4 lg:px-6">
+        {/* Card 1: Total Orders */}
+        <Card className="border-border/50 shadow-sm bg-gradient-to-tr from-sky-500/5 to-card">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+              <IconPackage className="size-4 text-sky-500" /> Total Transaksi
+            </CardDescription>
+            <CardTitle className="text-2xl font-black tracking-tight text-sky-600 dark:text-sky-400 mt-1">
+              {metrics.totalOrders} <span className="text-xs font-normal text-muted-foreground">nota</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground">
+            Jumlah pesanan yang pernah Anda buat di toko.
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Active Orders */}
+        <Card className="border-border/50 shadow-sm bg-gradient-to-tr from-amber-500/5 to-card">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+              <IconClock className="size-4 text-amber-500" /> Pesanan Aktif
+            </CardDescription>
+            <CardTitle className="text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400 mt-1">
+              {metrics.activeOrders} <span className="text-xs font-normal text-muted-foreground">antrean</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground">
+            Pesanan yang sedang mengantri atau diproses.
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Completed Orders */}
+        <Card className="border-border/50 shadow-sm bg-gradient-to-tr from-emerald-500/5 to-card">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+              <IconCircleCheck className="size-4 text-emerald-500" /> Selesai
+            </CardDescription>
+            <CardTitle className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 mt-1">
+              {metrics.completedOrders} <span className="text-xs font-normal text-muted-foreground">nota</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground">
+            Pesanan yang selesai diproses & lunas dibayar.
+          </CardContent>
+        </Card>
+
+        {/* Card 4: Total Spending */}
+        <Card className="border-border/50 shadow-sm bg-gradient-to-tr from-violet-500/5 to-card">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+              <IconCurrencyDollar className="size-4 text-violet-500" /> Pengeluaran
+            </CardDescription>
+            <CardTitle className="text-xl font-black tracking-tight text-violet-600 dark:text-violet-400 mt-1.5">
+              {formatRupiahShort(metrics.totalSpending)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground">
+            Akumulasi pengeluaran belanja selesai: <strong>{formatRupiah(metrics.totalSpending)}</strong>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* ── Recent Orders Table ── */}
-      <div className="px-4 lg:px-6">
-        <Card className="border-border/50 shadow-sm">
+      {/* ── Actions & Recent Orders Grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 lg:px-6">
+        {/* Quick Action Panel */}
+        <Card className="border-border/50 shadow-sm lg:col-span-1 flex flex-col justify-between">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <IconPackage className="size-5 text-primary" />
-              Pesanan Terbaru
-            </CardTitle>
+            <CardTitle className="text-lg">Belanja Mandiri</CardTitle>
             <CardDescription>
-              5 pesanan terakhir yang Anda buat
+              Buat pesanan grosir baru secara online untuk mempercepat pengambilan barang di toko.
             </CardDescription>
           </CardHeader>
+          <CardContent className="space-y-3 pb-6">
+            <Button asChild size="lg" className="w-full font-bold shadow-md">
+              <Link href="/customer/shop">
+                <IconShoppingCart className="mr-2 size-5" />
+                Katalog Belanja
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="w-full font-semibold">
+              <Link href="/customer/cart">
+                Keranjang Belanja
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
 
+        {/* Recent Orders List */}
+        <Card className="border-border/50 shadow-md lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <IconPackage className="size-5 text-primary" /> Pesanan Terakhir
+            </CardTitle>
+            <CardDescription>
+              Aktivitas 5 pesanan belanja teranyar Anda
+            </CardDescription>
+          </CardHeader>
           <CardContent className="p-0">
             {recentOrders.length === 0 ? (
-              /* ── Empty State ── */
-              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                <IconPackage className="size-12 text-muted-foreground/40 mb-3" />
-                <p className="font-semibold text-base">Belum Ada Pesanan</p>
-                <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                  Anda belum pernah membuat pesanan. Mulai belanja dari halaman
-                  katalog.
-                </p>
+              <div className="text-center py-12 text-sm text-muted-foreground">
+                Anda belum pernah membuat pesanan
               </div>
             ) : (
-              /* ── Table ── */
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -347,7 +338,7 @@ export default function CustomerDashboardPage() {
                           {order.order_number ||
                             order.id.substring(0, 8).toUpperCase()}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(order.created_at).toLocaleDateString(
                             "id-ID",
                             {
@@ -357,22 +348,26 @@ export default function CustomerDashboardPage() {
                             }
                           )}
                         </TableCell>
-                        <TableCell className="text-center text-sm">
+                        <TableCell className="text-center text-xs">
                           {order.total_items} item
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-sm whitespace-nowrap">
+                        <TableCell className="text-right font-bold text-xs whitespace-nowrap text-primary">
                           {formatRupiah(order.total_price)}
                         </TableCell>
                         <TableCell className="text-center">
                           {getStatusBadge(order.status)}
                         </TableCell>
-                        <TableCell className="text-center">
-                          {order.payment_status === "paid" ? (
-                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <TableCell className="text-center text-xs font-semibold">
+                          {order.status === "selesai" ? (
+                            <span className="text-emerald-600 dark:text-emerald-400">
                               Lunas
                             </span>
+                          ) : order.status === "batal" ? (
+                            <span className="text-rose-500">
+                              Batal
+                            </span>
                           ) : (
-                            <span className="text-xs font-semibold text-rose-500 dark:text-rose-400">
+                            <span className="text-rose-500 dark:text-rose-400">
                               Belum Bayar
                             </span>
                           )}

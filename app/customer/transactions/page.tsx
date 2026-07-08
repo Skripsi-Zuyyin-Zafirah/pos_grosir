@@ -42,11 +42,10 @@ import {
 
 type OrderItem = {
   id: string
-  price: number
-  quantity: number
+  unit_price: number
+  qty: number
   products: {
     name: string
-    unit: string | null
   } | null
 }
 
@@ -57,12 +56,12 @@ type Transaction = {
   customer_name: string | null
   total_items: number
   total_price: number
-  status: "done" | "cancelled"
-  payment_status: "unpaid" | "paid" | null
+  status: "selesai" | "batal"
+  payment_method: "tunai" | "online" | null
   order_items: OrderItem[]
 }
 
-type FilterTab = "all" | "done" | "cancelled"
+type FilterTab = "all" | "selesai" | "batal"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -74,15 +73,15 @@ const formatRupiah = (val: number) =>
   }).format(val)
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "done") {
+  if (status === "selesai") {
     return (
-      <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold text-xs">
+      <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold text-xs text-white">
         SELESAI
       </Badge>
     )
   }
   return (
-    <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold text-xs">
+    <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold text-xs text-white">
       BATAL
     </Badge>
   )
@@ -153,13 +152,13 @@ export default function CustomerTransactionsPage() {
 
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items (*, products ( name, unit ))")
+        .select("*, order_items (id, qty, unit_price, products ( name ))")
         .eq("user_id", session.user.id)
-        .in("status", ["done", "cancelled"])
+        .in("status", ["selesai", "batal"])
         .order("created_at", { ascending: false })
 
       if (error) throw error
-      setTransactions((data as Transaction[]) || [])
+      setTransactions((data as any[]) || [])
     } catch (err: any) {
       toast.error("Gagal memuat riwayat transaksi: " + err.message)
     } finally {
@@ -178,8 +177,8 @@ export default function CustomerTransactionsPage() {
       : transactions.filter((t) => t.status === activeTab)
 
   const countAll = transactions.length
-  const countDone = transactions.filter((t) => t.status === "done").length
-  const countCancelled = transactions.filter((t) => t.status === "cancelled").length
+  const countDone = transactions.filter((t) => t.status === "selesai").length
+  const countCancelled = transactions.filter((t) => t.status === "batal").length
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -196,16 +195,15 @@ export default function CustomerTransactionsPage() {
   // ── Main render ───────────────────────────────────────────────────────────
   return (
     <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
-
-      {/* ── Page Header ── */}
+      {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Riwayat Transaksi</h1>
         <p className="text-muted-foreground mt-1">
-          Daftar semua pesanan yang sudah selesai atau dibatalkan.
+          Daftar semua pesanan Anda yang sudah selesai atau dibatalkan.
         </p>
       </div>
 
-      {/* ── Filter Tabs ── */}
+      {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2">
         <TabButton
           active={activeTab === "all"}
@@ -215,22 +213,22 @@ export default function CustomerTransactionsPage() {
           count={countAll}
         />
         <TabButton
-          active={activeTab === "done"}
-          onClick={() => setActiveTab("done")}
+          active={activeTab === "selesai"}
+          onClick={() => setActiveTab("selesai")}
           icon={<IconCircleCheck className="size-4" />}
           label="Selesai"
           count={countDone}
         />
         <TabButton
-          active={activeTab === "cancelled"}
-          onClick={() => setActiveTab("cancelled")}
+          active={activeTab === "batal"}
+          onClick={() => setActiveTab("batal")}
           icon={<IconCircleX className="size-4" />}
           label="Dibatalkan"
           count={countCancelled}
         />
       </div>
 
-      {/* ── Content ── */}
+      {/* Content */}
       {filtered.length === 0 ? (
         /* Empty State */
         <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-muted rounded-xl bg-background">
@@ -238,9 +236,9 @@ export default function CustomerTransactionsPage() {
           <h3 className="font-semibold text-lg">
             {activeTab === "all"
               ? "Belum Ada Riwayat Transaksi"
-              : activeTab === "done"
-              ? "Belum Ada Transaksi Selesai"
-              : "Belum Ada Transaksi yang Dibatalkan"}
+              : activeTab === "selesai"
+                ? "Belum Ada Transaksi Selesai"
+                : "Belum Ada Transaksi yang Dibatalkan"}
           </h3>
           <p className="text-sm text-muted-foreground max-w-sm mt-1">
             {activeTab === "all"
@@ -256,9 +254,9 @@ export default function CustomerTransactionsPage() {
               <IconReceipt className="size-5 text-primary" />
               {activeTab === "all"
                 ? "Semua Transaksi"
-                : activeTab === "done"
-                ? "Transaksi Selesai"
-                : "Transaksi Dibatalkan"}
+                : activeTab === "selesai"
+                  ? "Transaksi Selesai"
+                  : "Transaksi Dibatalkan"}
             </CardTitle>
             <CardDescription>
               Menampilkan {filtered.length} transaksi
@@ -304,9 +302,13 @@ export default function CustomerTransactionsPage() {
                         <StatusBadge status={tx.status} />
                       </TableCell>
                       <TableCell className="text-center">
-                        {tx.payment_status === "paid" ? (
+                        {tx.status === "selesai" ? (
                           <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                             Lunas
+                          </span>
+                        ) : tx.status === "batal" ? (
+                          <span className="text-xs font-semibold text-rose-500">
+                            Batal
                           </span>
                         ) : (
                           <span className="text-xs font-semibold text-rose-500 dark:text-rose-400">
@@ -337,7 +339,7 @@ export default function CustomerTransactionsPage() {
         </Card>
       )}
 
-      {/* ── Detail Modal ── */}
+      {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -404,11 +406,10 @@ export default function CustomerTransactionsPage() {
                             {item.products?.name || "—"}
                           </TableCell>
                           <TableCell className="text-right text-sm">
-                            {item.quantity}{" "}
-                            {item.products?.unit || "pcs"}
+                            {item.qty} pcs
                           </TableCell>
                           <TableCell className="text-right font-semibold text-sm">
-                            {formatRupiah(item.price * item.quantity)}
+                            {formatRupiah(item.unit_price * item.qty)}
                           </TableCell>
                         </TableRow>
                       ))
@@ -429,14 +430,14 @@ export default function CustomerTransactionsPage() {
                   <span className="text-muted-foreground">Status Bayar:</span>
                   <span
                     className={`font-semibold ${
-                      selectedTx.payment_status === "paid"
+                      selectedTx.status === "selesai"
                         ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-rose-500 dark:text-rose-400"
+                        : "text-rose-500"
                     }`}
                   >
-                    {selectedTx.payment_status === "paid"
+                    {selectedTx.status === "selesai"
                       ? "Sudah Lunas"
-                      : "Belum Dibayar"}
+                      : "Batal / Belum Dibayar"}
                   </span>
                 </div>
                 <div className="flex justify-between text-base border-t pt-2 mt-1">

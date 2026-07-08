@@ -19,11 +19,9 @@ import {
 import {
   IconDashboard,
   IconSettings,
-  IconDatabase,
   IconReport,
   IconPackage,
   IconClipboardList,
-  IconClipboardCheck,
   IconCash,
   IconClock
 } from "@tabler/icons-react"
@@ -42,20 +40,6 @@ const data = {
       url: "/dashboard/products",
       icon: (
         <IconPackage />
-      ),
-    },
-    {
-      title: "Kelola Stok",
-      url: "/dashboard/inventory",
-      icon: (
-        <IconDatabase />
-      ),
-    },
-    {
-      title: "Proses Gudang",
-      url: "/dashboard/picking",
-      icon: (
-        <IconClipboardCheck />
       ),
     },
     {

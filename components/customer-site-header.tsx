@@ -16,12 +16,12 @@ import {
 
 // Mapping segment URL → label yang ditampilkan di breadcrumb
 const customerRouteMap: Record<string, string> = {
-  customer: "Customer Area",
+  customer: "Customer",
   shop: "Katalog Belanja",
-  cart: "Keranjang Saya",
-  orders: "Pesanan Saya",
+  cart: "Keranjang",
+  orders: "Pesanan",
   transactions: "Riwayat Transaksi",
-  profile: "Profil Saya",
+  profile: "Profil",
 }
 
 export function CustomerSiteHeader() {

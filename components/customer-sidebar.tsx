@@ -55,12 +55,12 @@ const navItems = [
     icon: <IconBuildingStore />,
   },
   {
-    title: "Keranjang Saya",
+    title: "Keranjang",
     url: "/customer/cart",
     icon: <IconShoppingCart />,
   },
   {
-    title: "Pesanan Saya",
+    title: "Pesanan",
     url: "/customer/orders",
     icon: <IconPackage />,
   },
@@ -70,7 +70,7 @@ const navItems = [
     icon: <IconReceipt />,
   },
   {
-    title: "Profil Saya",
+    title: "Profil",
     url: "/profile",
     icon: <IconUser />,
   },
@@ -99,11 +99,11 @@ function CustomerNavUser({
 
   const initials = user.name
     ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
     : "CU"
 
   return (
