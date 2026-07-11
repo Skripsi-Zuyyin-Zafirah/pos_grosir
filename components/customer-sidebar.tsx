@@ -23,7 +23,6 @@ import {
   IconShoppingCart,
   IconTruckDelivery,
   IconClipboardList,
-  IconHourglassHigh,
   IconUserCircle,
   IconHome,
 } from "@tabler/icons-react"
@@ -82,13 +81,6 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
       url: "/customer/orders",
       icon: (
         <IconClipboardList />
-      ),
-    },
-    {
-      title: "Papan Antrian",
-      url: "/customer/queue",
-      icon: (
-        <IconHourglassHigh />
       ),
     },
     {

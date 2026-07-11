@@ -32,15 +32,13 @@ type Order = {
   total_price: number
   ewp: number
   status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  payment_status: "unpaid" | "paid" | null
-  priority_score: number | null
+  completed_at: string | null
 }
 
 type QueueEntry = {
   id: string
   user_id: string
   created_at: string
-  priority_score: number | null
 }
 
 export default function CustomerDashboardPage() {
@@ -72,35 +70,22 @@ export default function CustomerDashboardPage() {
       // 1. Fetch all orders belonging to this customer
       const { data: myOrders, error: ordersErr } = await supabase
         .from("orders")
-        .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, payment_status, priority_score")
+        .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: false })
       if (ordersErr) throw ordersErr
       setOrders((myOrders as Order[]) || [])
 
-      // 2. Determine queue mode from system settings
-      const { data: settings } = await supabase
-        .from("system_settings")
-        .select("key, value")
-      let queueMode = "fifo"
-      if (settings) {
-        const modeSetting = settings.find((s) => s.key === "queue_mode")
-        if (modeSetting) queueMode = String(modeSetting.value)
-      }
-
-      // 3. Fetch the full waiting queue to compute this customer's position
+      // 2. Fetch the full waiting queue (FIFO order) to compute this customer's position
       const { data: waitingQueue, error: queueErr } = await supabase
         .from("orders")
-        .select("id, user_id, created_at, priority_score")
+        .select("id, user_id, created_at")
         .eq("status", "waiting")
       if (queueErr) throw queueErr
 
-      const sortedQueue = ((waitingQueue as QueueEntry[]) || []).sort((a, b) => {
-        if (queueMode === "priority") {
-          return (a.priority_score || 0) - (b.priority_score || 0)
-        }
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      })
+      const sortedQueue = ((waitingQueue as QueueEntry[]) || []).sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
       setQueueLength(sortedQueue.length)
 
       const myIndex = sortedQueue.findIndex((q) => q.user_id === session.user.id)
@@ -140,7 +125,7 @@ export default function CustomerDashboardPage() {
 
   const activeOrders = orders.filter((o) => ["waiting", "processing", "ready"].includes(o.status))
   const totalSpent = orders
-    .filter((o) => o.payment_status === "paid" && o.status !== "cancelled")
+    .filter((o) => !!o.completed_at && o.status !== "cancelled")
     .reduce((sum, o) => sum + o.total_price, 0)
   const currentOrder = activeOrders[activeOrders.length - 1] || activeOrders[0] || null
 
@@ -323,7 +308,7 @@ export default function CustomerDashboardPage() {
                               {formatRupiah(order.total_price)}
                             </TableCell>
                             <TableCell className="text-center text-xs">
-                              {order.payment_status === "paid" ? (
+                              {order.completed_at ? (
                                 <span className="text-emerald-600 font-semibold">Lunas</span>
                               ) : (
                                 <span className="text-rose-500 font-semibold">Belum</span>
