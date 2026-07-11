@@ -27,68 +27,73 @@ import {
   IconCash
 } from "@tabler/icons-react"
 
-const data = {
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: (
-        <IconDashboard />
-      ),
-    },
-    {
-      title: "Kelola Produk",
-      url: "/dashboard/products",
-      icon: (
-        <IconPackage />
-      ),
-    },
-    {
-      title: "Kelola Stok",
-      url: "/dashboard/inventory",
-      icon: (
-        <IconDatabase />
-      ),
-    },
-    {
-      title: "Proses Gudang",
-      url: "/dashboard/picking",
-      icon: (
-        <IconClipboardCheck />
-      ),
-    },
-    {
-      title: "Kasir & Pembayaran",
-      url: "/dashboard/cashier",
-      icon: (
-        <IconCash />
-      ),
-    },
-    {
-      title: "Papan Antrian",
-      url: "/dashboard/queue",
-      icon: (
-        <IconClipboardList />
-      ),
-    },
-    {
-      title: "Laporan & Evaluasi",
-      url: "/dashboard/reports",
-      icon: (
-        <IconReport />
-      ),
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Pengaturan",
-      url: "/dashboard/settings",
-      icon: (
-        <IconSettings />
-      ),
-    },
-  ],
-}
+type Role = "admin" | "cashier"
+
+const navMainData: { title: string; url: string; icon: React.ReactNode; roles?: Role[] }[] = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: (
+      <IconDashboard />
+    ),
+  },
+  {
+    title: "Kelola Produk",
+    url: "/dashboard/products",
+    icon: (
+      <IconPackage />
+    ),
+    roles: ["admin"],
+  },
+  {
+    title: "Kelola Stok",
+    url: "/dashboard/inventory",
+    icon: (
+      <IconDatabase />
+    ),
+    roles: ["admin"],
+  },
+  {
+    title: "Proses Gudang",
+    url: "/dashboard/picking",
+    icon: (
+      <IconClipboardCheck />
+    ),
+  },
+  {
+    title: "Kasir & Pembayaran",
+    url: "/dashboard/cashier",
+    icon: (
+      <IconCash />
+    ),
+  },
+  {
+    title: "Papan Antrian",
+    url: "/dashboard/queue",
+    icon: (
+      <IconClipboardList />
+    ),
+  },
+  {
+    title: "Laporan & Evaluasi",
+    url: "/dashboard/reports",
+    icon: (
+      <IconReport />
+    ),
+    roles: ["admin"],
+  },
+]
+
+const navSecondaryData: { title: string; url: string; icon: React.ReactNode; roles?: Role[] }[] = [
+  {
+    title: "Pengaturan",
+    url: "/dashboard/settings",
+    icon: (
+      <IconSettings />
+    ),
+    roles: ["admin"],
+  },
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const supabase = createClient()
@@ -97,6 +102,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     email: "admin@posgrosir.com",
     avatar: "",
   })
+  const [role, setRole] = useState<Role>("cashier")
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -104,7 +110,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name")
+          .select("full_name, role")
           .eq("id", session.user.id)
           .single()
 
@@ -113,10 +119,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           email: session.user.email || "",
           avatar: "",
         })
+        if (profile?.role === "admin" || profile?.role === "cashier") {
+          setRole(profile.role)
+        }
       }
     }
     fetchUser()
   }, [])
+
+  const navMain = navMainData.filter((item) => !item.roles || item.roles.includes(role))
+  const navSecondary = navSecondaryData.filter((item) => !item.roles || item.roles.includes(role))
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -140,8 +152,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={navMain} />
+        {navSecondary.length > 0 && <NavSecondary items={navSecondary} className="mt-auto" />}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/60 pt-2">
         <NavUser user={currentUser} />
