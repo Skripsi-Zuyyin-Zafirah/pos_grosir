@@ -21,6 +21,7 @@ import {
   IconDashboard,
   IconShoppingBag,
   IconShoppingCart,
+  IconTruckDelivery,
   IconClipboardList,
   IconHourglassHigh,
   IconUserCircle,
@@ -68,6 +69,13 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
         <IconShoppingCart />
       ),
       badge: totalItems,
+    },
+    {
+      title: "Lacak Pesanan",
+      url: "/customer/tracking",
+      icon: (
+        <IconTruckDelivery />
+      ),
     },
     {
       title: "Riwayat Transaksi",
