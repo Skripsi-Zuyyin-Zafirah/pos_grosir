@@ -1,28 +1,46 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  flexRender,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { IconLoader2, IconPackage, IconClock, IconCheck, IconX, IconEye, IconRefresh } from "@tabler/icons-react"
-
-type OrderItem = {
-  id: string
-  unit_price: number
-  qty: number
-  products: {
-    name: string
-  } | null
-}
+import {
+  IconLoader2,
+  IconPackage,
+  IconX,
+  IconEye,
+  IconRefresh,
+  IconSearch,
+  IconSortAscending,
+  IconSortDescending,
+  IconArrowsSort,
+  IconChevronsLeft,
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronsRight,
+  IconCircleCheckFilled,
+  IconBan,
+} from "@tabler/icons-react"
 
 type Order = {
   id: string
@@ -33,8 +51,29 @@ type Order = {
   total_price: number
   ewp: number
   status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  payment_status: "unpaid" | "paid" | null
-  order_items: OrderItem[]
+  completed_at: string | null
+}
+
+type StatusTab = "all" | "done" | "cancelled"
+
+function SortHeader({ label, column }: { label: string; column: any }) {
+  const sorted = column.getIsSorted()
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1 font-medium hover:text-foreground transition-colors"
+      onClick={() => column.toggleSorting(sorted === "asc")}
+    >
+      {label}
+      {sorted === "asc" ? (
+        <IconSortAscending className="size-3.5" />
+      ) : sorted === "desc" ? (
+        <IconSortDescending className="size-3.5" />
+      ) : (
+        <IconArrowsSort className="size-3.5 text-muted-foreground/50" />
+      )}
+    </button>
+  )
 }
 
 export default function CustomerOrdersPage() {
@@ -42,11 +81,12 @@ export default function CustomerOrdersPage() {
   const supabase = createClient()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
 
-  // Details Modal
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [detailsOpen, setDetailsOpen] = useState(false)
+  // DataTable controls
+  const [statusTab, setStatusTab] = useState<StatusTab>("all")
+  const [search, setSearch] = useState("")
+  const [sorting, setSorting] = useState<SortingState>([{ id: "created_at", desc: true }])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [cancellingId, setCancellingId] = useState<string | null>(null)
 
   const fetchUserAndOrders = async () => {
@@ -58,11 +98,10 @@ export default function CustomerOrdersPage() {
         router.push("/login")
         return
       }
-      setUser(session.user)
 
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items (*, products ( name ))")
+        .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: false })
 
@@ -96,6 +135,11 @@ export default function CustomerOrdersPage() {
     }
   }, [])
 
+  // Reset to first page whenever the active tab or search term changes
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }, [statusTab, search])
+
   const handleCancelOrder = async (orderId: string) => {
     if (!confirm("Apakah Anda yakin ingin membatalkan pesanan ini?")) return
     setCancellingId(orderId)
@@ -109,7 +153,6 @@ export default function CustomerOrdersPage() {
       if (error) throw error
 
       toast.success("Pesanan berhasil dibatalkan!")
-      setDetailsOpen(false)
       fetchUserAndOrders()
     } catch (err: any) {
       toast.error("Gagal membatalkan pesanan: " + err.message)
@@ -119,39 +162,62 @@ export default function CustomerOrdersPage() {
   }
 
   const getStatusBadge = (status: string) => {
+    const base = "border-none font-bold text-[11px] tracking-wide px-2.5 py-1 gap-1.5 shadow-sm"
     switch (status) {
       case "waiting":
         return (
-          <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold">
+          <Badge className={`${base} bg-sky-500 hover:bg-sky-600 text-white`}>
+            <span className="size-1.5 rounded-full bg-white animate-pulse" />
             ANTRI
           </Badge>
         )
       case "processing":
         return (
-          <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold">
+          <Badge className={`${base} bg-amber-500 hover:bg-amber-600 text-white`}>
+            <span className="size-1.5 rounded-full bg-white animate-pulse" />
             DIPROSES
           </Badge>
         )
       case "ready":
         return (
-          <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none font-semibold">
+          <Badge className={`${base} bg-indigo-500 hover:bg-indigo-600 text-white`}>
+            <span className="size-1.5 rounded-full bg-white animate-pulse" />
             SIAP DIAMBIL
           </Badge>
         )
       case "done":
         return (
-          <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold">
+          <Badge className={`${base} bg-emerald-500 hover:bg-emerald-600 text-white`}>
+            <IconCircleCheckFilled className="size-3" />
             SELESAI
           </Badge>
         )
       case "cancelled":
         return (
-          <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold">
+          <Badge className={`${base} bg-rose-500 hover:bg-rose-600 text-white`}>
+            <IconBan className="size-3" />
             BATAL
           </Badge>
         )
       default:
         return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  const getStatusRowAccent = (status: string) => {
+    switch (status) {
+      case "waiting":
+        return "border-l-4 border-l-sky-500"
+      case "processing":
+        return "border-l-4 border-l-amber-500"
+      case "ready":
+        return "border-l-4 border-l-indigo-500"
+      case "done":
+        return "border-l-4 border-l-emerald-500"
+      case "cancelled":
+        return "border-l-4 border-l-rose-500 bg-rose-500/5"
+      default:
+        return "border-l-4 border-l-transparent"
     }
   }
 
@@ -162,6 +228,135 @@ export default function CustomerOrdersPage() {
       maximumFractionDigits: 0,
     }).format(val)
   }
+
+  const counts = useMemo(
+    () => ({
+      all: orders.length,
+      done: orders.filter((o) => o.status === "done").length,
+      cancelled: orders.filter((o) => o.status === "cancelled").length,
+    }),
+    [orders]
+  )
+
+  const tabFilteredOrders = useMemo(() => {
+    if (statusTab === "all") return orders
+    return orders.filter((o) => o.status === statusTab)
+  }, [orders, statusTab])
+
+  const columns = useMemo<ColumnDef<Order>[]>(
+    () => [
+      {
+        accessorKey: "order_number",
+        header: ({ column }) => <SortHeader label="No. Pesanan" column={column} />,
+        cell: ({ row }) => (
+          <Link
+            href={`/customer/orders/${row.original.id}`}
+            className="font-mono text-xs font-bold text-primary hover:underline underline-offset-2"
+          >
+            #{row.original.order_number || row.original.id.substring(0, 8).toUpperCase()}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: ({ column }) => <SortHeader label="Tanggal" column={column} />,
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {new Date(row.original.created_at).toLocaleString("id-ID", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "total_items",
+        header: "Item",
+        cell: ({ row }) => <span className="text-xs">{row.original.total_items} unit</span>,
+      },
+      {
+        accessorKey: "total_price",
+        header: ({ column }) => <SortHeader label="Total" column={column} />,
+        cell: ({ row }) => (
+          <span className="font-semibold text-sm text-primary">
+            {formatRupiah(row.original.total_price)}
+          </span>
+        ),
+      },
+      {
+        id: "paid",
+        header: "Bayar",
+        cell: ({ row }) =>
+          row.original.completed_at ? (
+            <span className="text-xs font-semibold text-emerald-600">Lunas</span>
+          ) : (
+            <span className="text-xs font-semibold text-rose-500">Belum</span>
+          ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => getStatusBadge(row.original.status),
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Aksi</div>,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/customer/orders/${row.original.id}`}>
+                <IconEye className="size-3.5 mr-1" /> Detail
+              </Link>
+            </Button>
+            {row.original.status === "waiting" && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleCancelOrder(row.original.id)}
+                disabled={cancellingId === row.original.id}
+              >
+                {cancellingId === row.original.id ? (
+                  <IconLoader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <IconX className="size-3.5" />
+                )}
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [cancellingId]
+  )
+
+  const table = useReactTable({
+    data: tabFilteredOrders,
+    columns,
+    state: {
+      sorting,
+      globalFilter: search,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setSearch,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const q = String(filterValue).toLowerCase()
+      const o = row.original
+      return (
+        (o.order_number || "").toLowerCase().includes(q) ||
+        (o.customer_name || "").toLowerCase().includes(q) ||
+        o.id.toLowerCase().includes(q)
+      )
+    },
+  })
 
   return (
     <SidebarProvider
@@ -176,188 +371,175 @@ export default function CustomerOrdersPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Riwayat & Status Pesanan</h1>
-            <p className="text-muted-foreground mt-1">
-              Pantau status pesanan dan antrian Anda secara real-time.
-            </p>
-          </div>
-          <Button variant="outline" size="icon" onClick={fetchUserAndOrders}>
-            <IconRefresh className="size-4" />
-          </Button>
-        </div>
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-24 space-y-4">
-            <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground text-sm">Memuat riwayat pesanan...</p>
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-muted rounded-xl bg-background">
-            <IconPackage className="size-16 text-muted-foreground/60 mb-2" />
-            <h3 className="font-semibold text-lg">Belum Ada Pesanan</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mt-1">
-              Anda belum pernah melakukan pemesanan. Silakan berbelanja di katalog terlebih dahulu.
-            </p>
-            <Button className="mt-4" asChild>
-              <Link href="/">Mulai Belanja</Link>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Riwayat & Status Pesanan</h1>
+              <p className="text-muted-foreground mt-1">
+                Pantau status pesanan dan antrian Anda secara real-time.
+              </p>
+            </div>
+            <Button variant="outline" size="icon" onClick={fetchUserAndOrders}>
+              <IconRefresh className="size-4" />
             </Button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => (
-              <Card key={order.id} className="border-border/50 shadow-md hover:shadow-lg transition-all duration-300 bg-background">
-                <CardHeader className="pb-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-primary">
-                          #{order.order_number || order.id.substring(0, 8).toUpperCase()}
-                        </span>
-                        {getStatusBadge(order.status)}
-                      </div>
-                      <CardDescription>
-                        Dipesan pada: {new Date(order.created_at).toLocaleString("id-ID")}
-                      </CardDescription>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs text-muted-foreground">Total Pembayaran</p>
-                      <p className="text-lg font-bold text-primary">{formatRupiah(order.total_price)}</p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pb-3 flex flex-wrap gap-4 items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <IconClock className="size-4" />
-                    <span>Estimasi Waktu Proses (ECT): <strong>{order.ewp} menit</strong></span>
-                  </div>
-                  <div className="text-sm">
-                    Status Bayar:{" "}
-                    {order.payment_status === "paid" ? (
-                      <span className="text-emerald-600 font-semibold">Sudah Lunas</span>
-                    ) : (
-                      <span className="text-rose-500 font-semibold">Belum Dibayar</span>
-                    )}
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-3 border-t border-border/50 flex gap-2 justify-end bg-muted/5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedOrder(order)
-                      setDetailsOpen(true)
-                    }}
-                  >
-                    <IconEye className="size-4 mr-1.5" /> Detail
-                  </Button>
-                  {order.status === "waiting" && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleCancelOrder(order.id)}
-                      disabled={cancellingId === order.id}
-                    >
-                      {cancellingId === order.id ? (
-                        <>
-                          <IconLoader2 className="mr-1.5 size-4 animate-spin" /> Membatalkan...
-                        </>
-                      ) : (
-                        <>
-                          <IconX className="size-4 mr-1.5" /> Batalkan
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Details Modal */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Detail Pesanan</DialogTitle>
-            <DialogDescription>
-              Detail produk dan kuantitas barang yang Anda pesan.
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedOrder && (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+              <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground text-sm">Memuat riwayat pesanan...</p>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-muted rounded-xl bg-background">
+              <IconPackage className="size-16 text-muted-foreground/60 mb-2" />
+              <h3 className="font-semibold text-lg">Belum Ada Pesanan</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mt-1">
+                Anda belum pernah melakukan pemesanan. Silakan berbelanja di katalog terlebih dahulu.
+              </p>
+              <Button className="mt-4" asChild>
+                <Link href="/customer/catalog">Mulai Belanja</Link>
+              </Button>
+            </div>
+          ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <p className="text-muted-foreground">No. Pesanan</p>
-                  <p className="font-mono font-bold">
-                    #{selectedOrder.order_number || selectedOrder.id.substring(0, 8).toUpperCase()}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Atas Nama</p>
-                  <p className="font-medium">{selectedOrder.customer_name}</p>
+              {/* Toggle status & pencarian */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <Tabs value={statusTab} onValueChange={(v) => setStatusTab(v as StatusTab)}>
+                  <TabsList>
+                    <TabsTrigger value="all">
+                      Semua <Badge variant="secondary" className="ml-1">{counts.all}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="done">
+                      Selesai <Badge variant="secondary" className="ml-1">{counts.done}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="cancelled">
+                      Dibatalkan <Badge variant="secondary" className="ml-1">{counts.cancelled}</Badge>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <div className="relative w-full md:w-72">
+                  <IconSearch className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Cari No. Pesanan atau nama..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
                 </div>
               </div>
 
-              <div className="border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produk</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Subtotal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedOrder.order_items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.products?.name}</TableCell>
-                        <TableCell className="text-right">
-                          {item.qty} pcs
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {formatRupiah(item.unit_price * item.qty)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              {/* DataTable */}
+              <div className="overflow-hidden rounded-lg border border-border/50 bg-background shadow-sm">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(header.column.columnDef.header, header.getContext())}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {table.getRowModel().rows.length ? (
+                        table.getRowModel().rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            className={`hover:bg-muted/30 transition-colors ${getStatusRowAccent(row.original.status)}`}
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id}>
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">
+                            Tidak ada pesanan yang cocok.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
 
-              <div className="space-y-1.5 text-sm border-t pt-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Item:</span>
-                  <span className="font-semibold">{selectedOrder.total_items} unit</span>
+              {/* Pagination controls */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-1">
+                <div className="text-sm text-muted-foreground">
+                  Menampilkan {table.getRowModel().rows.length} dari {tabFilteredOrders.length} pesanan
                 </div>
-                <div className="flex justify-between text-base border-t pt-2">
-                  <span className="font-semibold">Total Pembayaran:</span>
-                  <span className="font-bold text-lg text-primary">
-                    {formatRupiah(selectedOrder.total_price)}
-                  </span>
+                <div className="flex items-center gap-6">
+                  <div className="hidden sm:flex items-center gap-2">
+                    <span className="text-sm font-medium">Baris per halaman</span>
+                    <Select
+                      value={`${table.getState().pagination.pageSize}`}
+                      onValueChange={(value) => table.setPageSize(Number(value))}
+                    >
+                      <SelectTrigger size="sm" className="w-20">
+                        <SelectValue placeholder={table.getState().pagination.pageSize} />
+                      </SelectTrigger>
+                      <SelectContent side="top">
+                        {[5, 10, 20, 30].map((size) => (
+                          <SelectItem key={size} value={`${size}`}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="text-sm font-medium">
+                    Halaman {table.getState().pagination.pageIndex + 1} dari {Math.max(table.getPageCount(), 1)}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-8 hidden sm:flex"
+                      onClick={() => table.setPageIndex(0)}
+                      disabled={!table.getCanPreviousPage()}
+                    >
+                      <IconChevronsLeft className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                    >
+                      <IconChevronLeft className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                    >
+                      <IconChevronRight className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-8 hidden sm:flex"
+                      onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                      disabled={!table.getCanNextPage()}
+                    >
+                      <IconChevronsRight className="size-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           )}
-
-          <DialogFooter className="mt-4">
-            {selectedOrder?.status === "waiting" && (
-              <Button
-                variant="destructive"
-                onClick={() => handleCancelOrder(selectedOrder.id)}
-                disabled={cancellingId === selectedOrder.id}
-              >
-                Batalkan Pesanan
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
-              Tutup
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )
