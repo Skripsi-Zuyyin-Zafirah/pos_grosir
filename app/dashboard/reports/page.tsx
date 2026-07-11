@@ -236,8 +236,8 @@ export default function ReportsPage() {
           p_ewp: simulatedEct,
           p_items: randItems.map((item) => ({
             product_id: item.id,
-            quantity: item.quantity,
-            price: item.price,
+            qty: item.quantity,
+            unit_price: item.price,
           })),
           p_total_items: totalItems,
           p_total_price: totalPrice,

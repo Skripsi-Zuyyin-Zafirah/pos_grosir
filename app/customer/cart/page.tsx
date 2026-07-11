@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import {
   IconLoader2,
@@ -23,6 +24,8 @@ import {
   IconTrash,
   IconShoppingBag,
   IconArrowRight,
+  IconTrashX,
+  IconReceipt2,
 } from "@tabler/icons-react"
 
 export default function CustomerCartPage() {
@@ -110,8 +113,8 @@ export default function CustomerCartPage() {
         p_ewp: ewp,
         p_items: items.map((i) => ({
           product_id: i.productId,
-          quantity: i.quantity,
-          price: i.price,
+          qty: i.quantity,
+          unit_price: i.price,
         })),
         p_total_items: totalItems,
         p_total_price: totalPrice,
@@ -126,6 +129,11 @@ export default function CustomerCartPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleClearCart = () => {
+    if (!confirm("Kosongkan seluruh item di keranjang?")) return
+    clearCart()
   }
 
   const formatRupiah = (val: number) => {
@@ -149,11 +157,30 @@ export default function CustomerCartPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Keranjang Belanja</h1>
-            <p className="text-muted-foreground mt-1">
-              Tinjau kembali pesanan Anda sebelum melanjutkan ke proses pemesanan.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">Keranjang Belanja</h1>
+                <p className="text-muted-foreground mt-1">
+                  Tinjau kembali pesanan Anda sebelum melanjutkan ke proses pemesanan.
+                </p>
+              </div>
+              {items.length > 0 && (
+                <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary font-bold px-2.5 py-1 rounded-full shrink-0">
+                  {totalItems} item
+                </Badge>
+              )}
+            </div>
+            {items.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-fit"
+                onClick={handleClearCart}
+              >
+                <IconTrashX className="size-4 mr-1.5" /> Kosongkan Keranjang
+              </Button>
+            )}
           </div>
 
           {items.length === 0 ? (
@@ -170,68 +197,76 @@ export default function CustomerCartPage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               {/* Daftar item keranjang */}
               <Card className="lg:col-span-2 border-border/50 shadow-md">
                 <CardHeader>
-                  <CardTitle>Item Pesanan ({items.length})</CardTitle>
+                  <CardTitle>Item Pesanan</CardTitle>
                   <CardDescription>Ubah kuantitas atau hapus produk dari keranjang.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="divide-y divide-border/50 px-0">
                   {items.map((item) => (
                     <div
                       key={item.productId}
-                      className="flex items-center gap-3 border border-border/50 rounded-lg p-3"
+                      className="flex flex-col sm:flex-row sm:items-center gap-3 px-6 py-4"
                     >
-                      <div className="h-14 w-14 shrink-0 rounded-md bg-muted flex items-center justify-center overflow-hidden">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <IconPhoto className="size-6 text-muted-foreground/50" />
-                        )}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="h-16 w-16 shrink-0 rounded-md bg-muted flex items-center justify-center overflow-hidden">
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <IconPhoto className="size-6 text-muted-foreground/50" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-sm truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {formatRupiah(item.price)} / pcs
+                          </p>
+                          <p className="text-sm font-bold text-primary mt-1 sm:hidden">
+                            {formatRupiah(item.price * item.quantity)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatRupiah(item.price)} / pcs
+
+                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
+                        <div className="flex items-center border border-border rounded-md">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 rounded-none"
+                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                          >
+                            <IconMinus className="size-3.5" />
+                          </Button>
+                          <span className="w-8 text-center text-sm font-semibold tabular-nums">
+                            {item.quantity}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 rounded-none"
+                            disabled={item.quantity >= item.stockQty}
+                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                          >
+                            <IconPlus className="size-3.5" />
+                          </Button>
+                        </div>
+                        <p className="hidden sm:block w-24 text-right text-sm font-bold text-primary">
+                          {formatRupiah(item.price * item.quantity)}
                         </p>
-                      </div>
-                      <div className="flex items-center border border-border rounded-md shrink-0">
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="size-8 rounded-none"
-                          onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                          className="size-8 text-destructive hover:bg-destructive/10 shrink-0"
+                          onClick={() => removeItem(item.productId)}
                         >
-                          <IconMinus className="size-3.5" />
-                        </Button>
-                        <span className="w-8 text-center text-sm font-semibold tabular-nums">
-                          {item.quantity}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 rounded-none"
-                          disabled={item.quantity >= item.stockQty}
-                          onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                        >
-                          <IconPlus className="size-3.5" />
+                          <IconTrash className="size-4" />
                         </Button>
                       </div>
-                      <p className="w-24 text-right text-sm font-bold text-primary shrink-0">
-                        {formatRupiah(item.price * item.quantity)}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-destructive hover:bg-destructive/10 shrink-0"
-                        onClick={() => removeItem(item.productId)}
-                      >
-                        <IconTrash className="size-4" />
-                      </Button>
                     </div>
                   ))}
                 </CardContent>
@@ -245,9 +280,11 @@ export default function CustomerCartPage() {
               </Card>
 
               {/* Ringkasan pesanan & checkout */}
-              <Card className="border-border/50 shadow-md h-fit">
+              <Card className="border-border/50 shadow-md lg:sticky lg:top-6">
                 <CardHeader>
-                  <CardTitle>Ringkasan Pesanan</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <IconReceipt2 className="size-5 text-primary" /> Ringkasan Pesanan
+                  </CardTitle>
                   <CardDescription>Lengkapi data sebelum membuat pesanan.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -264,6 +301,10 @@ export default function CustomerCartPage() {
 
                   <div className="space-y-1.5 text-sm border-t pt-3">
                     <div className="flex justify-between text-muted-foreground">
+                      <span>Jumlah Produk</span>
+                      <span className="font-semibold text-foreground">{items.length} produk</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
                       <span>Total Item</span>
                       <span className="font-semibold text-foreground">{totalItems} unit</span>
                     </div>
@@ -273,7 +314,7 @@ export default function CustomerCartPage() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex-col gap-2">
                   <Button
                     className="w-full font-semibold"
                     size="lg"
@@ -290,6 +331,9 @@ export default function CustomerCartPage() {
                       </>
                     )}
                   </Button>
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    Pesanan akan langsung masuk ke antrian gudang setelah dikonfirmasi.
+                  </p>
                 </CardFooter>
               </Card>
             </div>

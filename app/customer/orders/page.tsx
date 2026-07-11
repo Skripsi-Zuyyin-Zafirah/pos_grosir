@@ -17,8 +17,8 @@ import { IconLoader2, IconPackage, IconClock, IconCheck, IconX, IconEye, IconRef
 
 type OrderItem = {
   id: string
-  price: number
-  quantity: number
+  unit_price: number
+  qty: number
   products: {
     name: string
   } | null
@@ -316,10 +316,10 @@ export default function CustomerOrdersPage() {
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.products?.name}</TableCell>
                         <TableCell className="text-right">
-                          {item.quantity} pcs
+                          {item.qty} pcs
                         </TableCell>
                         <TableCell className="text-right font-semibold">
-                          {formatRupiah(item.price * item.quantity)}
+                          {formatRupiah(item.unit_price * item.qty)}
                         </TableCell>
                       </TableRow>
                     ))}
