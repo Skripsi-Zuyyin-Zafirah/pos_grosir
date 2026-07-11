@@ -17,6 +17,7 @@ export function NavMain({
     title: string
     url: string
     icon?: React.ReactNode
+    badge?: number
   }[]
 }) {
   const pathname = usePathname()
@@ -38,6 +39,11 @@ export function NavMain({
                   <Link href={item.url}>
                     {item.icon}
                     <span>{item.title}</span>
+                    {!!item.badge && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

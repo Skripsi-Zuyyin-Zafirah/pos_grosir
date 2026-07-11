@@ -4,13 +4,16 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { CustomerSidebar } from "@/components/customer-sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { IconLoader2, IconPackage, IconArrowLeft, IconClock, IconCheck, IconX, IconEye, IconRefresh } from "@tabler/icons-react"
+import { IconLoader2, IconPackage, IconClock, IconCheck, IconX, IconEye, IconRefresh } from "@tabler/icons-react"
 
 type OrderItem = {
   id: string
@@ -162,26 +165,28 @@ export default function CustomerOrdersPage() {
   }
 
   return (
-    <div className="min-h-svh bg-muted/30 flex flex-col">
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <IconArrowLeft className="size-4" />
-            <span className="font-semibold text-sm">Kembali ke Katalog</span>
-          </Link>
-          <span className="font-bold text-lg">Pesanan Saya</span>
-          <Button variant="ghost" size="icon" onClick={fetchUserAndOrders}>
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties
+      }
+    >
+      <CustomerSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Riwayat & Status Pesanan</h1>
+            <p className="text-muted-foreground mt-1">
+              Pantau status pesanan dan antrian Anda secara real-time.
+            </p>
+          </div>
+          <Button variant="outline" size="icon" onClick={fetchUserAndOrders}>
             <IconRefresh className="size-4" />
           </Button>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 flex-1 max-w-4xl space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Riwayat & Status Pesanan</h1>
-          <p className="text-muted-foreground mt-1">
-            Pantau status pesanan dan antrian Anda secara real-time.
-          </p>
         </div>
 
         {loading ? (
@@ -271,7 +276,7 @@ export default function CustomerOrdersPage() {
             ))}
           </div>
         )}
-      </main>
+      </div>
 
       {/* Details Modal */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
@@ -354,6 +359,7 @@ export default function CustomerOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
