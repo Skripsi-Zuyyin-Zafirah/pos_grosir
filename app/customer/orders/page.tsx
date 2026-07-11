@@ -110,8 +110,8 @@ export default function CustomerOrdersPage() {
 
   const fetchOrders = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
         setLoading(false)
         router.push("/login")
         return
@@ -120,7 +120,7 @@ export default function CustomerOrdersPage() {
       const { data, error } = await supabase
         .from("orders")
         .select("*, order_items (id, qty, unit_price, products ( name ))")
-        .eq("user_id", session.user.id)
+        .eq("user_id", user.id)
         .in("status", ACTIVE_STATUSES)
         .order("created_at", { ascending: false })
 

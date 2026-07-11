@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -102,7 +102,7 @@ function getStatusBadge(status: string) {
 
 export default function CustomerDashboardPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   // State
   const [loading, setLoading] = useState(true)
@@ -116,21 +116,19 @@ export default function CustomerDashboardPage() {
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
 
   // ── Fetch Dashboard Data ───────────────────────────────────────────────────
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
-      setLoading(true)
-
       // 1. Verify session & get user
       const {
-        data: { session },
-      } = await supabase.auth.getSession()
+        data: { user },
+      } = await supabase.auth.getUser()
 
-      if (!session?.user) {
+      if (!user) {
         router.push("/login")
         return
       }
 
-      const userId = session.user.id
+      const userId = user.id
 
       // 2. Fetch profile name
       const { data: profile } = await supabase
@@ -140,7 +138,7 @@ export default function CustomerDashboardPage() {
         .single()
 
       setUserName(
-        profile?.full_name || session.user.email?.split("@")[0] || "Customer"
+        profile?.full_name || user.email?.split("@")[0] || "Customer"
       )
 
       // 3. Fetch ALL orders for this user (for metrics)
@@ -177,16 +175,17 @@ export default function CustomerDashboardPage() {
 
       if (recentErr) throw recentErr
       setRecentOrders((recent as RecentOrder[]) || [])
-    } catch (err: any) {
-      toast.error("Gagal memuat dashboard: " + err.message)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan tidak diketahui"
+      toast.error("Gagal memuat dashboard: " + message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [router, supabase])
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    void Promise.resolve().then(fetchDashboardData)
+  }, [fetchDashboardData])
 
   // ── Loading State ──────────────────────────────────────────────────────────
   if (loading) {

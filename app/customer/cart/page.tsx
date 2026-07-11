@@ -96,18 +96,18 @@ function CartContentComponent() {
   const fetchUserProfile = async () => {
     if (userProfileLoaded) return
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name")
-          .eq("id", session.user.id)
+          .eq("id", user.id)
           .single()
         
         if (profile?.full_name) {
           setCustomerName(profile.full_name)
         } else {
-          setCustomerName(session.user.email?.split("@")[0] || "Customer")
+          setCustomerName(user.email?.split("@")[0] || "Customer")
         }
         setUserProfileLoaded(true)
       }
@@ -209,8 +209,8 @@ function CartContentComponent() {
     setCheckingOut(true)
     try {
       // 1. Ambil session user id
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
         toast.error("Sesi login berakhir. Silakan login kembali.")
         router.push("/login")
         return

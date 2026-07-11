@@ -3,7 +3,6 @@
 import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,7 +13,6 @@ import { IconLoader2, IconLock, IconMail, IconUser, IconAlertCircle, IconPhone, 
 function RegisterForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClient()
   const next = searchParams.get("next") || "/"
 
   const [fullName, setFullName] = useState("")
@@ -56,27 +54,88 @@ function RegisterForm() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
+      const signUpResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/signup`, {
+        method: "POST",
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
           data: {
             full_name: fullName,
-            phone: phone,
+            phone,
+            phone_number: phone,
+            role: "customer",
           },
-        },
+        }),
       })
 
-      if (error) {
-        setErrorMsg(error.message)
-        toast.error(error.message)
+      const data = await signUpResponse.json().catch(() => null)
+
+      if (!signUpResponse.ok) {
+        let rawMsg = "Supabase Auth mengembalikan error server tanpa detail. Periksa trigger signup database."
+        if (data && typeof data === "object") {
+          const body = data as Record<string, unknown>
+          rawMsg = String(body.msg || body.message || body.error_description || body.error || rawMsg)
+        }
+
+        let msg = rawMsg
+        const lowerMsg = rawMsg.toLowerCase()
+
+        if (lowerMsg.includes("user already registered") || lowerMsg.includes("already been registered")) {
+          msg = "Email ini sudah terdaftar. Silakan masuk atau gunakan email lain."
+        } else if (lowerMsg.includes("invalid email")) {
+          msg = "Format email tidak valid."
+        } else if (lowerMsg.includes("weak password") || lowerMsg.includes("password should be")) {
+          msg = "Password terlalu lemah. Gunakan minimal 6 karakter."
+        } else if (lowerMsg.includes("rate limit") || lowerMsg.includes("email rate limit exceeded")) {
+          msg = "Terlalu banyak percobaan. Tunggu beberapa saat lalu coba lagi."
+        } else if (lowerMsg.includes("signup is disabled")) {
+          msg = "Pendaftaran akun saat ini tidak tersedia. Hubungi administrator."
+        } else if (lowerMsg.includes("database error") || lowerMsg.includes("db error")) {
+          // Error database trigger (misal: trigger handle_new_user gagal)
+          msg = `Gagal menyimpan data pengguna ke database. Detail: ${rawMsg}`
+        } else if (signUpResponse.status === 422) {
+          msg = `Data tidak valid (422): ${rawMsg}`
+        } else if (signUpResponse.status === 429) {
+          msg = "Terlalu banyak percobaan. Tunggu beberapa saat lalu coba lagi."
+        } else if (signUpResponse.status >= 500) {
+          msg = `Kesalahan server (${signUpResponse.status}): ${rawMsg}`
+        }
+
+        setErrorMsg(msg)
+        toast.error(msg)
+        return
+      }
+
+      // Cek apakah user berhasil dibuat atau perlu konfirmasi email
+      if (data?.user && !data.user.confirmed_at && data.user.identities?.length === 0) {
+        // Email sudah terdaftar tapi belum dikonfirmasi / sudah ada
+        const msg = "Email ini sudah terdaftar. Silakan masuk atau gunakan email lain."
+        setErrorMsg(msg)
+        toast.error(msg)
         return
       }
 
       toast.success("Registrasi berhasil! Silakan masuk.")
       router.push(`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`)
-    } catch (err: any) {
-      const msg = err.message || "Terjadi kesalahan"
+    } catch (err: unknown) {
+      let msg = "Terjadi kesalahan tidak terduga saat mendaftar."
+      if (err instanceof Error) {
+        msg = err.message || msg
+      } else if (typeof err === "object" && err !== null) {
+        const anyErr = err as Record<string, unknown>
+        if (typeof anyErr.message === "string" && anyErr.message) {
+          msg = anyErr.message
+        } else if (typeof anyErr.error_description === "string") {
+          msg = anyErr.error_description
+        } else {
+          msg = `Error tidak diketahui: ${JSON.stringify(err)}`
+        }
+      }
       setErrorMsg(msg)
       toast.error(msg)
     } finally {

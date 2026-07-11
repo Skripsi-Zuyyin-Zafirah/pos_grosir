@@ -70,9 +70,12 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  console.log(`[Middleware] Pathname: ${pathname}, User ID: ${user?.id || 'Tamu'}`)
+
   // ── TAMU (belum login) ──────────────────────────────────────────────────────
   if (!user) {
     if (isDashboardRoute || isCustomerRoute || isProfileRoute) {
+      console.log(`[Middleware] Tamu mencoba mengakses rute terproteksi. Redirect ke /login`)
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('next', pathname)
       return NextResponse.redirect(redirectUrl)
@@ -82,16 +85,31 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── TERAUTENTIKASI — ambil role ─────────────────────────────────────────────
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  let role: UserRole = 'customer'
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-  const role: UserRole = (profile?.role as UserRole) || 'customer'
+    if (profileError) {
+      console.warn(`[Middleware] Gagal mengambil profile untuk user ${user.id}: ${profileError.message}`)
+    }
+
+    // Gunakan metadata user sebagai fallback jika query ke public.profiles gagal (misal karena RLS)
+    const metadataRole = user.user_metadata?.role || user.app_metadata?.role
+    role = (profile?.role as UserRole) || (metadataRole as UserRole) || 'customer'
+    console.log(`[Middleware] User: ${user.id}, DB Role: ${profile?.role || 'null'}, Meta Role: ${metadataRole || 'null'}, Selected Role: ${role}`)
+  } catch (err: any) {
+    console.error(`[Middleware] Error mengambil data role:`, err)
+    const metadataRole = user.user_metadata?.role || user.app_metadata?.role
+    role = (metadataRole as UserRole) || 'customer'
+  }
 
   // Jika sudah login dan mencoba akses /login atau /register → redirect sesuai role
   if (isAuthRoute) {
+    console.log(`[Middleware] User sudah login dengan role ${role}. Redirect ke halaman yang sesuai.`)
     if (role === 'admin' || role === 'cashier') {
       return redirectTo('/dashboard', request)
     }

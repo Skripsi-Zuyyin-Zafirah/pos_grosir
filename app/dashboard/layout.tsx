@@ -24,28 +24,48 @@ export default function DashboardLayout({
   useEffect(() => {
     const checkAuthAndRole = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { user } } = await supabase.auth.getUser()
 
-        if (!session?.user) {
+        if (!user) {
           toast.error("Silakan login terlebih dahulu.")
           router.push("/login")
           return
         }
 
         // Ambil profil pengguna
-        const { data: profile, error } = await supabase
+        console.log(`[DashboardLayout] Memuat profil user: ${user.id}`)
+        
+        const profilePromise = supabase
           .from("profiles")
           .select("role")
-          .eq("id", session.user.id)
+          .eq("id", user.id)
           .single()
 
-        if (error || !profile) {
+        const timeoutPromise = new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 2500)
+        )
+
+        let profile = null
+        try {
+          const result = await Promise.race([profilePromise, timeoutPromise])
+          profile = result.data
+          if (result.error) {
+            console.warn(`[DashboardLayout] Query profiles error: ${result.error.message}. Menggunakan fallback metadata.`)
+          }
+        } catch (err: any) {
+          console.warn(`[DashboardLayout] Query profiles timed out or failed: ${err.message}. Menggunakan fallback metadata.`)
+        }
+ 
+        const metadataRole = user.user_metadata?.role || user.app_metadata?.role
+        const userRole = profile?.role || metadataRole
+        console.log(`[DashboardLayout] Role terdeteksi: ${userRole}`)
+
+        if (!userRole) {
           toast.error("Gagal memuat profil pengguna.")
           router.push("/login")
           return
         }
-
-        const userRole = profile.role
+ 
         if (userRole === "admin" || userRole === "cashier") {
           setRole(userRole)
           setLoading(false)

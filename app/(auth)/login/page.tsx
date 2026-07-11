@@ -34,21 +34,45 @@ function LoginForm() {
       })
 
       if (error) {
-        setErrorMsg(error.message)
-        toast.error(error.message)
+        // Terjemahkan pesan error Supabase ke Bahasa Indonesia
+        let msg = error.message
+        if (!msg || msg === "{}") msg = "Terjadi kesalahan saat masuk."
+        if (
+          msg.toLowerCase().includes("invalid login credentials") ||
+          msg.toLowerCase().includes("invalid credentials") ||
+          msg.toLowerCase().includes("invalid email or password")
+        ) {
+          msg = "Email atau password salah. Periksa kembali dan coba lagi."
+        } else if (msg.toLowerCase().includes("email not confirmed")) {
+          msg = "Email Anda belum dikonfirmasi. Periksa kotak masuk email Anda."
+        } else if (msg.toLowerCase().includes("too many requests") || msg.toLowerCase().includes("rate limit")) {
+          msg = "Terlalu banyak percobaan. Tunggu beberapa saat lalu coba lagi."
+        } else if (msg.toLowerCase().includes("user not found")) {
+          msg = "Akun dengan email ini tidak ditemukan."
+        }
+        setErrorMsg(msg)
+        toast.error(msg)
         return
       }
 
       toast.success("Login berhasil!")
 
       // Fetch user profile to redirect correctly based on role
-      const { data: profile } = await supabase
+      console.log(`[Login] Menghubungi profiles untuk user id: ${data.user.id}`)
+      const { data: profile, error: profileErr } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", data.user.id)
         .single()
 
-      const role = profile?.role || "customer"
+      if (profileErr) {
+        console.warn(`[Login] Gagal mengambil profile di DB: ${profileErr.message}. Mencoba fallback ke metadata.`)
+      }
+
+      // Metadata fallback
+      const metadataRole = data.user.user_metadata?.role || data.user.app_metadata?.role
+      const role = profile?.role || metadataRole || "customer"
+      console.log(`[Login] Berhasil login. Role yang terdeteksi: ${role}`)
 
       if (role === "admin" || role === "cashier" || role === "staff" || role === "warehouse") {
         router.push("/dashboard")
@@ -60,8 +84,11 @@ function LoginForm() {
         }
       }
       router.refresh()
-    } catch (err: any) {
-      const msg = err.message || "Terjadi kesalahan"
+    } catch (err: unknown) {
+      let msg = "Terjadi kesalahan saat masuk."
+      if (err instanceof Error && err.message && err.message !== "{}") {
+        msg = err.message
+      }
       setErrorMsg(msg)
       toast.error(msg)
     } finally {

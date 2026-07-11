@@ -32,13 +32,13 @@ export default function LandingPage() {
   const [profileName, setProfileName] = useState<string>("")
 
   const fetchAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      setUser(session.user)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      setUser(user)
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, role")
-        .eq("id", session.user.id)
+        .eq("id", user.id)
         .single()
       if (profile) {
         setUserRole(profile.role)

@@ -142,10 +142,10 @@ export default function CustomerTransactionsPage() {
   const fetchTransactions = async () => {
     try {
       const {
-        data: { session },
-      } = await supabase.auth.getSession()
+        data: { user },
+      } = await supabase.auth.getUser()
 
-      if (!session?.user) {
+      if (!user) {
         router.push("/login")
         return
       }
@@ -153,7 +153,7 @@ export default function CustomerTransactionsPage() {
       const { data, error } = await supabase
         .from("orders")
         .select("*, order_items (id, qty, unit_price, products ( name ))")
-        .eq("user_id", session.user.id)
+        .eq("user_id", user.id)
         .in("status", ["selesai", "batal"])
         .order("created_at", { ascending: false })
 
