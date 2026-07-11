@@ -56,8 +56,6 @@ export default function CustomerCartPage() {
     fetchProfile()
   }, [])
 
-  const totalWeight = items.reduce((sum, i) => sum + i.quantity * i.weight, 0)
-
   const handleCheckout = async () => {
     if (items.length === 0) return
     if (!customerName.trim()) {
@@ -75,12 +73,12 @@ export default function CustomerCartPage() {
       // 1. Validate current stock before submitting the order
       const productIds = items.map((i) => i.productId)
       const { data: stockData, error: stockErr } = await supabase
-        .from("inventory")
-        .select("product_id, stock_qty")
-        .in("product_id", productIds)
+        .from("products")
+        .select("id, stock_qty")
+        .in("id", productIds)
       if (stockErr) throw stockErr
 
-      const stockMap = new Map((stockData || []).map((s) => [s.product_id, s.stock_qty]))
+      const stockMap = new Map((stockData || []).map((s) => [s.id, s.stock_qty]))
       for (const item of items) {
         const available = stockMap.get(item.productId) ?? 0
         if (item.quantity > available) {
@@ -90,13 +88,11 @@ export default function CustomerCartPage() {
         }
       }
 
-      // 2. Fetch ECT parameters from system settings
-      const { data: settings, error: settingsErr } = await supabase
+      // 2. Fetch ECT parameters from system settings (falls back to defaults if unavailable)
+      let tBase = 5, tPick = 1, tPack = 0.5
+      const { data: settings } = await supabase
         .from("system_settings")
         .select("key, value")
-      if (settingsErr) throw settingsErr
-
-      let tBase = 5, tPick = 1, tPack = 0.5
       settings?.forEach((s) => {
         if (s.key === "t_base") tBase = Number(s.value)
         if (s.key === "t_pick") tPick = Number(s.value)
@@ -104,7 +100,7 @@ export default function CustomerCartPage() {
       })
 
       const ewp = computeECT(
-        items.map((i) => ({ quantity: i.quantity, weight: i.weight })),
+        items.map((i) => ({ quantity: i.quantity, weight: 0 })),
         { t_base: tBase, t_pick: tPick, t_pack: tPack }
       )
 
@@ -197,7 +193,7 @@ export default function CustomerCartPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm truncate">{item.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {formatRupiah(item.price)} / {item.unit || "pcs"}
+                          {formatRupiah(item.price)} / pcs
                         </p>
                       </div>
                       <div className="flex items-center border border-border rounded-md shrink-0">
@@ -270,10 +266,6 @@ export default function CustomerCartPage() {
                     <div className="flex justify-between text-muted-foreground">
                       <span>Total Item</span>
                       <span className="font-semibold text-foreground">{totalItems} unit</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Estimasi Berat</span>
-                      <span className="font-semibold text-foreground">{totalWeight.toFixed(1)} kg</span>
                     </div>
                     <div className="flex justify-between text-base border-t pt-2 mt-2">
                       <span className="font-semibold">Total Pembayaran</span>

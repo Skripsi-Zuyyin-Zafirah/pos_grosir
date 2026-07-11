@@ -28,12 +28,10 @@ type Product = {
   name: string
   description: string | null
   price: number
-  unit: string | null
-  weight: number | null
+  stock_qty: number
   image_url: string | null
   category_id: string | null
   categories: { name: string } | null
-  inventory: { stock_qty: number } | null
 }
 
 type Category = {
@@ -63,7 +61,7 @@ export default function CustomerCatalogPage() {
 
       const { data: prodData, error: prodErr } = await supabase
         .from("products")
-        .select("*, categories:category_id ( name ), inventory ( stock_qty )")
+        .select("*, categories:category_id ( name )")
         .order("name")
       if (prodErr) throw prodErr
       setProducts((prodData as any) || [])
@@ -96,7 +94,7 @@ export default function CustomerCatalogPage() {
   }
 
   const handleAddToCart = (product: Product) => {
-    const stock = product.inventory?.stock_qty ?? 0
+    const stock = product.stock_qty ?? 0
     if (stock <= 0) return
     const qty = getQty(product.id)
     addItem(
@@ -104,14 +102,12 @@ export default function CustomerCatalogPage() {
         productId: product.id,
         name: product.name,
         price: product.price,
-        unit: product.unit,
-        weight: product.weight || 0,
         imageUrl: product.image_url,
         stockQty: stock,
       },
       qty
     )
-    toast.success(`${qty} ${product.unit || "pcs"} ${product.name} ditambahkan ke keranjang!`)
+    toast.success(`${qty} pcs ${product.name} ditambahkan ke keranjang!`)
     setQuantities((prev) => ({ ...prev, [product.id]: 1 }))
   }
 
@@ -183,14 +179,15 @@ export default function CustomerCatalogPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
               {filteredProducts.map((product) => {
-                const stock = product.inventory?.stock_qty ?? 0
+                const stock = product.stock_qty ?? 0
                 const outOfStock = stock <= 0
                 return (
                   <Card
                     key={product.id}
-                    className="overflow-hidden border-border/50 shadow-sm hover:shadow-md transition-shadow flex flex-col"
+                    size="sm"
+                    className="overflow-hidden border-border/50 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2"
                   >
                     <div className="aspect-square w-full bg-muted flex items-center justify-center relative overflow-hidden">
                       {product.image_url ? (
@@ -200,68 +197,68 @@ export default function CustomerCatalogPage() {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <IconPhoto className="size-10 text-muted-foreground/50" />
+                        <IconPhoto className="size-8 text-muted-foreground/50" />
                       )}
                       {outOfStock && (
                         <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] flex items-center justify-center">
-                          <Badge variant="destructive" className="font-semibold">Stok Habis</Badge>
+                          <Badge variant="destructive" className="text-[10px] font-semibold px-1.5 py-0">
+                            Habis
+                          </Badge>
                         </div>
                       )}
                     </div>
-                    <CardHeader className="pb-2 space-y-1.5">
+                    <CardHeader className="pb-0 gap-1">
                       {product.categories?.name && (
-                        <Badge variant="outline" className="w-fit text-[10px] font-semibold px-2 py-0">
+                        <Badge variant="outline" className="w-fit text-[9px] font-semibold px-1.5 py-0 leading-4">
                           {product.categories.name}
                         </Badge>
                       )}
-                      <h3 className="font-semibold text-sm leading-snug line-clamp-2 min-h-[2.5rem]">
+                      <h3 className="font-semibold text-xs leading-snug line-clamp-2 min-h-[2rem]">
                         {product.name}
                       </h3>
-                      <p className="text-base font-bold text-primary">
-                        {formatRupiah(product.price)}{" "}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          / {product.unit || "pcs"}
-                        </span>
+                      <p className="text-sm font-bold text-primary">
+                        {formatRupiah(product.price)}
+                        <span className="text-[10px] font-normal text-muted-foreground"> /pcs</span>
                       </p>
                     </CardHeader>
-                    <CardContent className="pb-2 mt-auto">
-                      <p className="text-xs text-muted-foreground">
-                        Stok: <span className="font-semibold">{outOfStock ? "Habis" : `${stock} ${product.unit || "pcs"}`}</span>
+                    <CardContent className="pb-0 mt-auto">
+                      <p className="text-[10px] text-muted-foreground">
+                        Stok: <span className="font-semibold">{outOfStock ? "Habis" : `${stock} pcs`}</span>
                       </p>
                     </CardContent>
-                    <CardFooter className="pt-2 border-t border-border/50 flex items-center gap-2">
-                      <div className="flex items-center border border-border rounded-md">
+                    <CardFooter className="pt-2 border-t border-border/50 flex flex-col items-stretch gap-1.5">
+                      <div className="flex items-center justify-between border border-border rounded-md h-7">
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="size-8 rounded-none"
+                          className="size-7 rounded-none"
                           disabled={outOfStock}
                           onClick={() => setQty(product.id, getQty(product.id) - 1, stock)}
                         >
-                          <IconMinus className="size-3.5" />
+                          <IconMinus className="size-3" />
                         </Button>
-                        <span className="w-8 text-center text-sm font-semibold tabular-nums">
+                        <span className="flex-1 text-center text-xs font-semibold tabular-nums">
                           {outOfStock ? 0 : getQty(product.id)}
                         </span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="size-8 rounded-none"
+                          className="size-7 rounded-none"
                           disabled={outOfStock}
                           onClick={() => setQty(product.id, getQty(product.id) + 1, stock)}
                         >
-                          <IconPlus className="size-3.5" />
+                          <IconPlus className="size-3" />
                         </Button>
                       </div>
                       <Button
                         size="sm"
-                        className="flex-1 font-semibold"
+                        className="w-full h-7 text-xs font-semibold"
                         disabled={outOfStock}
                         onClick={() => handleAddToCart(product)}
                       >
-                        <IconShoppingCartPlus className="size-4 mr-1.5" /> Tambah
+                        <IconShoppingCartPlus className="size-3.5 mr-1" /> Tambah
                       </Button>
                     </CardFooter>
                   </Card>

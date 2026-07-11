@@ -21,7 +21,6 @@ type OrderItem = {
   quantity: number
   products: {
     name: string
-    unit: string | null
   } | null
 }
 
@@ -63,7 +62,7 @@ export default function CustomerOrdersPage() {
 
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items (*, products ( name, unit ))")
+        .select("*, order_items (*, products ( name ))")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: false })
 
@@ -317,7 +316,7 @@ export default function CustomerOrdersPage() {
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.products?.name}</TableCell>
                         <TableCell className="text-right">
-                          {item.quantity} {item.products?.unit || "pcs"}
+                          {item.quantity} pcs
                         </TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatRupiah(item.price * item.quantity)}
