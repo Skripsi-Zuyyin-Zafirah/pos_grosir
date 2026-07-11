@@ -7,13 +7,24 @@ import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { IconLoader2, IconUsers, IconPlus, IconClipboardCheck, IconActivity, IconBox, IconHourglassHigh } from "@tabler/icons-react"
+import {
+  IconLoader2,
+  IconPlus,
+  IconCheck,
+  IconBox,
+  IconChevronRight,
+  IconUserCircle,
+} from "@tabler/icons-react"
 
 type Staff = {
   id: string
@@ -46,7 +57,8 @@ export default function PickingPage() {
   const [loadingStaff, setLoadingStaff] = useState(true)
   const [activeStaff, setActiveStaff] = useState<Staff | null>(null)
 
-  // Register staff state
+  // Register staff dialog
+  const [addStaffOpen, setAddStaffOpen] = useState(false)
   const [newStaffName, setNewStaffName] = useState("")
   const [registering, setRegistering] = useState(false)
 
@@ -56,23 +68,16 @@ export default function PickingPage() {
   const [loadingOrder, setLoadingOrder] = useState(false)
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({})
 
-  // Fetch list of staff members
   const fetchStaffList = async () => {
     try {
       setLoadingStaff(true)
-      const { data, error } = await supabase
-        .from("staff")
-        .select("*")
-        .order("name")
+      const { data, error } = await supabase.from("staff").select("*").order("name")
       if (error) throw error
       setStaffList(data || [])
 
-      // If we have an active staff selected, refresh their state
       if (activeStaff) {
         const refreshed = data?.find((s) => s.id === activeStaff.id)
-        if (refreshed) {
-          setActiveStaff(refreshed)
-        }
+        if (refreshed) setActiveStaff(refreshed)
       }
     } catch (err: any) {
       toast.error("Gagal memuat petugas: " + err.message)
@@ -85,11 +90,9 @@ export default function PickingPage() {
     fetchStaffList()
   }, [])
 
-  // Load details if staff is busy and has an active order
   const fetchActiveOrderDetails = async (orderId: string) => {
     setLoadingOrder(true)
     try {
-      // 1. Fetch order details
       const { data: ord, error: ordErr } = await supabase
         .from("orders")
         .select("id, order_number, customer_name, ewp, total_items")
@@ -98,7 +101,6 @@ export default function PickingPage() {
       if (ordErr) throw ordErr
       setActiveOrder(ord)
 
-      // 2. Fetch order items
       const { data: items, error: itemsErr } = await supabase
         .from("order_items")
         .select("*, products:product_id ( sku, name )")
@@ -106,7 +108,6 @@ export default function PickingPage() {
       if (itemsErr) throw itemsErr
 
       setOrderItems(items || [])
-      // Reset checklist
       setCheckedItems({})
     } catch (err: any) {
       toast.error("Gagal memuat detail pesanan: " + err.message)
@@ -125,20 +126,18 @@ export default function PickingPage() {
     }
   }, [activeStaff])
 
-  // Register new staff
   const handleRegisterStaff = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newStaffName.trim()) return
     setRegistering(true)
 
     try {
-      const { error } = await supabase
-        .from("staff")
-        .insert({ name: newStaffName, status: "idle" })
+      const { error } = await supabase.from("staff").insert({ name: newStaffName, status: "idle" })
       if (error) throw error
 
       toast.success("Petugas baru berhasil didaftarkan!")
       setNewStaffName("")
+      setAddStaffOpen(false)
       fetchStaffList()
     } catch (err: any) {
       toast.error("Gagal mendaftarkan petugas: " + err.message)
@@ -147,22 +146,18 @@ export default function PickingPage() {
     }
   }
 
-  // Dequeue / Pop next order
   const handleDequeueOrder = async () => {
     if (!activeStaff) return
     setLoadingOrder(true)
 
     try {
-      // Dequeue next order from priority queue via pop_next_order RPC
       const { data: orderId, error } = await supabase.rpc("pop_next_order", {
         p_staff_id: activeStaff.id,
       })
-
       if (error) throw error
 
       if (orderId) {
         toast.success("Pesanan baru berhasil diambil!")
-        // Refresh staff list and retrieve new active state
         await fetchStaffList()
       } else {
         toast.info("Tidak ada pesanan antrian baru saat ini.")
@@ -174,31 +169,25 @@ export default function PickingPage() {
     }
   }
 
-  // Toggle item checklist
-  const handleToggleItem = (itemId: string, checked: boolean) => {
+  const handleToggleItem = (itemId: string) => {
     setCheckedItems((prev) => ({
       ...prev,
-      [itemId]: checked,
+      [itemId]: !prev[itemId],
     }))
   }
 
-  // Check if all items in the checklist are marked
-  const isPickingComplete =
-    orderItems.length > 0 &&
-    orderItems.every((item) => checkedItems[item.id] === true)
+  const checkedCount = orderItems.filter((item) => checkedItems[item.id]).length
+  const isPickingComplete = orderItems.length > 0 && checkedCount === orderItems.length
 
-  // Mark picking as complete
   const handleMarkReady = async () => {
     if (!activeStaff || !activeOrder) return
     setLoadingOrder(true)
 
     try {
-      // Complete picking & packing transaction via RPC function
       const { error } = await supabase.rpc("complete_picking_packing", {
         p_order_id: activeOrder.id,
         p_staff_id: activeStaff.id,
       })
-
       if (error) throw error
 
       toast.success("Pesanan selesai di-packing dan ditandai SIAP!")
@@ -225,206 +214,263 @@ export default function PickingPage() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col p-6 space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Proses Gudang (Picking & Packing)</h1>
-            <p className="text-muted-foreground mt-1">
-              Antarmuka petugas gudang untuk mengambil pesanan dari antrian, melihat checklist rak barang, dan menandai siap diambil.
-            </p>
+        <div className="flex flex-1 flex-col">
+          {/* Top bar: current staff + switch */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-border/50">
+            <h1 className="text-lg font-semibold">Picking & Packing</h1>
+            {activeStaff && (
+              <button
+                onClick={() => setActiveStaff(null)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <IconUserCircle className="size-4" />
+                <span className="font-medium">{activeStaff.name}</span>
+                <span className="text-xs underline underline-offset-2">Ganti</span>
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Left: Staff list and register */}
-            <div className="space-y-6 lg:col-span-1">
-              <Card className="border-border/50 shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <IconUsers className="size-5 text-primary" /> Pilih Petugas Aktif
-                  </CardTitle>
-                  <CardDescription>Pilih nama Anda untuk memulai pemrosesan antrian.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {loadingStaff ? (
-                    <div className="flex items-center justify-center py-6">
-                      <IconLoader2 className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                  ) : staffList.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Belum ada petugas terdaftar.
-                    </p>
+          <div className="flex-1 flex flex-col items-center p-6">
+            {!activeStaff ? (
+              <StaffPicker
+                staffList={staffList}
+                loading={loadingStaff}
+                onSelect={setActiveStaff}
+                onAddClick={() => setAddStaffOpen(true)}
+              />
+            ) : activeStaff.status === "idle" ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 max-w-sm w-full text-center py-16">
+                <IconBox className="size-14 text-muted-foreground/50" />
+                <div>
+                  <p className="font-semibold text-lg">Siap mengambil pesanan</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {activeStaff.name}, tekan tombol di bawah untuk mengambil pesanan berikutnya dari antrian.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleDequeueOrder}
+                  disabled={loadingOrder}
+                  size="lg"
+                  className="w-full h-14 text-base font-bold mt-2"
+                >
+                  {loadingOrder ? (
+                    <IconLoader2 className="size-5 animate-spin mr-2" />
                   ) : (
-                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                      {staffList.map((s) => (
-                        <div
-                          key={s.id}
-                          onClick={() => setActiveStaff(s)}
-                          className={`p-3 border rounded-lg cursor-pointer transition-all flex items-center justify-between hover:bg-muted/30 ${
-                            activeStaff?.id === s.id
-                              ? "border-primary bg-primary/5 font-semibold text-primary"
-                              : "border-border"
-                          }`}
-                        >
-                          <span className="text-sm">{s.name}</span>
-                          <Badge
-                            className={`border-none ${
-                              s.status === "sibuk"
-                                ? "bg-amber-500 hover:bg-amber-600"
-                                : "bg-emerald-500 hover:bg-emerald-600"
-                            }`}
-                          >
-                            {s.status === "sibuk" ? "Bekerja" : "Siap"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
+                    <IconChevronRight className="size-5 mr-2" />
                   )}
-
-                  <form onSubmit={handleRegisterStaff} className="pt-4 border-t space-y-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="staffName">Daftar Petugas Baru</Label>
-                      <Input
-                        id="staffName"
-                        placeholder="Nama Petugas Gudang..."
-                        value={newStaffName}
-                        onChange={(e) => setNewStaffName(e.target.value)}
-                        disabled={registering}
-                        required
-                      />
-                    </div>
-                    <Button type="submit" variant="outline" className="w-full" disabled={registering}>
-                      {registering ? (
-                        <IconLoader2 className="size-4 animate-spin mr-2" />
-                      ) : (
-                        <IconPlus className="size-4 mr-2" />
-                      )}
-                      Daftar Petugas
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right: picking status and details */}
-            <div className="lg:col-span-2 space-y-6">
-              {!activeStaff ? (
-                <Card className="border-border/50 shadow-md">
-                  <CardContent className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-                    <IconActivity className="size-16 text-muted-foreground/40 mb-2 animate-pulse" />
-                    <h3 className="font-semibold text-lg text-foreground">Pilih Petugas Terlebih Dahulu</h3>
-                    <p className="text-sm max-w-sm mt-1">
-                      Silakan pilih salah satu petugas aktif di sebelah kiri untuk melihat tugas picking atau memproses antrian.
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : activeStaff.status === "idle" ? (
-                <Card className="border-border/50 shadow-md">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <IconClipboardCheck className="size-5 text-primary" /> Pengambilan Tugas Baru
-                    </CardTitle>
-                    <CardDescription>
-                      Petugas <strong>{activeStaff.name}</strong> sedang dalam status SIAP. Ambil pesanan baru dari antrian.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                    <IconBox className="size-16 text-muted-foreground/60 mb-2" />
-                    <Button onClick={handleDequeueOrder} disabled={loadingOrder} size="lg" className="w-full max-w-xs font-bold text-sm mt-2">
-                      {loadingOrder ? (
-                        <>
-                          <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Memproses Antrian...
-                        </>
-                      ) : (
-                        "Ambil Pesanan Baru"
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="border-border/50 shadow-md">
-                  <CardHeader className="bg-amber-500/5 border-b border-amber-500/10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-amber-700">
-                          #{activeOrder?.order_number || activeOrder?.id.substring(0, 8).toUpperCase()}
-                        </span>
-                        <Badge className="bg-amber-500 text-white font-semibold">DIPROSES</Badge>
-                      </div>
-                      <CardDescription className="mt-1">
-                        Pelanggan: <strong>{activeOrder?.customer_name}</strong> • Total: {activeOrder?.total_items} item
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
-                      <IconHourglassHigh className="size-4 animate-spin" />
-                      <span>Target ECT: {activeOrder?.ewp} menit</span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    {loadingOrder ? (
-                      <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                        <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-muted-foreground text-sm">Memuat detail barang...</p>
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[60px] text-center">Pilih</TableHead>
-                            <TableHead>SKU</TableHead>
-                            <TableHead>Nama Barang</TableHead>
-                            <TableHead className="text-right">Qty</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {orderItems.map((item) => {
-                            const isChecked = checkedItems[item.id] || false
-                            return (
-                              <TableRow
-                                key={item.id}
-                                className={`transition-colors ${isChecked ? "bg-emerald-500/5 line-through text-muted-foreground" : "hover:bg-muted/30"}`}
-                              >
-                                <TableCell className="text-center">
-                                  <Checkbox
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) => handleToggleItem(item.id, !!checked)}
-                                    className="size-4.5 rounded"
-                                  />
-                                </TableCell>
-                                <TableCell className="font-mono text-xs font-semibold">
-                                  {item.products?.sku || "-"}
-                                </TableCell>
-                                <TableCell className="font-medium">
-                                  {item.products?.name}
-                                </TableCell>
-                                <TableCell className="text-right font-bold text-sm">
-                                  {item.qty} pcs
-                                </TableCell>
-                              </TableRow>
-                            )
-                          })}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                  <CardFooter className="pt-4 border-t border-border/50 flex flex-col sm:flex-row gap-4 items-center justify-between bg-muted/5">
-                    <p className="text-xs text-muted-foreground">
-                      * Pastikan semua barang telah dicek dan dimasukkan ke troli sebelum menekan tombol siap.
-                    </p>
-                    <Button
-                      onClick={handleMarkReady}
-                      disabled={!isPickingComplete || loadingOrder}
-                      className={`w-full sm:w-auto font-bold text-xs ${isPickingComplete ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
-                    >
-                      <IconClipboardCheck className="size-4 mr-2" />
-                      Selesai Packing & Tandai Siap
-                    </Button>
-                  </CardFooter>
-                </Card>
-              )}
-            </div>
+                  Ambil Pesanan Baru
+                </Button>
+              </div>
+            ) : (
+              <PickingTask
+                order={activeOrder}
+                items={orderItems}
+                loading={loadingOrder}
+                checkedItems={checkedItems}
+                checkedCount={checkedCount}
+                isComplete={isPickingComplete}
+                onToggle={handleToggleItem}
+                onMarkReady={handleMarkReady}
+              />
+            )}
           </div>
         </div>
       </SidebarInset>
+
+      {/* Add staff dialog */}
+      <Dialog open={addStaffOpen} onOpenChange={setAddStaffOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Daftar Petugas Baru</DialogTitle>
+            <DialogDescription>Tambahkan nama petugas gudang baru ke daftar.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRegisterStaff} className="space-y-4">
+            <Input
+              placeholder="Nama petugas..."
+              value={newStaffName}
+              onChange={(e) => setNewStaffName(e.target.value)}
+              disabled={registering}
+              autoFocus
+              required
+            />
+            <DialogFooter>
+              <Button type="submit" disabled={registering} className="w-full sm:w-auto">
+                {registering && <IconLoader2 className="size-4 animate-spin mr-2" />}
+                Daftar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
+  )
+}
+
+function StaffPicker({
+  staffList,
+  loading,
+  onSelect,
+  onAddClick,
+}: {
+  staffList: Staff[]
+  loading: boolean
+  onSelect: (s: Staff) => void
+  onAddClick: () => void
+}) {
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-20">
+        <IconLoader2 className="size-6 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full max-w-2xl py-8">
+      <p className="text-center text-sm text-muted-foreground mb-6">Pilih nama Anda untuk mulai bekerja</p>
+
+      {staffList.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">Belum ada petugas terdaftar.</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {staffList.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onSelect(s)}
+              className="relative flex flex-col items-center gap-2 rounded-xl border border-border p-5 hover:border-primary hover:bg-primary/5 transition-colors"
+            >
+              <span
+                className={cn(
+                  "absolute top-3 right-3 size-2 rounded-full",
+                  s.status === "sibuk" ? "bg-amber-500" : "bg-emerald-500"
+                )}
+              />
+              <IconUserCircle className="size-8 text-muted-foreground" />
+              <span className="font-medium text-sm text-center">{s.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {s.status === "sibuk" ? "Sedang bekerja" : "Siap"}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={onAddClick}
+        className="mt-6 mx-auto flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <IconPlus className="size-4" />
+        Tambah petugas baru
+      </button>
+    </div>
+  )
+}
+
+function PickingTask({
+  order,
+  items,
+  loading,
+  checkedItems,
+  checkedCount,
+  isComplete,
+  onToggle,
+  onMarkReady,
+}: {
+  order: Order | null
+  items: OrderItem[]
+  loading: boolean
+  checkedItems: Record<string, boolean>
+  checkedCount: number
+  isComplete: boolean
+  onToggle: (id: string) => void
+  onMarkReady: () => void
+}) {
+  const total = items.length
+  const progressPct = total > 0 ? (checkedCount / total) * 100 : 0
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20">
+        <IconLoader2 className="size-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Memuat detail barang...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full max-w-2xl flex flex-col gap-4">
+      {/* Order summary */}
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="font-mono text-sm font-bold">
+            #{order?.order_number || order?.id.substring(0, 8).toUpperCase()}
+          </span>
+          <p className="text-sm text-muted-foreground">{order?.customer_name}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-semibold">
+            {checkedCount}/{total} item
+          </p>
+          <p className="text-xs text-muted-foreground">Target {order?.ewp} menit</p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-2 rounded-full bg-muted overflow-hidden">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            isComplete ? "bg-emerald-500" : "bg-primary"
+          )}
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
+
+      {/* Checklist */}
+      <div className="flex flex-col divide-y divide-border rounded-xl border border-border overflow-hidden">
+        {items.map((item) => {
+          const isChecked = checkedItems[item.id] || false
+          return (
+            <button
+              key={item.id}
+              onClick={() => onToggle(item.id)}
+              className={cn(
+                "flex items-center gap-4 px-4 py-4 text-left transition-colors",
+                isChecked ? "bg-emerald-500/5" : "hover:bg-muted/40"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  isChecked ? "bg-emerald-500 border-emerald-500" : "border-muted-foreground/30"
+                )}
+              >
+                {isChecked && <IconCheck className="size-4 text-white" stroke={3} />}
+              </span>
+              <div className={cn("flex-1 min-w-0", isChecked && "text-muted-foreground line-through")}>
+                <p className="font-medium truncate">{item.products?.name}</p>
+                <p className="text-xs font-mono text-muted-foreground">{item.products?.sku || "-"}</p>
+              </div>
+              <span className="font-bold text-sm shrink-0">{item.qty} pcs</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Sticky action */}
+      <div className="sticky bottom-6 mt-2">
+        <Button
+          onClick={onMarkReady}
+          disabled={!isComplete}
+          size="lg"
+          className={cn(
+            "w-full h-14 text-base font-bold shadow-lg",
+            isComplete && "bg-emerald-600 hover:bg-emerald-700 text-white"
+          )}
+        >
+          {isComplete ? "Selesai Packing & Tandai Siap" : `${total - checkedCount} item belum dicek`}
+        </Button>
+      </div>
+    </div>
   )
 }
