@@ -19,6 +19,8 @@ import {
   IconMail,
   IconDeviceFloppy,
   IconShieldLock,
+  IconPhone,
+  IconMapPin,
 } from "@tabler/icons-react"
 
 export default function CustomerProfilePage() {
@@ -31,6 +33,8 @@ export default function CustomerProfilePage() {
 
   // Profile form
   const [fullName, setFullName] = useState("")
+  const [phoneNumber, setPhoneNumber] = useState("")
+  const [address, setAddress] = useState("")
   const [savingProfile, setSavingProfile] = useState(false)
 
   // Password form
@@ -52,13 +56,15 @@ export default function CustomerProfilePage() {
 
         const { data: profile, error } = await supabase
           .from("profiles")
-          .select("full_name, role")
+          .select("full_name, role, phone_number, address")
           .eq("id", session.user.id)
           .single()
         if (error) throw error
 
         setFullName(profile?.full_name || "")
         setRole(profile?.role || "customer")
+        setPhoneNumber(profile?.phone_number || "")
+        setAddress(profile?.address || "")
       } catch (err: any) {
         toast.error("Gagal memuat profil: " + err.message)
       } finally {
@@ -79,7 +85,11 @@ export default function CustomerProfilePage() {
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ full_name: fullName.trim() })
+        .update({
+          full_name: fullName.trim(),
+          phone_number: phoneNumber.trim() || null,
+          address: address.trim() || null,
+        })
         .eq("id", userId)
       if (error) throw error
       toast.success("Profil berhasil diperbarui!")
@@ -163,6 +173,14 @@ export default function CustomerProfilePage() {
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
                     <div className="space-y-2">
+                      <Label>Peran Akun</Label>
+                      <div>
+                        <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary font-bold">
+                          {getRoleLabel(role)}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <div className="relative">
                         <IconMail className="absolute left-3 top-3 size-4 text-muted-foreground" />
@@ -187,11 +205,32 @@ export default function CustomerProfilePage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Peran Akun</Label>
-                      <div>
-                        <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary font-bold">
-                          {getRoleLabel(role)}
-                        </Badge>
+                      <Label htmlFor="phoneNumber">No. Telepon</Label>
+                      <div className="relative">
+                        <IconPhone className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <Input
+                          id="phoneNumber"
+                          type="tel"
+                          placeholder="08xxxxxxxxxx"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          className="pl-9"
+                          disabled={savingProfile}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Alamat Lengkap</Label>
+                      <div className="relative">
+                        <IconMapPin className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <textarea
+                          id="address"
+                          placeholder="Nama jalan, nomor rumah, kecamatan, kota..."
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          disabled={savingProfile}
+                          className="w-full min-h-[80px] pl-9 pr-3 py-2 border rounded-md text-sm bg-background border-input focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                        />
                       </div>
                     </div>
                   </CardContent>

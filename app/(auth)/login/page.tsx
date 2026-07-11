@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { IconLoader2, IconLock, IconMail, IconAlertCircle } from "@tabler/icons-react"
+import { IconLoader2, IconLock, IconMail, IconAlertCircle, IconArrowLeft } from "@tabler/icons-react"
 
 function LoginForm() {
   const router = useRouter()
@@ -133,7 +133,7 @@ function LoginForm() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
+        <CardFooter className="flex flex-col space-y-3 text-center text-sm text-muted-foreground">
           <div>
             Belum punya akun?{" "}
             <Link
@@ -143,6 +143,16 @@ function LoginForm() {
               Daftar Sekarang
             </Link>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="w-full text-muted-foreground hover:text-foreground"
+          >
+            <Link href="/">
+              <IconArrowLeft className="size-4 mr-1.5" /> Kembali ke Beranda
+            </Link>
+          </Button>
         </CardFooter>
       </Card>
     </div>

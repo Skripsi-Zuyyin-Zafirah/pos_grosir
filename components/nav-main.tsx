@@ -33,7 +33,7 @@ export function NavMain({
                 <SidebarMenuButton
                   tooltip={item.title}
                   isActive={isActive}
-                  className={isActive ? "bg-emerald-500/10! text-emerald-600! dark:text-emerald-400! font-bold!" : ""}
+                  className={isActive ? "bg-primary/10! text-primary! font-bold!" : ""}
                   asChild
                 >
                   <Link href={item.url}>

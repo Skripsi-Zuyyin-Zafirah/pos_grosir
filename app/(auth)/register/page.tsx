@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { IconLoader2, IconLock, IconMail, IconUser, IconAlertCircle } from "@tabler/icons-react"
+import { IconLoader2, IconLock, IconMail, IconUser, IconPhone, IconAlertCircle, IconArrowLeft } from "@tabler/icons-react"
 
 function RegisterForm() {
   const router = useRouter()
@@ -18,15 +18,25 @@ function RegisterForm() {
   const next = searchParams.get("next") || "/"
 
   const [fullName, setFullName] = useState("")
+  const [phoneNumber, setPhoneNumber] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setErrorMsg(null)
+
+    if (password !== confirmPassword) {
+      const msg = "Konfirmasi password tidak cocok."
+      setErrorMsg(msg)
+      toast.error(msg)
+      return
+    }
+
+    setLoading(true)
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -35,6 +45,7 @@ function RegisterForm() {
         options: {
           data: {
             full_name: fullName,
+            phone_number: phoneNumber,
           },
         },
       })
@@ -97,6 +108,22 @@ function RegisterForm() {
               </div>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="phoneNumber">No. Telepon</Label>
+              <div className="relative">
+                <IconPhone className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder="08xxxxxxxxxx"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="pl-9"
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
                 <IconMail className="absolute left-3 top-3 size-4 text-muted-foreground" />
@@ -124,6 +151,24 @@ function RegisterForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-9"
                   required
+                  minLength={6}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
+              <div className="relative">
+                <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pl-9"
+                  required
+                  minLength={6}
                   disabled={loading}
                 />
               </div>
@@ -140,16 +185,17 @@ function RegisterForm() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
-          <div>
-            Sudah memiliki akun?{" "}
-            <Link
-              href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
-              className="font-medium text-primary hover:underline underline-offset-4"
-            >
-              Masuk
+        <CardFooter className="flex flex-col space-y-3 text-center text-sm text-muted-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="w-full text-muted-foreground hover:text-foreground"
+          >
+            <Link href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}>
+              <IconArrowLeft className="size-4 mr-1.5" /> Kembali ke Login
             </Link>
-          </div>
+          </Button>
         </CardFooter>
       </Card>
     </div>
