@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { IconLoader2, IconLock, IconMail, IconAlertCircle, IconArrowLeft } from "@tabler/icons-react"
+import { IconLoader2, IconLock, IconMail, IconAlertCircle, IconArrowLeft, IconEye, IconEyeOff } from "@tabler/icons-react"
 
 function LoginForm() {
   const router = useRouter()
@@ -19,6 +19,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -92,14 +93,14 @@ function LoginForm() {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
-                <IconMail className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconMail className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
+                  className="pl-8"
                   required
                   disabled={loading}
                 />
@@ -108,17 +109,25 @@ function LoginForm() {
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
-                <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconLock className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9"
+                  className="pl-8 pr-8"
                   required
                   disabled={loading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                </button>
               </div>
             </div>
             <Button type="submit" className="w-full mt-2" disabled={loading}>

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { IconLoader2, IconLock, IconMail, IconUser, IconPhone, IconAlertCircle, IconArrowLeft } from "@tabler/icons-react"
+import { IconLoader2, IconLock, IconMail, IconUser, IconPhone, IconAlertCircle, IconArrowLeft, IconEye, IconEyeOff } from "@tabler/icons-react"
 
 function RegisterForm() {
   const router = useRouter()
@@ -22,6 +22,8 @@ function RegisterForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -94,14 +96,14 @@ function RegisterForm() {
             <div className="space-y-2">
               <Label htmlFor="fullName">Nama Lengkap</Label>
               <div className="relative">
-                <IconUser className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconUser className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="fullName"
                   type="text"
                   placeholder="John Doe"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="pl-9"
+                  className="pl-8"
                   required
                   disabled={loading}
                 />
@@ -110,14 +112,14 @@ function RegisterForm() {
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">No. Telepon</Label>
               <div className="relative">
-                <IconPhone className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconPhone className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="phoneNumber"
                   type="tel"
                   placeholder="08xxxxxxxxxx"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="pl-9"
+                  className="pl-8"
                   required
                   disabled={loading}
                 />
@@ -126,14 +128,14 @@ function RegisterForm() {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
-                <IconMail className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconMail className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
+                  className="pl-8"
                   required
                   disabled={loading}
                 />
@@ -142,35 +144,51 @@ function RegisterForm() {
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
-                <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconLock className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9"
+                  className="pl-8 pr-8"
                   required
                   minLength={6}
                   disabled={loading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                </button>
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
               <div className="relative">
-                <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                <IconLock className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="confirmPassword"
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pl-9"
+                  className="pl-8 pr-8"
                   required
                   minLength={6}
                   disabled={loading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  tabIndex={-1}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showConfirmPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                </button>
               </div>
             </div>
             <Button type="submit" className="w-full mt-2" disabled={loading}>
