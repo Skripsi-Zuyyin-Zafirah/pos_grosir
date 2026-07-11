@@ -8,7 +8,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -337,43 +336,40 @@ export default function PosWalkinPage() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                   {filteredProducts.map((product) => {
                     const stock = product.stock_qty ?? 0
                     const outOfStock = stock <= 0
                     return (
-                      <Card
+                      <button
                         key={product.id}
-                        size="sm"
-                        className="overflow-hidden border-border/50 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col gap-2"
+                        type="button"
+                        disabled={outOfStock}
                         onClick={() => addToCart(product)}
+                        style={{ contentVisibility: "auto", containIntrinsicSize: "0 180px" } as React.CSSProperties}
+                        className="text-left rounded-lg border border-border/50 bg-card p-2 disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary/40 hover:bg-muted/30 transition-colors"
                       >
-                        <div className="aspect-square w-full bg-muted flex items-center justify-center relative overflow-hidden">
+                        <div className="aspect-square w-full rounded-md bg-muted flex items-center justify-center overflow-hidden mb-2">
                           {product.image_url ? (
-                            <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              loading="lazy"
+                              decoding="async"
+                              className="h-full w-full object-cover"
+                            />
                           ) : (
                             <IconPhoto className="size-8 text-muted-foreground/50" />
                           )}
-                          {outOfStock && (
-                            <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] flex items-center justify-center">
-                              <Badge variant="destructive" className="text-[10px] font-semibold px-1.5 py-0">
-                                Habis
-                              </Badge>
-                            </div>
-                          )}
                         </div>
-                        <CardHeader className="pb-0 gap-1">
-                          <h3 className="font-semibold text-xs leading-snug line-clamp-2 min-h-[2rem]">
-                            {product.name}
-                          </h3>
-                          <p className="text-sm font-bold text-primary">{formatRupiah(product.price)}</p>
-                        </CardHeader>
-                        <CardContent className="pb-2 mt-auto">
-                          <p className="text-[10px] text-muted-foreground">
-                            Stok: <span className="font-semibold">{outOfStock ? "Habis" : `${stock} pcs`}</span>
-                          </p>
-                        </CardContent>
-                      </Card>
+                        <h3 className="text-xs font-semibold leading-snug line-clamp-2 min-h-[2rem]">
+                          {product.name}
+                        </h3>
+                        <p className="text-sm font-bold text-primary mt-0.5">{formatRupiah(product.price)}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {outOfStock ? "Stok habis" : `Stok ${stock} pcs`}
+                        </p>
+                      </button>
                     )
                   })}
                 </div>
