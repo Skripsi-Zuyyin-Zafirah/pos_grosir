@@ -6,11 +6,10 @@ import { IconPrinter } from "@tabler/icons-react"
 
 type ReceiptItem = {
   id: string
-  quantity: number
-  price: number
+  qty: number
+  unit_price: number
   products: {
     name: string
-    unit: string | null
   } | null
 }
 
@@ -90,14 +89,14 @@ export function Receipt({ order }: ReceiptProps) {
                   <td className="py-1">
                     <p className="font-semibold">{item.products?.name}</p>
                     <p className="text-[9px] text-gray-500">
-                      {formatRupiah(item.price)}/{item.products?.unit || "pcs"}
+                      {formatRupiah(item.unit_price)}/pcs
                     </p>
                   </td>
                   <td className="text-right py-1">
-                    {item.quantity}
+                    {item.qty}
                   </td>
                   <td className="text-right py-1 font-semibold">
-                    {formatRupiah(item.price * item.quantity)}
+                    {formatRupiah(item.unit_price * item.qty)}
                   </td>
                 </tr>
               ))}

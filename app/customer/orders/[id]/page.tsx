@@ -42,7 +42,7 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
+  status: "antri" | "diproses" | "selesai" | "batal"
   payment_method: string | null
   completed_at: string | null
   enqueued_at: string | null
@@ -126,15 +126,13 @@ export default function CustomerOrderDetailPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "waiting":
+      case "antri":
         return <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold">ANTRI</Badge>
-      case "processing":
+      case "diproses":
         return <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold">DIPROSES</Badge>
-      case "ready":
-        return <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none font-semibold">SIAP DIAMBIL</Badge>
-      case "done":
+      case "selesai":
         return <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold">SELESAI</Badge>
-      case "cancelled":
+      case "batal":
         return <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold">BATAL</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
@@ -166,13 +164,13 @@ export default function CustomerOrderDetailPage() {
       { label: "Masuk Antrian Gudang", time: o.enqueued_at },
       { label: "Diproses & Dikemas", time: o.dequeued_at },
       {
-        label: o.status === "cancelled" ? "Dibatalkan" : "Selesai & Diambil",
+        label: o.status === "batal" ? "Dibatalkan" : "Selesai & Diambil",
         time: o.completed_at,
       },
     ]
     return steps.map((step, i) => ({
       ...step,
-      done: !!step.time || (o.status === "cancelled" && i === steps.length - 1),
+      done: !!step.time || (o.status === "batal" && i === steps.length - 1),
     }))
   }
 
@@ -273,7 +271,7 @@ export default function CustomerOrderDetailPage() {
                         <div key={step.label} className="flex gap-3">
                           <div className="flex flex-col items-center">
                             {step.done ? (
-                              order.status === "cancelled" && i === arr.length - 1 ? (
+                              order.status === "batal" && i === arr.length - 1 ? (
                                 <IconBan className="size-5 text-rose-500 shrink-0" />
                               ) : (
                                 <IconCircleCheckFilled className="size-5 text-emerald-500 shrink-0" />
@@ -345,7 +343,7 @@ export default function CustomerOrderDetailPage() {
                   </CardContent>
                 </Card>
 
-                {order.status === "waiting" && (
+                {order.status === "antri" && (
                   <Button
                     variant="destructive"
                     className="w-full"

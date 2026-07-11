@@ -24,7 +24,8 @@ import {
   IconPackage,
   IconClipboardList,
   IconClipboardCheck,
-  IconCash
+  IconCash,
+  IconShoppingCart,
 } from "@tabler/icons-react"
 
 type Role = "admin" | "cashier"
@@ -52,6 +53,13 @@ const navMainData: { title: string; url: string; icon: React.ReactNode; roles?: 
       <IconDatabase />
     ),
     roles: ["admin"],
+  },
+  {
+    title: "POS Walk-in",
+    url: "/dashboard/pos",
+    icon: (
+      <IconShoppingCart />
+    ),
   },
   {
     title: "Proses Gudang",

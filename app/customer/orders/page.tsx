@@ -50,11 +50,11 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
+  status: "antri" | "diproses" | "selesai" | "batal"
   completed_at: string | null
 }
 
-type StatusTab = "all" | "done" | "cancelled"
+type StatusTab = "all" | "selesai" | "batal"
 
 function SortHeader({ label, column }: { label: string; column: any }) {
   const sorted = column.getIsSorted()
@@ -164,35 +164,28 @@ export default function CustomerOrdersPage() {
   const getStatusBadge = (status: string) => {
     const base = "border-none font-bold text-[11px] tracking-wide px-2.5 py-1 gap-1.5 shadow-sm"
     switch (status) {
-      case "waiting":
+      case "antri":
         return (
           <Badge className={`${base} bg-sky-500 hover:bg-sky-600 text-white`}>
             <span className="size-1.5 rounded-full bg-white animate-pulse" />
             ANTRI
           </Badge>
         )
-      case "processing":
+      case "diproses":
         return (
           <Badge className={`${base} bg-amber-500 hover:bg-amber-600 text-white`}>
             <span className="size-1.5 rounded-full bg-white animate-pulse" />
             DIPROSES
           </Badge>
         )
-      case "ready":
-        return (
-          <Badge className={`${base} bg-indigo-500 hover:bg-indigo-600 text-white`}>
-            <span className="size-1.5 rounded-full bg-white animate-pulse" />
-            SIAP DIAMBIL
-          </Badge>
-        )
-      case "done":
+      case "selesai":
         return (
           <Badge className={`${base} bg-emerald-500 hover:bg-emerald-600 text-white`}>
             <IconCircleCheckFilled className="size-3" />
             SELESAI
           </Badge>
         )
-      case "cancelled":
+      case "batal":
         return (
           <Badge className={`${base} bg-rose-500 hover:bg-rose-600 text-white`}>
             <IconBan className="size-3" />
@@ -206,15 +199,13 @@ export default function CustomerOrdersPage() {
 
   const getStatusRowAccent = (status: string) => {
     switch (status) {
-      case "waiting":
+      case "antri":
         return "border-l-4 border-l-sky-500"
-      case "processing":
+      case "diproses":
         return "border-l-4 border-l-amber-500"
-      case "ready":
-        return "border-l-4 border-l-indigo-500"
-      case "done":
+      case "selesai":
         return "border-l-4 border-l-emerald-500"
-      case "cancelled":
+      case "batal":
         return "border-l-4 border-l-rose-500 bg-rose-500/5"
       default:
         return "border-l-4 border-l-transparent"
@@ -232,8 +223,8 @@ export default function CustomerOrdersPage() {
   const counts = useMemo(
     () => ({
       all: orders.length,
-      done: orders.filter((o) => o.status === "done").length,
-      cancelled: orders.filter((o) => o.status === "cancelled").length,
+      selesai: orders.filter((o) => o.status === "selesai").length,
+      batal: orders.filter((o) => o.status === "batal").length,
     }),
     [orders]
   )
@@ -311,7 +302,7 @@ export default function CustomerOrdersPage() {
                 <IconEye className="size-3.5 mr-1" /> Detail
               </Link>
             </Button>
-            {row.original.status === "waiting" && (
+            {row.original.status === "antri" && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -408,11 +399,11 @@ export default function CustomerOrdersPage() {
                     <TabsTrigger value="all">
                       Semua <Badge variant="secondary" className="ml-1">{counts.all}</Badge>
                     </TabsTrigger>
-                    <TabsTrigger value="done">
-                      Selesai <Badge variant="secondary" className="ml-1">{counts.done}</Badge>
+                    <TabsTrigger value="selesai">
+                      Selesai <Badge variant="secondary" className="ml-1">{counts.selesai}</Badge>
                     </TabsTrigger>
-                    <TabsTrigger value="cancelled">
-                      Dibatalkan <Badge variant="secondary" className="ml-1">{counts.cancelled}</Badge>
+                    <TabsTrigger value="batal">
+                      Dibatalkan <Badge variant="secondary" className="ml-1">{counts.batal}</Badge>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>

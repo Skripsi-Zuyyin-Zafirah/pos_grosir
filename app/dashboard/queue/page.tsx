@@ -8,7 +8,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { IconLoader2, IconClock, IconAlertTriangle, IconCheck, IconUser, IconActivity, IconHourglassHigh } from "@tabler/icons-react"
+import { IconLoader2, IconClock, IconAlertTriangle, IconUser, IconActivity, IconHourglassHigh } from "@tabler/icons-react"
 
 type Order = {
   id: string
@@ -18,9 +18,7 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  priority_score: number | null
-  assigned_staff_id: string | null
+  status: "antri" | "diproses" | "selesai" | "batal"
 }
 
 export default function QueueMonitorPage() {
@@ -45,11 +43,11 @@ export default function QueueMonitorPage() {
         })
       }
 
-      // 2. Fetch active waiting, processing, and ready orders
+      // 2. Fetch active antri & diproses orders
       const { data: activeOrders, error } = await supabase
         .from("orders")
         .select("*")
-        .in("status", ["waiting", "processing", "ready"])
+        .in("status", ["antri", "diproses"])
 
       if (error) throw error
       setOrders(activeOrders || [])
@@ -95,18 +93,14 @@ export default function QueueMonitorPage() {
   }
 
   // Filter columns
+  // Note: actual dequeue priority ordering (SJF + aging) is computed server-side by the
+  // pop_next_order RPC; no priority score is persisted on the order row for client display,
+  // so this board always previews the waiting column in FIFO (created_at) order.
   const waitingOrders = orders
-    .filter((o) => o.status === "waiting")
-    // Sort waiting: Priority mode sorts by priority_score ASC; FIFO mode sorts by created_at ASC
-    .sort((a, b) => {
-      if (queueMode === "priority") {
-        return (a.priority_score || 0) - (b.priority_score || 0)
-      }
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    })
+    .filter((o) => o.status === "antri")
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-  const processingOrders = orders.filter((o) => o.status === "processing")
-  const readyOrders = orders.filter((o) => o.status === "ready")
+  const processingOrders = orders.filter((o) => o.status === "diproses")
 
   return (
     <SidebarProvider
@@ -147,7 +141,7 @@ export default function QueueMonitorPage() {
               <p className="text-muted-foreground text-sm">Menghubungkan ke database antrian...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
               {/* 1. WAITING COLUMN */}
               <Card className="border-border/50 shadow-md">
                 <CardHeader className="bg-sky-500/10 border-b border-sky-500/20 py-4">
@@ -224,7 +218,7 @@ export default function QueueMonitorPage() {
                         <IconClock className="size-5" /> DIPROSES (Packing)
                       </CardTitle>
                       <CardDescription className="text-amber-700/70 text-xs">
-                        Sedang dikemas oleh petugas gudang
+                        Sedang dikemas oleh petugas gudang / siap dibayar di kasir
                       </CardDescription>
                     </div>
                     <Badge className="bg-amber-500 text-white font-bold size-6 rounded-full flex items-center justify-center p-0">
@@ -276,53 +270,6 @@ export default function QueueMonitorPage() {
                         </div>
                       )
                     })
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* 3. READY COLUMN */}
-              <Card className="border-border/50 shadow-md">
-                <CardHeader className="bg-emerald-500/10 border-b border-emerald-500/20 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-emerald-700 text-lg flex items-center gap-2">
-                        <IconCheck className="size-5" /> SIAP (Ready)
-                      </CardTitle>
-                      <CardDescription className="text-emerald-700/70 text-xs">
-                        Kemasan selesai, siap diambil / bayar di kasir
-                      </CardDescription>
-                    </div>
-                    <Badge className="bg-emerald-500 text-white font-bold size-6 rounded-full flex items-center justify-center p-0">
-                      {readyOrders.length}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 space-y-3 min-h-[400px]">
-                  {readyOrders.length === 0 ? (
-                    <div className="text-center py-12 text-sm text-muted-foreground">
-                      Belum ada pesanan siap diambil
-                    </div>
-                  ) : (
-                    readyOrders.map((order) => (
-                      <div
-                        key={order.id}
-                        className="p-3 border-2 border-emerald-500 rounded-lg bg-emerald-500/5 flex flex-col gap-2 relative overflow-hidden animate-pulse"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono text-sm font-bold text-emerald-600">
-                            #{order.order_number || order.id.substring(0, 8).toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-emerald-950 flex items-center gap-1">
-                            <IconUser className="size-3 text-emerald-700" /> {order.customer_name}
-                          </p>
-                          <p className="text-xs text-emerald-700/80 mt-0.5">
-                            {order.total_items} item • Siap!
-                          </p>
-                        </div>
-                      </div>
-                    ))
                   )}
                 </CardContent>
               </Card>

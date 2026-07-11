@@ -19,8 +19,10 @@ type RecentOrder = {
   created_at: string
   customer_name: string | null
   total_price: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
+  status: "antri" | "diproses" | "selesai" | "batal"
 }
+
+const LOW_STOCK_THRESHOLD = 5
 
 type RevenueDay = {
   date: string
@@ -43,12 +45,13 @@ export default function Page() {
     try {
       setLoading(true)
 
-      // 1. Calculate Total Revenue
+      // 1. Calculate Total Revenue (sum of completed & paid orders)
       const { data: payData, error: payErr } = await supabase
-        .from("payments")
-        .select("amount")
+        .from("orders")
+        .select("total_price, completed_at")
+        .not("completed_at", "is", null)
       if (payErr) throw payErr
-      const totalRev = payData ? payData.reduce((sum, p) => sum + p.amount, 0) : 0
+      const totalRev = payData ? payData.reduce((sum, p) => sum + p.total_price, 0) : 0
 
       // 2. Calculate Today's Orders
       const startOfToday = new Date()
@@ -59,19 +62,19 @@ export default function Page() {
         .gte("created_at", startOfToday.toISOString())
       if (todayErr) throw todayErr
 
-      // 3. Calculate Active Queue Length (waiting & processing)
+      // 3. Calculate Active Queue Length (antri & diproses)
       const { count: activeCount, error: activeErr } = await supabase
         .from("orders")
         .select("*", { count: "exact", head: true })
-        .in("status", ["waiting", "processing"])
+        .in("status", ["antri", "diproses"])
       if (activeErr) throw activeErr
 
       // 4. Calculate Critical Stock Level
-      const { data: invData, error: invErr } = await supabase
-        .from("inventory")
-        .select("stock_qty, reorder_level")
-      if (invErr) throw invErr
-      const lowCount = invData ? invData.filter((i) => i.stock_qty <= i.reorder_level).length : 0
+      const { data: prodData, error: prodErr } = await supabase
+        .from("products")
+        .select("stock_qty")
+      if (prodErr) throw prodErr
+      const lowCount = prodData ? prodData.filter((p) => p.stock_qty <= LOW_STOCK_THRESHOLD).length : 0
 
       setMetrics({
         totalRevenue: totalRev,
@@ -86,12 +89,13 @@ export default function Page() {
       sevenDaysAgo.setHours(0, 0, 0, 0)
 
       const { data: chartPayments, error: chartErr } = await supabase
-        .from("payments")
-        .select("amount, paid_at")
-        .gte("paid_at", sevenDaysAgo.toISOString())
+        .from("orders")
+        .select("total_price, completed_at")
+        .not("completed_at", "is", null)
+        .gte("completed_at", sevenDaysAgo.toISOString())
       if (chartErr) throw chartErr
 
-      // Group payments by date
+      // Group completed orders by date
       const dailyMap: Record<string, number> = {}
       for (let i = 6; i >= 0; i--) {
         const d = new Date()
@@ -102,9 +106,9 @@ export default function Page() {
 
       if (chartPayments) {
         chartPayments.forEach((p) => {
-          const dateStr = p.paid_at.split("T")[0]
+          const dateStr = (p.completed_at as string).split("T")[0]
           if (dailyMap[dateStr] !== undefined) {
-            dailyMap[dateStr] += p.amount
+            dailyMap[dateStr] += p.total_price
           }
         })
       }
@@ -137,15 +141,13 @@ export default function Page() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "waiting":
+      case "antri":
         return <Badge className="bg-sky-500 hover:bg-sky-600 border-none">ANTRI</Badge>
-      case "processing":
+      case "diproses":
         return <Badge className="bg-amber-500 hover:bg-amber-600 border-none">DIPROSES</Badge>
-      case "ready":
-        return <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none">SIAP</Badge>
-      case "done":
+      case "selesai":
         return <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none">SELESAI</Badge>
-      case "cancelled":
+      case "batal":
         return <Badge className="bg-rose-500 hover:bg-rose-600 border-none">BATAL</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>

@@ -31,7 +31,7 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
+  status: "antri" | "diproses" | "selesai" | "batal"
   completed_at: string | null
 }
 
@@ -80,7 +80,7 @@ export default function CustomerDashboardPage() {
       const { data: waitingQueue, error: queueErr } = await supabase
         .from("orders")
         .select("id, user_id, created_at")
-        .eq("status", "waiting")
+        .eq("status", "antri")
       if (queueErr) throw queueErr
 
       const sortedQueue = ((waitingQueue as QueueEntry[]) || []).sort(
@@ -123,9 +123,9 @@ export default function CustomerDashboardPage() {
     }
   }, [])
 
-  const activeOrders = orders.filter((o) => ["waiting", "processing", "ready"].includes(o.status))
+  const activeOrders = orders.filter((o) => ["antri", "diproses"].includes(o.status))
   const totalSpent = orders
-    .filter((o) => !!o.completed_at && o.status !== "cancelled")
+    .filter((o) => !!o.completed_at && o.status !== "batal")
     .reduce((sum, o) => sum + o.total_price, 0)
   const currentOrder = activeOrders[activeOrders.length - 1] || activeOrders[0] || null
 
@@ -138,15 +138,13 @@ export default function CustomerDashboardPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "waiting":
+      case "antri":
         return <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold">ANTRI</Badge>
-      case "processing":
+      case "diproses":
         return <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold">DIPROSES</Badge>
-      case "ready":
-        return <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none font-semibold">SIAP DIAMBIL</Badge>
-      case "done":
+      case "selesai":
         return <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold">SELESAI</Badge>
-      case "cancelled":
+      case "batal":
         return <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold">BATAL</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
@@ -360,9 +358,7 @@ export default function CustomerDashboardPage() {
                             <div>
                               <p className="text-muted-foreground">Estimasi (ECT)</p>
                               <p className="font-semibold">
-                                {order.status === "ready" ? (
-                                  <span className="text-indigo-600 dark:text-indigo-400">Siap diambil!</span>
-                                ) : timeLeft > 0 ? (
+                                {timeLeft > 0 ? (
                                   `± ${timeLeft} menit lagi`
                                 ) : (
                                   <span className="text-amber-600 dark:text-amber-400">Segera selesai</span>

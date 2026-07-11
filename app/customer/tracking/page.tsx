@@ -31,7 +31,7 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
+  status: "antri" | "diproses" | "selesai" | "batal"
   completed_at: string | null
   enqueued_at: string | null
   dequeued_at: string | null
@@ -62,7 +62,7 @@ export default function CustomerTrackingPage() {
 
       if (error) throw error
       const all = (data as any as Order[]) || []
-      const active = all.filter((o) => ["waiting", "processing", "ready"].includes(o.status))
+      const active = all.filter((o) => ["antri", "diproses"].includes(o.status))
       setActiveOrders(active)
       setLatestOrder(active.length === 0 ? all[0] || null : null)
     } catch (err: any) {
@@ -94,31 +94,25 @@ export default function CustomerTrackingPage() {
   const getStatusBadge = (status: string) => {
     const base = "border-none font-bold text-[11px] tracking-wide px-2.5 py-1 gap-1.5 shadow-sm"
     switch (status) {
-      case "waiting":
+      case "antri":
         return (
           <Badge className={`${base} bg-sky-500 hover:bg-sky-600 text-white`}>
             <span className="size-1.5 rounded-full bg-white animate-pulse" /> ANTRI
           </Badge>
         )
-      case "processing":
+      case "diproses":
         return (
           <Badge className={`${base} bg-amber-500 hover:bg-amber-600 text-white`}>
             <span className="size-1.5 rounded-full bg-white animate-pulse" /> DIPROSES
           </Badge>
         )
-      case "ready":
-        return (
-          <Badge className={`${base} bg-indigo-500 hover:bg-indigo-600 text-white`}>
-            <span className="size-1.5 rounded-full bg-white animate-pulse" /> SIAP DIAMBIL
-          </Badge>
-        )
-      case "done":
+      case "selesai":
         return (
           <Badge className={`${base} bg-emerald-500 hover:bg-emerald-600 text-white`}>
             <IconCircleCheckFilled className="size-3" /> SELESAI
           </Badge>
         )
-      case "cancelled":
+      case "batal":
         return (
           <Badge className={`${base} bg-rose-500 hover:bg-rose-600 text-white`}>
             <IconBan className="size-3" /> BATAL
@@ -152,11 +146,11 @@ export default function CustomerTrackingPage() {
       { label: "Pesanan Dibuat", time: o.created_at },
       { label: "Masuk Antrian", time: o.enqueued_at },
       { label: "Diproses & Dikemas", time: o.dequeued_at },
-      { label: o.status === "cancelled" ? "Dibatalkan" : "Selesai & Diambil", time: o.completed_at },
+      { label: o.status === "batal" ? "Dibatalkan" : "Selesai & Diambil", time: o.completed_at },
     ]
     return steps.map((step, i) => ({
       ...step,
-      done: !!step.time || (o.status === "cancelled" && i === steps.length - 1),
+      done: !!step.time || (o.status === "batal" && i === steps.length - 1),
     }))
   }
 
@@ -170,7 +164,7 @@ export default function CustomerTrackingPage() {
             <Fragment key={step.label}>
               <div className="flex flex-col items-center text-center flex-1 min-w-0">
                 {step.done ? (
-                  order.status === "cancelled" && i === arr.length - 1 ? (
+                  order.status === "batal" && i === arr.length - 1 ? (
                     <IconBan className="size-6 text-rose-500 shrink-0" />
                   ) : (
                     <IconCircleCheckFilled className="size-6 text-emerald-500 shrink-0" />
@@ -198,7 +192,7 @@ export default function CustomerTrackingPage() {
             <div key={step.label} className="flex gap-3">
               <div className="flex flex-col items-center">
                 {step.done ? (
-                  order.status === "cancelled" && i === arr.length - 1 ? (
+                  order.status === "batal" && i === arr.length - 1 ? (
                     <IconBan className="size-5 text-rose-500 shrink-0" />
                   ) : (
                     <IconCircleCheckFilled className="size-5 text-emerald-500 shrink-0" />

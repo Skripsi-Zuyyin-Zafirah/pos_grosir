@@ -13,26 +13,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
-import { IconLoader2, IconUsers, IconPlus, IconClipboardCheck, IconActivity, IconBox, IconMapPin, IconHourglassHigh } from "@tabler/icons-react"
+import { IconLoader2, IconUsers, IconPlus, IconClipboardCheck, IconActivity, IconBox, IconHourglassHigh } from "@tabler/icons-react"
 
 type Staff = {
   id: string
   name: string
-  status: "idle" | "busy" | null
+  status: "idle" | "sibuk" | null
   current_order_id: string | null
 }
 
 type OrderItem = {
   id: string
-  quantity: number
-  price: number
+  qty: number
+  unit_price: number
   products: {
     sku: string | null
     name: string
-    unit: string | null
-    inventory: {
-      location: string | null
-    }[] | null
   } | null
 }
 
@@ -102,10 +98,10 @@ export default function PickingPage() {
       if (ordErr) throw ordErr
       setActiveOrder(ord)
 
-      // 2. Fetch order items with shelf location joins
+      // 2. Fetch order items
       const { data: items, error: itemsErr } = await supabase
         .from("order_items")
-        .select("*, products:product_id ( sku, name, unit, inventory ( location ) )")
+        .select("*, products:product_id ( sku, name )")
         .eq("order_id", orderId)
       if (itemsErr) throw itemsErr
 
@@ -120,7 +116,7 @@ export default function PickingPage() {
   }
 
   useEffect(() => {
-    if (activeStaff?.status === "busy" && activeStaff.current_order_id) {
+    if (activeStaff?.status === "sibuk" && activeStaff.current_order_id) {
       fetchActiveOrderDetails(activeStaff.current_order_id)
     } else {
       setActiveOrder(null)
@@ -271,12 +267,12 @@ export default function PickingPage() {
                           <span className="text-sm">{s.name}</span>
                           <Badge
                             className={`border-none ${
-                              s.status === "busy"
+                              s.status === "sibuk"
                                 ? "bg-amber-500 hover:bg-amber-600"
                                 : "bg-emerald-500 hover:bg-emerald-600"
                             }`}
                           >
-                            {s.status === "busy" ? "Bekerja" : "Siap"}
+                            {s.status === "sibuk" ? "Bekerja" : "Siap"}
                           </Badge>
                         </div>
                       ))}
@@ -376,9 +372,7 @@ export default function PickingPage() {
                             <TableHead className="w-[60px] text-center">Pilih</TableHead>
                             <TableHead>SKU</TableHead>
                             <TableHead>Nama Barang</TableHead>
-                            <TableHead className="flex items-center gap-1"><IconMapPin className="size-3.5" /> Lokasi Rak</TableHead>
                             <TableHead className="text-right">Qty</TableHead>
-                            <TableHead>Satuan</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -402,16 +396,8 @@ export default function PickingPage() {
                                 <TableCell className="font-medium">
                                   {item.products?.name}
                                 </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className={`font-bold ${isChecked ? "opacity-50" : "bg-primary/5 text-primary border-primary/20"}`}>
-                                    {item.products?.inventory?.[0]?.location || "Belum diatur"}
-                                  </Badge>
-                                </TableCell>
                                 <TableCell className="text-right font-bold text-sm">
-                                  {item.quantity}
-                                </TableCell>
-                                <TableCell className="text-xs">
-                                  {item.products?.unit || "pcs"}
+                                  {item.qty} pcs
                                 </TableCell>
                               </TableRow>
                             )

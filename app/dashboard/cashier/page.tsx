@@ -18,11 +18,10 @@ import { IconLoader2, IconSearch, IconCash, IconCreditCard, IconQrcode, IconFile
 
 type OrderItem = {
   id: string
-  quantity: number
-  price: number
+  qty: number
+  unit_price: number
   products: {
     name: string
-    unit: string | null
   } | null
 }
 
@@ -34,8 +33,7 @@ type Order = {
   total_items: number
   total_price: number
   ewp: number
-  status: "waiting" | "processing" | "ready" | "done" | "cancelled"
-  payment_status: "unpaid" | "paid" | null
+  status: "antri" | "diproses" | "selesai" | "batal"
   payment_method?: string
   payment_amount?: number
   change_amount?: number
@@ -64,8 +62,8 @@ export default function CashierPage() {
       setLoading(true)
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items (*, products ( name, unit ))")
-        .eq("status", "ready")
+        .select("*, order_items (*, products ( name ))")
+        .eq("status", "diproses")
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -130,9 +128,8 @@ export default function CashierPage() {
       // Call Postgres procedure to write transaction & complete order status
       const { error } = await supabase.rpc("finalize_order_payment", {
         p_order_id: selectedOrder.id,
-        p_cashier_id: currentUser.id,
-        p_method: paymentMethod,
-        p_amount: paidVal,
+        p_payment_method: paymentMethod,
+        p_staff_id: null,
       })
 
       if (error) throw error
