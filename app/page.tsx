@@ -268,14 +268,22 @@ export default function LandingPage() {
             Pesan dari rumah, lihat stok real-time, ambil langsung di toko tanpa antri lama.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-            {!user && (
+            {user ? (
               <Button size="lg" asChild className="font-bold shadow-md text-sm h-11">
-                <Link href="/register">Daftar Gratis <IconArrowRight className="size-4 ml-1" /></Link>
+                <Link href={userRole === "admin" || userRole === "cashier" ? "/dashboard" : "/customer/orders"}>
+                  {userRole === "admin" || userRole === "cashier" ? "Buka Dashboard" : "Lihat Pesanan Saya"} <IconArrowRight className="size-4 ml-1" />
+                </Link>
               </Button>
+            ) : (
+              <>
+                <Button size="lg" asChild className="font-bold shadow-md text-sm h-11">
+                  <Link href="/register">Daftar Gratis <IconArrowRight className="size-4 ml-1" /></Link>
+                </Button>
+                <Button variant="outline" size="lg" asChild className="font-bold border-border/50 text-sm h-11">
+                  <Link href="/login">Masuk ke Akun</Link>
+                </Button>
+              </>
             )}
-            <Button variant="outline" size="lg" asChild className="font-bold border-border/50 text-sm h-11">
-              <Link href="/login">Masuk ke Akun</Link>
-            </Button>
           </div>
         </div>
       </section>

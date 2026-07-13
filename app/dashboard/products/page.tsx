@@ -28,6 +28,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconDatabase,
+  IconX,
 } from "@tabler/icons-react"
 
 type Product = {
@@ -37,6 +38,7 @@ type Product = {
   description: string | null
   price: number
   unit: string | null
+  unit_id: string | null
   weight: number | null
   image_url: string | null
   category_id: string | null
@@ -46,11 +48,27 @@ type Product = {
   categories?: {
     name: string
   } | null
+  units?: {
+    name: string
+  } | null
 }
 
 type Category = {
   id: string
   name: string
+}
+
+type Unit = {
+  id: string
+  name: string
+}
+
+type ProductUnitRow = {
+  id: string | null
+  unit_id: string
+  multiplier: string
+  price: string
+  pickup_time_seconds: string
 }
 
 type StockMutation = {
@@ -65,6 +83,7 @@ export default function ProductsPage() {
   const supabase = createClient()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [units, setUnits] = useState<Unit[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [filterCategory, setFilterCategory] = useState("all")
@@ -83,7 +102,7 @@ export default function ProductsPage() {
   const [name, setName] = useState("")
   const [categoryId, setCategoryId] = useState("")
   const [price, setPrice] = useState("")
-  const [unit, setUnit] = useState("pcs")
+  const [unitId, setUnitId] = useState("")
   const [weight, setWeight] = useState("")
   const [description, setDescription] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -91,6 +110,8 @@ export default function ProductsPage() {
   const [waktuPengambilan, setWaktuPengambilan] = useState("60") // default 60 detik
   const [isMultiUnit, setIsMultiUnit] = useState(false)
   const [stokAwal, setStokAwal] = useState("0")
+  const [productUnitRows, setProductUnitRows] = useState<ProductUnitRow[]>([])
+  const [loadingProductUnits, setLoadingProductUnits] = useState(false)
 
   // Quick Stock Edit modal state
   const [stockModalOpen, setStockModalOpen] = useState(false)
@@ -120,10 +141,18 @@ export default function ProductsPage() {
       if (catErr) throw catErr
       setCategories(catData || [])
 
-      // Fetch products with their categories
+      // Fetch units
+      const { data: unitData, error: unitErr } = await supabase
+        .from("units")
+        .select("id, name")
+        .order("name")
+      if (unitErr) throw unitErr
+      setUnits(unitData || [])
+
+      // Fetch products with their categories and units
       const { data: prodData, error: prodErr } = await supabase
         .from("products")
-        .select("*, categories:category_id ( name )")
+        .select("*, categories:category_id ( name ), units:unit_id ( name )")
         .order("created_at", { ascending: false })
       if (prodErr) throw prodErr
       setProducts((prodData as Product[]) || [])
@@ -151,7 +180,7 @@ export default function ProductsPage() {
     setName("")
     setCategoryId("")
     setPrice("")
-    setUnit("pcs")
+    setUnitId(units[0]?.id || "")
     setWeight("")
     setDescription("")
     setImageFile(null)
@@ -159,17 +188,18 @@ export default function ProductsPage() {
     setWaktuPengambilan("60")
     setIsMultiUnit(false)
     setStokAwal("0")
+    setProductUnitRows([])
     setOpen(true)
   }
 
   // Open modal for edit
-  const handleEdit = (product: Product) => {
+  const handleEdit = async (product: Product) => {
     setEditId(product.id)
     setSku(product.sku || "")
     setName(product.name)
     setCategoryId(product.category_id || "")
     setPrice(product.price.toString())
-    setUnit(product.unit || "pcs")
+    setUnitId(product.unit_id || "")
     setWeight(product.weight ? product.weight.toString() : "")
     setDescription(product.description || "")
     setImageFile(null)
@@ -177,7 +207,51 @@ export default function ProductsPage() {
     setWaktuPengambilan(product.waktu_pengambilan ? product.waktu_pengambilan.toString() : "60")
     setIsMultiUnit(!!product.is_multi_unit)
     setStokAwal(product.stock.toString())
+    setProductUnitRows([])
     setOpen(true)
+
+    if (product.is_multi_unit) {
+      setLoadingProductUnits(true)
+      try {
+        const { data, error } = await supabase
+          .from("product_units")
+          .select("id, unit_id, multiplier, price, pickup_time_seconds")
+          .eq("product_id", product.id)
+          .order("multiplier")
+        if (error) throw error
+        setProductUnitRows(
+          (data || []).map((row) => ({
+            id: row.id,
+            unit_id: row.unit_id || "",
+            multiplier: row.multiplier?.toString() || "",
+            price: row.price?.toString() || "",
+            pickup_time_seconds: row.pickup_time_seconds?.toString() || "",
+          }))
+        )
+      } catch (err: any) {
+        toast.error("Gagal memuat varian satuan: " + err.message)
+      } finally {
+        setLoadingProductUnits(false)
+      }
+    }
+  }
+
+  // Multi-unit variant row helpers
+  const addUnitRow = () => {
+    setProductUnitRows((rows) => [
+      ...rows,
+      { id: null, unit_id: "", multiplier: "1", price: "", pickup_time_seconds: "" },
+    ])
+  }
+
+  const updateUnitRow = (index: number, field: keyof ProductUnitRow, value: string) => {
+    setProductUnitRows((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    )
+  }
+
+  const removeUnitRow = (index: number) => {
+    setProductUnitRows((rows) => rows.filter((_, i) => i !== index))
   }
 
   // Handle Image Upload
@@ -213,12 +287,15 @@ export default function ProductsPage() {
         finalImageUrl = await uploadImage(imageFile)
       }
 
+      const selectedUnitName = units.find((u) => u.id === unitId)?.name || null
+
       const productPayload = {
         sku: sku || null,
         name,
         category_id: categoryId || null,
         price: parseFloat(price),
-        unit: unit || "pcs",
+        unit_id: unitId || null,
+        unit: selectedUnitName,
         weight: weight ? parseFloat(weight) : null,
         description: description || null,
         image_url: finalImageUrl || null,
@@ -226,6 +303,8 @@ export default function ProductsPage() {
         is_multi_unit: isMultiUnit,
         stock: editId ? undefined : parseInt(stokAwal) || 0, // only set stock directly on creation
       }
+
+      let productId = editId
 
       if (editId) {
         // Update product
@@ -245,8 +324,34 @@ export default function ProductsPage() {
           .single()
 
         if (error) throw error
+        productId = newProd.id
 
         toast.success("Produk berhasil ditambahkan!")
+      }
+
+      // Sync multi-unit variants (product_units)
+      if (productId) {
+        const { error: deleteErr } = await supabase
+          .from("product_units")
+          .delete()
+          .eq("product_id", productId)
+        if (deleteErr) throw deleteErr
+
+        if (isMultiUnit) {
+          const validRows = productUnitRows.filter((row) => row.unit_id && row.price)
+          if (validRows.length > 0) {
+            const rowsPayload = validRows.map((row) => ({
+              product_id: productId,
+              unit_id: row.unit_id,
+              unit_name: units.find((u) => u.id === row.unit_id)?.name || "",
+              multiplier: parseFloat(row.multiplier) || 1,
+              price: parseFloat(row.price),
+              pickup_time_seconds: row.pickup_time_seconds ? parseFloat(row.pickup_time_seconds) : null,
+            }))
+            const { error: insertErr } = await supabase.from("product_units").insert(rowsPayload)
+            if (insertErr) throw insertErr
+          }
+        }
       }
 
       setOpen(false)
@@ -501,7 +606,7 @@ export default function ProductsPage() {
                             <TableCell className="text-right font-semibold text-primary">
                               {formatRupiah(product.price)}
                             </TableCell>
-                            <TableCell className="text-center">{product.unit || "pcs"}</TableCell>
+                            <TableCell className="text-center">{product.units?.name || product.unit || "pcs"}</TableCell>
                             <TableCell className="text-right font-semibold">
                               {product.stock}
                             </TableCell>
@@ -657,18 +762,16 @@ export default function ProductsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="unit">Satuan</Label>
-                  <Select value={unit} onValueChange={setUnit} disabled={submitting}>
+                  <Select value={unitId} onValueChange={setUnitId} disabled={submitting}>
                     <SelectTrigger>
                       <SelectValue placeholder="Satuan" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pcs">pcs</SelectItem>
-                      <SelectItem value="pack">pack</SelectItem>
-                      <SelectItem value="dus">dus</SelectItem>
-                      <SelectItem value="box">box</SelectItem>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="liter">liter</SelectItem>
-                      <SelectItem value="meter">meter</SelectItem>
+                      {units.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -713,6 +816,90 @@ export default function ProductsPage() {
                   Produk Multi-Unit (Memiliki multi-kemasan seperti Pack/Dus/Pcs)
                 </Label>
               </div>
+
+              {isMultiUnit && (
+                <div className="space-y-3 rounded-md border border-border p-3 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Varian Satuan Produk</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addUnitRow}
+                      disabled={submitting || loadingProductUnits}
+                      className="h-7 text-xs"
+                    >
+                      <IconPlus className="size-3.5 mr-1" /> Tambah Varian
+                    </Button>
+                  </div>
+
+                  {loadingProductUnits ? (
+                    <div className="flex items-center justify-center py-4">
+                      <IconLoader2 className="animate-spin size-4 text-muted-foreground" />
+                    </div>
+                  ) : productUnitRows.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">
+                      Belum ada varian satuan. Klik "Tambah Varian" untuk menambahkan (mis. Pack, Dus).
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {productUnitRows.map((row, index) => (
+                        <div key={index} className="flex items-end gap-2">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-xs text-muted-foreground">Satuan</Label>
+                            <Select
+                              value={row.unit_id}
+                              onValueChange={(val) => updateUnitRow(index, "unit_id", val)}
+                              disabled={submitting}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Pilih" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {units.map((u) => (
+                                  <SelectItem key={u.id} value={u.id}>
+                                    {u.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="w-20 space-y-1">
+                            <Label className="text-xs text-muted-foreground">Isi (x)</Label>
+                            <Input
+                              type="number"
+                              className="h-8 text-xs"
+                              value={row.multiplier}
+                              onChange={(e) => updateUnitRow(index, "multiplier", e.target.value)}
+                              disabled={submitting}
+                            />
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-xs text-muted-foreground">Harga (IDR)</Label>
+                            <Input
+                              type="number"
+                              className="h-8 text-xs"
+                              value={row.price}
+                              onChange={(e) => updateUnitRow(index, "price", e.target.value)}
+                              disabled={submitting}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="size-8 shrink-0 text-destructive hover:bg-destructive/10"
+                            onClick={() => removeUnitRow(index)}
+                            disabled={submitting}
+                          >
+                            <IconX className="size-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

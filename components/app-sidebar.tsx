@@ -27,6 +27,7 @@ import {
   IconCash,
   IconShoppingCart,
   IconClock,
+  IconRuler2,
 } from "@tabler/icons-react"
 
 type Role = "admin" | "cashier"
@@ -44,6 +45,14 @@ const navMainData: { title: string; url: string; icon: React.ReactNode; roles?: 
     url: "/dashboard/products",
     icon: (
       <IconPackage />
+    ),
+    roles: ["admin"],
+  },
+  {
+    title: "Kelola Satuan",
+    url: "/dashboard/satuan",
+    icon: (
+      <IconRuler2 />
     ),
     roles: ["admin"],
   },
