@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { IconLoader2, IconClipboardList, IconActivity } from "@tabler/icons-react"
+import { IconLoader2, IconClipboardList, IconTrophy, IconPackage } from "@tabler/icons-react"
 
 type RecentOrder = {
   id: string
@@ -20,6 +20,12 @@ type RecentOrder = {
   customer_name: string | null
   total_price: number
   status: "antri" | "diproses" | "selesai" | "batal"
+}
+
+type BestSeller = {
+  name: string
+  quantity: number
+  revenue: number
 }
 
 const LOW_STOCK_THRESHOLD = 5
@@ -40,6 +46,7 @@ export default function Page() {
   })
   const [chartData, setChartData] = useState<RevenueDay[]>([])
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
+  const [bestSellers, setBestSellers] = useState<BestSeller[]>([])
 
   const fetchDashboardData = async () => {
     try {
@@ -72,9 +79,9 @@ export default function Page() {
       // 4. Calculate Critical Stock Level
       const { data: prodData, error: prodErr } = await supabase
         .from("products")
-        .select("stock_qty")
+        .select("stock")
       if (prodErr) throw prodErr
-      const lowCount = prodData ? prodData.filter((p) => p.stock_qty <= LOW_STOCK_THRESHOLD).length : 0
+      const lowCount = prodData ? prodData.filter((p) => p.stock <= LOW_STOCK_THRESHOLD).length : 0
 
       setMetrics({
         totalRevenue: totalRev,
@@ -83,21 +90,21 @@ export default function Page() {
         lowStockCount: lowCount,
       })
 
-      // 5. Fetch Daily Revenue (Last 7 Days)
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-      sevenDaysAgo.setHours(0, 0, 0, 0)
+      // 5. Fetch Daily Revenue (Last 30 Days - Monthly Visualisation)
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      thirtyDaysAgo.setHours(0, 0, 0, 0)
 
       const { data: chartPayments, error: chartErr } = await supabase
         .from("orders")
         .select("total_price, completed_at")
         .not("completed_at", "is", null)
-        .gte("completed_at", sevenDaysAgo.toISOString())
+        .gte("completed_at", thirtyDaysAgo.toISOString())
       if (chartErr) throw chartErr
 
-      // Group completed orders by date
+      // Group completed orders by date (30 days range)
       const dailyMap: Record<string, number> = {}
-      for (let i = 6; i >= 0; i--) {
+      for (let i = 29; i >= 0; i--) {
         const d = new Date()
         d.setDate(d.getDate() - i)
         const dateStr = d.toISOString().split("T")[0]
@@ -128,6 +135,37 @@ export default function Page() {
       if (recentErr) throw recentErr
 
       setRecentOrders((recent as any) || [])
+
+      // 7. Fetch Top Sold Products (Best Sellers)
+      const { data: orderItems, error: itemsErr } = await supabase
+        .from("order_items")
+        .select("quantity, price, products:product_id ( name )")
+      if (itemsErr) throw itemsErr
+
+      const salesMap: Record<string, { quantity: number; revenue: number }> = {}
+      if (orderItems) {
+        orderItems.forEach((item: any) => {
+          const prodName = item.products?.name || "Produk Terhapus"
+          const qty = item.quantity || 0
+          const rev = qty * (item.price || 0)
+          if (!salesMap[prodName]) {
+            salesMap[prodName] = { quantity: 0, revenue: 0 }
+          }
+          salesMap[prodName].quantity += qty
+          salesMap[prodName].revenue += rev
+        })
+      }
+
+      const topProducts = Object.entries(salesMap)
+        .map(([name, data]) => ({
+          name,
+          quantity: data.quantity,
+          revenue: data.revenue,
+        }))
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 5)
+
+      setBestSellers(topProducts)
     } catch (err: any) {
       toast.error("Gagal memuat dashboard: " + err.message)
     } finally {
@@ -142,13 +180,13 @@ export default function Page() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "antri":
-        return <Badge className="bg-sky-500 hover:bg-sky-600 border-none">ANTRI</Badge>
+        return <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold">ANTRI</Badge>
       case "diproses":
-        return <Badge className="bg-amber-500 hover:bg-amber-600 border-none">DIPROSES</Badge>
+        return <Badge className="bg-amber-500 hover:bg-amber-600 border-none font-semibold">DIPROSES</Badge>
       case "selesai":
-        return <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none">SELESAI</Badge>
+        return <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-semibold">SELESAI</Badge>
       case "batal":
-        return <Badge className="bg-rose-500 hover:bg-rose-600 border-none">BATAL</Badge>
+        return <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold">BATAL</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -192,13 +230,54 @@ export default function Page() {
             <SectionCards metrics={metrics} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 lg:px-6">
-              {/* Daily revenue interactive chart (Left/Center 2 cols) */}
-              <div className="lg:col-span-2">
+              {/* Monthly revenue interactive chart (Left/Center 2 cols) */}
+              <div className="lg:col-span-2 space-y-6">
                 <ChartAreaInteractive data={chartData} />
+                
+                {/* Best Sellers List widget */}
+                <Card className="border-border/50 shadow-md">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <IconTrophy className="size-5 text-amber-500 animate-bounce" /> Produk Terlaris
+                    </CardTitle>
+                    <CardDescription>Menampilkan 5 produk dengan jumlah penjualan terbanyak</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {bestSellers.length === 0 ? (
+                      <div className="text-center py-12 text-sm text-muted-foreground">
+                        Belum ada data penjualan produk
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nama Produk</TableHead>
+                            <TableHead className="text-center">Jumlah Terjual</TableHead>
+                            <TableHead className="text-right">Total Pendapatan</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {bestSellers.map((item, idx) => (
+                            <TableRow key={idx} className="hover:bg-muted/30 transition-colors">
+                              <TableCell className="font-semibold flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground font-mono">#{idx + 1}</span>
+                                {item.name}
+                              </TableCell>
+                              <TableCell className="text-center font-bold text-primary">{item.quantity} unit</TableCell>
+                              <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                                {formatRupiah(item.revenue)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Recent Orders List widget (Right 1 col) */}
-              <Card className="border-border/50 shadow-md">
+              <Card className="border-border/50 shadow-md h-fit">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <IconClipboardList className="size-5 text-primary" /> Pesanan Terbaru

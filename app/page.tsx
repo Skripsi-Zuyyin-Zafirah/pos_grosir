@@ -56,6 +56,9 @@ export default function LandingPage() {
   }, [])
 
   const handleLogout = async () => {
+    const confirmLogout = window.confirm("Apakah Anda yakin ingin keluar dari akun?")
+    if (!confirmLogout) return
+
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error

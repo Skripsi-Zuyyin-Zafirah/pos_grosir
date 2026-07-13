@@ -26,6 +26,7 @@ import {
   IconClipboardCheck,
   IconCash,
   IconShoppingCart,
+  IconClock,
 } from "@tabler/icons-react"
 
 type Role = "admin" | "cashier"
@@ -39,7 +40,7 @@ const navMainData: { title: string; url: string; icon: React.ReactNode; roles?: 
     ),
   },
   {
-    title: "Kelola Produk",
+    title: "Kelola Produk dan Stok",
     url: "/dashboard/products",
     icon: (
       <IconPackage />
@@ -47,10 +48,10 @@ const navMainData: { title: string; url: string; icon: React.ReactNode; roles?: 
     roles: ["admin"],
   },
   {
-    title: "Kelola Stok",
-    url: "/dashboard/inventory",
+    title: "Waktu Pengambilan",
+    url: "/dashboard/waktu-pengambilan",
     icon: (
-      <IconDatabase />
+      <IconClock />
     ),
     roles: ["admin"],
   },
@@ -92,20 +93,11 @@ const navMainData: { title: string; url: string; icon: React.ReactNode; roles?: 
   },
 ]
 
-const navSecondaryData: { title: string; url: string; icon: React.ReactNode; roles?: Role[] }[] = [
-  {
-    title: "Pengaturan",
-    url: "/dashboard/settings",
-    icon: (
-      <IconSettings />
-    ),
-    roles: ["admin"],
-  },
-]
+const navSecondaryData: { title: string; url: string; icon: React.ReactNode; roles?: Role[] }[] = []
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const supabase = createClient()
-  const [currentUser, setCurrentUser] = useState({
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; avatar: string; role?: string }>({
     name: "Admin POS",
     email: "admin@posgrosir.com",
     avatar: "",
@@ -126,6 +118,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           name: profile?.full_name || session.user.email?.split("@")[0] || "User",
           email: session.user.email || "",
           avatar: "",
+          role: profile?.role || "cashier",
         })
         if (profile?.role === "admin" || profile?.role === "cashier") {
           setRole(profile.role)

@@ -326,11 +326,13 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          is_multi_unit: boolean | null
           name: string
           price: number
           sku: string | null
           stock: number
           unit: string | null
+          waktu_pengambilan: number | null
           weight: number | null
         }
         Insert: {
@@ -339,11 +341,13 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          is_multi_unit?: boolean | null
           name: string
           price?: number
           sku?: string | null
           stock?: number
           unit?: string | null
+          waktu_pengambilan?: number | null
           weight?: number | null
         }
         Update: {
@@ -352,11 +356,13 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          is_multi_unit?: boolean | null
           name?: string
           price?: number
           sku?: string | null
           stock?: number
           unit?: string | null
+          waktu_pengambilan?: number | null
           weight?: number | null
         }
         Relationships: [
@@ -509,6 +515,44 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      stock_mutations: {
+        Row: {
+          id: string
+          product_id: string | null
+          change_qty: number
+          type: string
+          notes: string | null
+          created_at: string
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          product_id?: string | null
+          change_qty: number
+          type: string
+          notes?: string | null
+          created_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          product_id?: string | null
+          change_qty?: number
+          type?: string
+          notes?: string | null
+          created_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_mutations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          }
         ]
       }
       system_settings: {

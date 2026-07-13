@@ -54,7 +54,7 @@ function LoginForm() {
       if (role === "admin" || role === "cashier") {
         router.push("/dashboard")
       } else {
-        router.push(next)
+        router.push(next === "/" ? "/customer/katalog" : next)
       }
       router.refresh()
     } catch (err: any) {
@@ -152,16 +152,13 @@ function LoginForm() {
               Daftar Sekarang
             </Link>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-            className="w-full text-muted-foreground hover:text-foreground"
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            <Link href="/">
-              <IconArrowLeft className="size-4 mr-1.5" /> Kembali ke Beranda
-            </Link>
-          </Button>
+            <IconArrowLeft className="size-4" />
+            Kembali ke Beranda
+          </Link>
         </CardFooter>
       </Card>
     </div>

@@ -28,7 +28,7 @@ import {
 export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const supabase = createClient()
   const { totalItems } = useCart()
-  const [currentUser, setCurrentUser] = useState({
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; avatar: string; role?: string }>({
     name: "Pelanggan",
     email: "",
     avatar: "",
@@ -94,6 +94,7 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
           name: profile?.full_name || session.user.email?.split("@")[0] || "Pelanggan",
           email: session.user.email || "",
           avatar: "",
+          role: "customer",
         })
       }
     }

@@ -22,7 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { IconDotsVertical, IconLogout } from "@tabler/icons-react"
+import { IconDotsVertical, IconLogout, IconUser } from "@tabler/icons-react"
 
 export function NavUser({
   user,
@@ -31,6 +31,7 @@ export function NavUser({
     name: string
     email: string
     avatar: string
+    role?: string
   }
 }) {
   const { isMobile } = useSidebar()
@@ -38,6 +39,9 @@ export function NavUser({
   const supabase = createClient()
 
   const handleLogout = async () => {
+    const confirmLogout = window.confirm("Apakah Anda yakin ingin keluar dari akun?")
+    if (!confirmLogout) return
+
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
@@ -91,6 +95,11 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push(user.role === "customer" ? "/customer/profile" : "/dashboard/profile")} className="cursor-pointer">
+              <IconUser className="size-4" />
+              Profil Akun
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-rose-500 hover:text-rose-600 focus:text-rose-600 cursor-pointer">
               <IconLogout className="size-4" />

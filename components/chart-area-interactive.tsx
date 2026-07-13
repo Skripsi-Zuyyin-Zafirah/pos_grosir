@@ -30,9 +30,9 @@ export function ChartAreaInteractive({ data }: ChartProps) {
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>Grafik Pendapatan Harian</CardTitle>
+        <CardTitle>Grafik Pendapatan Bulanan</CardTitle>
         <CardDescription>
-          Menampilkan tren omzet penjualan dalam 7 hari terakhir
+          Menampilkan tren omzet penjualan dalam 30 hari terakhir
         </CardDescription>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">

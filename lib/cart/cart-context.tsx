@@ -4,18 +4,26 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 export type CartItem = {
   productId: string
+  unitId: string | null      // null untuk produk single-unit
+  unitName: string | null    // nama kemasan, e.g. "Pack", "Dus"
+  multiplier: number         // berapa pcs per unit, e.g. Pack = 10 pcs
   name: string
-  price: number
+  price: number              // harga per unit kemasan
   imageUrl: string | null
-  stockQty: number
+  stockQty: number           // stok dalam satuan unit kemasan
   quantity: number
+}
+
+// Unique key per kombinasi produk+unit agar bisa add 2 kemasan berbeda dari produk sama
+export function cartItemKey(productId: string, unitId: string | null) {
+  return unitId ? `${productId}::${unitId}` : productId
 }
 
 type CartContextValue = {
   items: CartItem[]
   addItem: (item: Omit<CartItem, "quantity">, qty?: number) => void
-  removeItem: (productId: string) => void
-  updateQuantity: (productId: string, qty: number) => void
+  removeItem: (productId: string, unitId?: string | null) => void
+  updateQuantity: (productId: string, qty: number, unitId?: string | null) => void
   clearCart: () => void
   totalItems: number
   totalPrice: number
@@ -23,7 +31,7 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | undefined>(undefined)
 
-const STORAGE_KEY = "pos_grosir_customer_cart"
+const STORAGE_KEY = "pos_grosir_customer_cart_v2"
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
@@ -45,11 +53,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items, hydrated])
 
   const addItem = useCallback((item: Omit<CartItem, "quantity">, qty: number = 1) => {
+    const key = cartItemKey(item.productId, item.unitId)
     setItems((prev) => {
-      const existing = prev.find((i) => i.productId === item.productId)
+      const existing = prev.find(
+        (i) => cartItemKey(i.productId, i.unitId) === key
+      )
       if (existing) {
         return prev.map((i) =>
-          i.productId === item.productId
+          cartItemKey(i.productId, i.unitId) === key
             ? { ...i, quantity: Math.min(i.quantity + qty, item.stockQty || i.quantity + qty) }
             : i
         )
@@ -58,14 +69,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((i) => i.productId !== productId))
+  const removeItem = useCallback((productId: string, unitId: string | null = null) => {
+    const key = cartItemKey(productId, unitId)
+    setItems((prev) => prev.filter((i) => cartItemKey(i.productId, i.unitId) !== key))
   }, [])
 
-  const updateQuantity = useCallback((productId: string, qty: number) => {
+  const updateQuantity = useCallback((productId: string, qty: number, unitId: string | null = null) => {
+    const key = cartItemKey(productId, unitId)
     setItems((prev) => {
-      if (qty <= 0) return prev.filter((i) => i.productId !== productId)
-      return prev.map((i) => (i.productId === productId ? { ...i, quantity: qty } : i))
+      if (qty <= 0) return prev.filter((i) => cartItemKey(i.productId, i.unitId) !== key)
+      return prev.map((i) =>
+        cartItemKey(i.productId, i.unitId) === key ? { ...i, quantity: qty } : i
+      )
     })
   }, [])
 

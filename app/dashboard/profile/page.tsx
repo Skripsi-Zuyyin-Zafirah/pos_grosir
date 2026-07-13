@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { CustomerSidebar } from "@/components/customer-sidebar"
+import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
@@ -23,13 +23,13 @@ import {
   IconMapPin,
 } from "@tabler/icons-react"
 
-export default function CustomerProfilePage() {
+export default function AdminProfilePage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [email, setEmail] = useState("")
-  const [role, setRole] = useState<string>("customer")
+  const [role, setRole] = useState<string>("admin")
 
   // Profile form
   const [fullName, setFullName] = useState("")
@@ -62,7 +62,7 @@ export default function CustomerProfilePage() {
         if (error) throw error
 
         setFullName(profile?.full_name || "")
-        setRole(profile?.role || "customer")
+        setRole(profile?.role || "admin")
         setPhoneNumber(profile?.phone_number || "")
         setAddress(profile?.address || "")
       } catch (err: any) {
@@ -144,7 +144,7 @@ export default function CustomerProfilePage() {
         } as React.CSSProperties
       }
     >
-      <CustomerSidebar variant="inset" />
+      <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
         {loading ? (
@@ -155,9 +155,9 @@ export default function CustomerProfilePage() {
         ) : (
           <div className="flex flex-1 flex-col py-6 space-y-6 px-4 lg:px-6">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Profil Akun</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Profil Admin</h1>
               <p className="text-muted-foreground mt-1">
-                Kelola informasi akun dan keamanan Anda.
+                Kelola informasi profil admin dan keamanan Anda.
               </p>
             </div>
 
@@ -169,7 +169,7 @@ export default function CustomerProfilePage() {
                     <CardTitle className="flex items-center gap-2">
                       <IconUser className="size-5 text-primary" /> Informasi Profil
                     </CardTitle>
-                    <CardDescription>Perbarui nama yang tampil pada pesanan Anda.</CardDescription>
+                    <CardDescription>Perbarui nama dan kontak profil Anda.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
                     <div className="space-y-2">
@@ -225,7 +225,7 @@ export default function CustomerProfilePage() {
                         <IconMapPin className="absolute left-3 top-3 size-4 text-muted-foreground" />
                         <textarea
                           id="address"
-                          placeholder="Nama jalan, nomor rumah, kecamatan, kota..."
+                          placeholder="Alamat lengkap..."
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
                           disabled={savingProfile}
@@ -257,7 +257,7 @@ export default function CustomerProfilePage() {
                     <CardTitle className="flex items-center gap-2">
                       <IconShieldLock className="size-5 text-primary" /> Keamanan
                     </CardTitle>
-                    <CardDescription>Ganti password akun Anda secara berkala.</CardDescription>
+                    <CardDescription>Ganti password akun Anda.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
                     <div className="space-y-2">

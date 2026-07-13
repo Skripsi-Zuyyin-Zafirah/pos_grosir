@@ -110,7 +110,7 @@ function RegisterForm() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phoneNumber">No. Telepon</Label>
+              <Label htmlFor="phoneNumber">Nomor Telepon</Label>
               <div className="relative">
                 <IconPhone className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                 <Input
@@ -204,16 +204,22 @@ function RegisterForm() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-3 text-center text-sm text-muted-foreground">
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-            className="w-full text-muted-foreground hover:text-foreground"
-          >
-            <Link href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}>
-              <IconArrowLeft className="size-4 mr-1.5" /> Kembali ke Login
+          <div>
+            Sudah memiliki akun?{" "}
+            <Link
+              href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
+              className="font-medium text-primary hover:underline underline-offset-4"
+            >
+              Masuk
             </Link>
-          </Button>
+          </div>
+          <Link
+            href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
+            className="inline-flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <IconArrowLeft className="size-4" />
+            Kembali ke Login
+          </Link>
         </CardFooter>
       </Card>
     </div>
