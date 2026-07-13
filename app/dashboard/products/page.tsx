@@ -29,6 +29,9 @@ import {
   IconChevronRight,
   IconDatabase,
   IconX,
+  IconArrowsSort,
+  IconSortAscending,
+  IconSortDescending,
 } from "@tabler/icons-react"
 
 type Product = {
@@ -90,7 +93,30 @@ export default function ProductsPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 8
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  // Sorting state
+  type SortKey = "sku" | "name" | "category" | "price" | "unit" | "stock"
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortKey(key)
+      setSortDir("asc")
+    }
+  }
+
+  const SortIcon = ({ column }: { column: SortKey }) => {
+    if (sortKey !== column) return <IconArrowsSort className="size-3.5 text-muted-foreground/50" />
+    return sortDir === "asc" ? (
+      <IconSortAscending className="size-3.5 text-foreground" />
+    ) : (
+      <IconSortDescending className="size-3.5 text-foreground" />
+    )
+  }
 
   // Main Form modal state
   const [open, setOpen] = useState(false)
@@ -127,7 +153,13 @@ export default function ProductsPage() {
   const [mutations, setMutations] = useState<StockMutation[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
-  const cameraInputRef = useRef<HTMLInputElement>(null)
+  // Live camera capture modal state
+  const [cameraModalOpen, setCameraModalOpen] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [cameraLoading, setCameraLoading] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const cameraStreamRef = useRef<MediaStream | null>(null)
 
   // Fetch products and categories
   const fetchData = async () => {
@@ -275,6 +307,63 @@ export default function ProductsPage() {
     return data.publicUrl
   }
 
+  // Open the live camera capture modal
+  const handleOpenCamera = async () => {
+    setCameraError(null)
+    setCameraModalOpen(true)
+    setCameraLoading(true)
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Perangkat/browser ini tidak mendukung akses kamera.")
+      setCameraLoading(false)
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      })
+      cameraStreamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+    } catch (err: any) {
+      setCameraError("Gagal mengakses kamera: " + (err.message || "Izin ditolak atau kamera tidak tersedia."))
+    } finally {
+      setCameraLoading(false)
+    }
+  }
+
+  // Stop camera tracks and close the modal
+  const handleCloseCamera = () => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop())
+    cameraStreamRef.current = null
+    setCameraModalOpen(false)
+    setCameraError(null)
+  }
+
+  // Snapshot the current video frame as the product image
+  const handleCapturePhoto = () => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" })
+      setImageFile(file)
+      handleCloseCamera()
+    }, "image/jpeg", 0.9)
+  }
+
   // Submit form
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -325,6 +414,19 @@ export default function ProductsPage() {
 
         if (error) throw error
         productId = newProd.id
+
+        const initialStock = parseInt(stokAwal) || 0
+        if (initialStock > 0) {
+          const { data: { user } } = await supabase.auth.getUser()
+          const { error: mutationErr } = await supabase.from("stock_mutations").insert({
+            product_id: productId,
+            change_qty: initialStock,
+            type: "initial",
+            notes: "Stok awal saat produk dibuat",
+            user_id: user?.id || null,
+          })
+          if (mutationErr) console.error("Gagal mencatat riwayat stok:", mutationErr.message)
+        }
 
         toast.success("Produk berhasil ditambahkan!")
       }
@@ -403,6 +505,16 @@ export default function ProductsPage() {
 
       if (error) throw error
 
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error: mutationErr } = await supabase.from("stock_mutations").insert({
+        product_id: stockProduct.id,
+        change_qty: stockAction === "set" ? newStock - stockProduct.stock : value,
+        type: stockAction === "set" ? "adjustment" : value >= 0 ? "restock" : "adjustment",
+        notes: stockNotes || null,
+        user_id: user?.id || null,
+      })
+      if (mutationErr) console.error("Gagal mencatat riwayat stok:", mutationErr.message)
+
       toast.success("Stok berhasil diperbarui!")
       setStockModalOpen(false)
       fetchData()
@@ -461,16 +573,55 @@ export default function ProductsPage() {
     return matchesSearch && matchesCategory
   })
 
+  // Sorted products list
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (!sortKey) return 0
+    let valA: string | number
+    let valB: string | number
+    switch (sortKey) {
+      case "sku":
+        valA = a.sku || ""
+        valB = b.sku || ""
+        break
+      case "name":
+        valA = a.name
+        valB = b.name
+        break
+      case "category":
+        valA = a.categories?.name || ""
+        valB = b.categories?.name || ""
+        break
+      case "price":
+        valA = a.price
+        valB = b.price
+        break
+      case "unit":
+        valA = a.units?.name || a.unit || ""
+        valB = b.units?.name || b.unit || ""
+        break
+      case "stock":
+        valA = a.stock
+        valB = b.stock
+        break
+    }
+    if (typeof valA === "number" && typeof valB === "number") {
+      return sortDir === "asc" ? valA - valB : valB - valA
+    }
+    return sortDir === "asc"
+      ? String(valA).localeCompare(String(valB))
+      : String(valB).localeCompare(String(valA))
+  })
+
   // Pagination calculation
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
-  const paginatedProducts = filteredProducts.slice(
+  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage)
+  const paginatedProducts = sortedProducts.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   )
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, filterCategory])
+  }, [search, filterCategory, itemsPerPage, sortKey, sortDir])
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -564,12 +715,36 @@ export default function ProductsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[80px]">Foto</TableHead>
-                          <TableHead>SKU</TableHead>
-                          <TableHead>Nama Produk</TableHead>
-                          <TableHead>Kategori</TableHead>
-                          <TableHead className="text-right">Harga Grosir</TableHead>
-                          <TableHead className="text-center">Satuan</TableHead>
-                          <TableHead className="text-right">Stok</TableHead>
+                          <TableHead>
+                            <button type="button" onClick={() => handleSort("sku")} className="flex items-center gap-1 hover:text-foreground">
+                              SKU <SortIcon column="sku" />
+                            </button>
+                          </TableHead>
+                          <TableHead>
+                            <button type="button" onClick={() => handleSort("name")} className="flex items-center gap-1 hover:text-foreground">
+                              Nama Produk <SortIcon column="name" />
+                            </button>
+                          </TableHead>
+                          <TableHead>
+                            <button type="button" onClick={() => handleSort("category")} className="flex items-center gap-1 hover:text-foreground">
+                              Kategori <SortIcon column="category" />
+                            </button>
+                          </TableHead>
+                          <TableHead className="text-right">
+                            <button type="button" onClick={() => handleSort("price")} className="flex items-center gap-1 ml-auto hover:text-foreground">
+                              Harga Grosir <SortIcon column="price" />
+                            </button>
+                          </TableHead>
+                          <TableHead className="text-center">
+                            <button type="button" onClick={() => handleSort("unit")} className="flex items-center gap-1 mx-auto hover:text-foreground">
+                              Satuan <SortIcon column="unit" />
+                            </button>
+                          </TableHead>
+                          <TableHead className="text-right">
+                            <button type="button" onClick={() => handleSort("stock")} className="flex items-center gap-1 ml-auto hover:text-foreground">
+                              Stok <SortIcon column="stock" />
+                            </button>
+                          </TableHead>
                           <TableHead className="w-[180px] text-center">Aksi</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -614,12 +789,12 @@ export default function ProductsPage() {
                               <div className="flex items-center justify-center gap-1.5">
                                 <Button
                                   variant="outline"
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => handleOpenStockEdit(product)}
-                                  className="h-8 px-2 text-xs font-semibold"
+                                  className="size-8"
                                   title="Update Stok"
                                 >
-                                  <IconDatabase className="size-3.5 mr-1" /> Update Stok
+                                  <IconDatabase className="size-4" />
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -657,34 +832,51 @@ export default function ProductsPage() {
                   </div>
 
                   {/* Pagination Footer */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 text-sm text-muted-foreground">
-                      <p>
-                        Menampilkan halaman <span className="font-semibold text-foreground">{currentPage}</span> dari{" "}
-                        <span className="font-semibold text-foreground">{totalPages}</span>
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          disabled={currentPage === 1}
-                          onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                          className="size-8"
-                        >
-                          <IconChevronLeft className="size-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          disabled={currentPage === totalPages}
-                          onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                          className="size-8"
-                        >
-                          <IconChevronRight className="size-4" />
-                        </Button>
-                      </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/50 pt-4 mt-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span>Tampilkan</span>
+                      <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(parseInt(val))}>
+                        <SelectTrigger className="h-8 w-[72px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span>per halaman</span>
                     </div>
-                  )}
+
+                    {totalPages > 1 && (
+                      <div className="flex items-center gap-3">
+                        <p>
+                          Halaman <span className="font-semibold text-foreground">{currentPage}</span> dari{" "}
+                          <span className="font-semibold text-foreground">{totalPages}</span>
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                            className="size-8"
+                          >
+                            <IconChevronLeft className="size-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                            className="size-8"
+                          >
+                            <IconChevronRight className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </CardContent>
@@ -693,7 +885,7 @@ export default function ProductsPage() {
 
         {/* Create/Edit Product Dialog */}
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editId ? "Edit Produk" : "Tambah Produk Baru"}</DialogTitle>
               <DialogDescription>
@@ -701,258 +893,261 @@ export default function ProductsPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU (Stock Keeping Unit)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="sku"
-                      placeholder="PRD-XXXXX"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value)}
-                      disabled={submitting}
-                      className="font-mono text-xs font-semibold"
-                    />
-                    <Button type="button" variant="outline" onClick={generateSKU} className="px-2" title="Generate SKU">
-                      <IconRefresh className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="categoryId">Kategori</Label>
-                  <Select value={categoryId} onValueChange={setCategoryId} disabled={submitting}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih Kategori" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name">Nama Produk</Label>
-                <Input
-                  id="name"
-                  placeholder="Gula Pasir 1kg"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="price">Harga Grosir (IDR)</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    placeholder="15000"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    required
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unit">Satuan</Label>
-                  <Select value={unitId} onValueChange={setUnitId} disabled={submitting}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Satuan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="waktuPengambilan">Waktu Pengambilan (detik)</Label>
-                  <Input
-                    id="waktuPengambilan"
-                    type="number"
-                    placeholder="60"
-                    value={waktuPengambilan}
-                    onChange={(e) => setWaktuPengambilan(e.target.value)}
-                    required
-                    disabled={submitting}
-                  />
-                </div>
-                {!editId && (
-                  <div className="space-y-2">
-                    <Label htmlFor="stokAwal">Stok Awal</Label>
-                    <Input
-                      id="stokAwal"
-                      type="number"
-                      placeholder="0"
-                      value={stokAwal}
-                      onChange={(e) => setStokAwal(e.target.value)}
-                      disabled={submitting}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-2 py-2">
-                <Checkbox
-                  id="isMultiUnit"
-                  checked={isMultiUnit}
-                  onCheckedChange={(checked) => setIsMultiUnit(!!checked)}
-                  disabled={submitting}
-                />
-                <Label htmlFor="isMultiUnit" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Produk Multi-Unit (Memiliki multi-kemasan seperti Pack/Dus/Pcs)
-                </Label>
-              </div>
-
-              {isMultiUnit && (
-                <div className="space-y-3 rounded-md border border-border p-3 bg-muted/20">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-semibold">Varian Satuan Produk</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addUnitRow}
-                      disabled={submitting || loadingProductUnits}
-                      className="h-7 text-xs"
-                    >
-                      <IconPlus className="size-3.5 mr-1" /> Tambah Varian
-                    </Button>
-                  </div>
-
-                  {loadingProductUnits ? (
-                    <div className="flex items-center justify-center py-4">
-                      <IconLoader2 className="animate-spin size-4 text-muted-foreground" />
-                    </div>
-                  ) : productUnitRows.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-2">
-                      Belum ada varian satuan. Klik "Tambah Varian" untuk menambahkan (mis. Pack, Dus).
-                    </p>
-                  ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                {/* Left column: core product info */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      {productUnitRows.map((row, index) => (
-                        <div key={index} className="flex items-end gap-2">
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-xs text-muted-foreground">Satuan</Label>
-                            <Select
-                              value={row.unit_id}
-                              onValueChange={(val) => updateUnitRow(index, "unit_id", val)}
-                              disabled={submitting}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Pilih" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {units.map((u) => (
-                                  <SelectItem key={u.id} value={u.id}>
-                                    {u.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="w-20 space-y-1">
-                            <Label className="text-xs text-muted-foreground">Isi (x)</Label>
-                            <Input
-                              type="number"
-                              className="h-8 text-xs"
-                              value={row.multiplier}
-                              onChange={(e) => updateUnitRow(index, "multiplier", e.target.value)}
-                              disabled={submitting}
-                            />
-                          </div>
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-xs text-muted-foreground">Harga (IDR)</Label>
-                            <Input
-                              type="number"
-                              className="h-8 text-xs"
-                              value={row.price}
-                              onChange={(e) => updateUnitRow(index, "price", e.target.value)}
-                              disabled={submitting}
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="size-8 shrink-0 text-destructive hover:bg-destructive/10"
-                            onClick={() => removeUnitRow(index)}
-                            disabled={submitting}
-                          >
-                            <IconX className="size-3.5" />
-                          </Button>
-                        </div>
-                      ))}
+                      <Label htmlFor="sku">SKU (Stock Keeping Unit)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="sku"
+                          placeholder="PRD-XXXXX"
+                          value={sku}
+                          onChange={(e) => setSku(e.target.value)}
+                          disabled={submitting}
+                          className="font-mono text-xs font-semibold"
+                        />
+                        <Button type="button" variant="outline" onClick={generateSKU} className="px-2" title="Generate SKU">
+                          <IconRefresh className="size-4" />
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
+                    <div className="space-y-2">
+                      <Label htmlFor="categoryId">Kategori</Label>
+                      <Select value={categoryId} onValueChange={setCategoryId} disabled={submitting}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih Kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="image">Foto Produk (Upload File)</Label>
-                  <Input
-                    id="image"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                    disabled={submitting}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nama Produk</Label>
+                    <Input
+                      id="name"
+                      placeholder="Gula Pasir 1kg"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="price">Harga Grosir (IDR)</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        placeholder="15000"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        required
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="unit">Satuan</Label>
+                      <Select value={unitId} onValueChange={setUnitId} disabled={submitting}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Satuan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {units.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="waktuPengambilan">Waktu Pengambilan (detik)</Label>
+                      <Input
+                        id="waktuPengambilan"
+                        type="number"
+                        placeholder="60"
+                        value={waktuPengambilan}
+                        onChange={(e) => setWaktuPengambilan(e.target.value)}
+                        required
+                        disabled={submitting}
+                      />
+                    </div>
+                    {!editId && (
+                      <div className="space-y-2">
+                        <Label htmlFor="stokAwal">Stok Awal</Label>
+                        <Input
+                          id="stokAwal"
+                          type="number"
+                          placeholder="0"
+                          value={stokAwal}
+                          onChange={(e) => setStokAwal(e.target.value)}
+                          disabled={submitting}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Deskripsi Produk</Label>
+                    <textarea
+                      id="description"
+                      placeholder="Penjelasan detail tentang produk..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      disabled={submitting}
+                      className="w-full min-h-[100px] px-3 py-2 border rounded-md text-sm bg-background border-input focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2 flex flex-col justify-end">
-                  <Label htmlFor="cameraInput">Ambil Gambar Kamera</Label>
-                  <div className="flex items-center gap-2">
+
+                {/* Right column: image + multi-unit variants */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="image">Foto Produk (Upload File)</Label>
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                      disabled={submitting}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ambil Gambar Kamera</Label>
                     <Button
                       type="button"
                       variant="outline"
                       className="w-full h-10 gap-1.5"
-                      onClick={() => cameraInputRef.current?.click()}
+                      onClick={handleOpenCamera}
                       disabled={submitting}
                     >
                       <IconCamera className="size-4 text-muted-foreground" /> Kamera Langsung
                     </Button>
-                    <input
-                      ref={cameraInputRef}
-                      id="cameraInput"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                    />
                   </div>
+
+                  {imageFile && (
+                    <p className="text-xs text-emerald-600 font-medium">
+                      File terpilih: {imageFile.name}
+                    </p>
+                  )}
+
+                  {imageUrl && !imageFile && (
+                    <img
+                      src={imageUrl}
+                      alt="Pratinjau produk"
+                      className="h-28 w-28 object-cover rounded-md border border-border"
+                    />
+                  )}
+
+                  <div className="flex items-center space-x-2 py-2">
+                    <Checkbox
+                      id="isMultiUnit"
+                      checked={isMultiUnit}
+                      onCheckedChange={(checked) => setIsMultiUnit(!!checked)}
+                      disabled={submitting}
+                    />
+                    <Label htmlFor="isMultiUnit" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Produk Multi-Unit (Pack/Dus/Pcs)
+                    </Label>
+                  </div>
+
+                  {isMultiUnit && (
+                    <div className="space-y-3 rounded-md border border-border p-3 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Varian Satuan Produk</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addUnitRow}
+                          disabled={submitting || loadingProductUnits}
+                          className="h-7 text-xs"
+                        >
+                          <IconPlus className="size-3.5 mr-1" /> Tambah Varian
+                        </Button>
+                      </div>
+
+                      {loadingProductUnits ? (
+                        <div className="flex items-center justify-center py-4">
+                          <IconLoader2 className="animate-spin size-4 text-muted-foreground" />
+                        </div>
+                      ) : productUnitRows.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-2">
+                          Belum ada varian satuan. Klik "Tambah Varian" untuk menambahkan (mis. Pack, Dus).
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {productUnitRows.map((row, index) => (
+                            <div key={index} className="flex items-end gap-2">
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-xs text-muted-foreground">Satuan</Label>
+                                <Select
+                                  value={row.unit_id}
+                                  onValueChange={(val) => updateUnitRow(index, "unit_id", val)}
+                                  disabled={submitting}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Pilih" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {units.map((u) => (
+                                      <SelectItem key={u.id} value={u.id}>
+                                        {u.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="w-20 space-y-1">
+                                <Label className="text-xs text-muted-foreground">Isi (x)</Label>
+                                <Input
+                                  type="number"
+                                  className="h-8 text-xs"
+                                  value={row.multiplier}
+                                  onChange={(e) => updateUnitRow(index, "multiplier", e.target.value)}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-xs text-muted-foreground">Harga (IDR)</Label>
+                                <Input
+                                  type="number"
+                                  className="h-8 text-xs"
+                                  value={row.price}
+                                  onChange={(e) => updateUnitRow(index, "price", e.target.value)}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="size-8 shrink-0 text-destructive hover:bg-destructive/10"
+                                onClick={() => removeUnitRow(index)}
+                                disabled={submitting}
+                              >
+                                <IconX className="size-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {imageFile && (
-                <p className="text-xs text-emerald-600 font-medium">
-                  File terpilih: {imageFile.name}
-                </p>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Deskripsi Produk</Label>
-                <textarea
-                  id="description"
-                  placeholder="Penjelasan detail tentang produk..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={submitting}
-                  className="w-full min-h-[80px] px-3 py-2 border rounded-md text-sm bg-background border-input focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
               </div>
 
               <DialogFooter className="mt-6">
@@ -1098,6 +1293,53 @@ export default function ProductsPage() {
                 </div>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Live Camera Capture Dialog */}
+        <Dialog
+          open={cameraModalOpen}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) handleCloseCamera()
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Ambil Gambar Kamera</DialogTitle>
+              <DialogDescription>
+                Arahkan kamera ke produk, lalu klik "Ambil Foto".
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              {cameraError ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
+                  <p className="text-sm text-destructive">{cameraError}</p>
+                  <Button type="button" variant="outline" size="sm" onClick={handleOpenCamera}>
+                    <IconRefresh className="size-3.5 mr-1.5" /> Coba Lagi
+                  </Button>
+                </div>
+              ) : (
+                <div className="relative rounded-md overflow-hidden bg-black aspect-video">
+                  {cameraLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <IconLoader2 className="animate-spin size-6 text-white" />
+                    </div>
+                  )}
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                </div>
+              )}
+              <canvas ref={canvasRef} className="hidden" />
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button type="button" variant="outline" onClick={handleCloseCamera}>
+                Batal
+              </Button>
+              <Button type="button" onClick={handleCapturePhoto} disabled={!!cameraError || cameraLoading}>
+                <IconCamera className="size-4 mr-2" /> Ambil Foto
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </SidebarInset>

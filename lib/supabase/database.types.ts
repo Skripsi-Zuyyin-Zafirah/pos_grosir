@@ -312,6 +312,51 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_mutations: {
+        Row: {
+          change_qty: number
+          created_at: string
+          id: string
+          notes: string | null
+          product_id: string | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          change_qty: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          change_qty?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_mutations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_mutations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff: {
         Row: {
           created_at: string | null

@@ -25,7 +25,21 @@ import {
   IconPackage,
   IconLayersLinked,
   IconX,
+  IconArrowsSort,
+  IconSortAscending,
+  IconSortDescending,
+  IconChevronLeft,
+  IconChevronRight,
 } from "@tabler/icons-react"
+
+function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
+  if (!active) return <IconArrowsSort className="size-3.5 text-muted-foreground/50" />
+  return dir === "asc" ? (
+    <IconSortAscending className="size-3.5 text-foreground" />
+  ) : (
+    <IconSortDescending className="size-3.5 text-foreground" />
+  )
+}
 
 type Unit = {
   id: string
@@ -61,11 +75,25 @@ export default function SatuanPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [name, setName] = useState("")
 
+  // Units table: sorting + pagination
+  type UnitSortKey = "name" | "usage"
+  const [unitSortKey, setUnitSortKey] = useState<UnitSortKey>("name")
+  const [unitSortDir, setUnitSortDir] = useState<"asc" | "desc">("asc")
+  const [unitPage, setUnitPage] = useState(1)
+  const [unitItemsPerPage, setUnitItemsPerPage] = useState(10)
+
   // Assign-to-product tab state
   const [products, setProducts] = useState<ProductAssignRow[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [productSearch, setProductSearch] = useState("")
   const [assigningId, setAssigningId] = useState<string | null>(null)
+
+  // Products (assign) table: sorting + pagination
+  type ProductSortKey = "sku" | "name" | "category" | "unit"
+  const [productSortKey, setProductSortKey] = useState<ProductSortKey>("name")
+  const [productSortDir, setProductSortDir] = useState<"asc" | "desc">("asc")
+  const [productPage, setProductPage] = useState(1)
+  const [productItemsPerPage, setProductItemsPerPage] = useState(10)
 
   // Variant (multi-unit) management dialog state
   const [variantOpen, setVariantOpen] = useState(false)
@@ -300,8 +328,43 @@ export default function SatuanPage() {
     }
   }
 
+  const handleUnitSort = (key: UnitSortKey) => {
+    if (unitSortKey === key) {
+      setUnitSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setUnitSortKey(key)
+      setUnitSortDir("asc")
+    }
+  }
+
+  const handleProductSort = (key: ProductSortKey) => {
+    if (productSortKey === key) {
+      setProductSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setProductSortKey(key)
+      setProductSortDir("asc")
+    }
+  }
+
   const filteredUnits = units.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const sortedUnits = [...filteredUnits].sort((a, b) => {
+    const valA = unitSortKey === "name" ? a.name : usageCounts[a.id] || 0
+    const valB = unitSortKey === "name" ? b.name : usageCounts[b.id] || 0
+    if (typeof valA === "number" && typeof valB === "number") {
+      return unitSortDir === "asc" ? valA - valB : valB - valA
+    }
+    return unitSortDir === "asc"
+      ? String(valA).localeCompare(String(valB))
+      : String(valB).localeCompare(String(valA))
+  })
+
+  const unitTotalPages = Math.ceil(sortedUnits.length / unitItemsPerPage)
+  const paginatedUnits = sortedUnits.slice(
+    (unitPage - 1) * unitItemsPerPage,
+    unitPage * unitItemsPerPage
   )
 
   const filteredProducts = products.filter(
@@ -309,6 +372,43 @@ export default function SatuanPage() {
       p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
       (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
   )
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    let valA: string
+    let valB: string
+    switch (productSortKey) {
+      case "sku":
+        valA = a.sku || ""
+        valB = b.sku || ""
+        break
+      case "category":
+        valA = a.categories?.name || ""
+        valB = b.categories?.name || ""
+        break
+      case "unit":
+        valA = units.find((u) => u.id === a.unit_id)?.name || ""
+        valB = units.find((u) => u.id === b.unit_id)?.name || ""
+        break
+      default:
+        valA = a.name
+        valB = b.name
+    }
+    return productSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA)
+  })
+
+  const productTotalPages = Math.ceil(sortedProducts.length / productItemsPerPage)
+  const paginatedAssignProducts = sortedProducts.slice(
+    (productPage - 1) * productItemsPerPage,
+    productPage * productItemsPerPage
+  )
+
+  useEffect(() => {
+    setUnitPage(1)
+  }, [search, unitItemsPerPage, unitSortKey, unitSortDir])
+
+  useEffect(() => {
+    setProductPage(1)
+  }, [productSearch, productItemsPerPage, productSortKey, productSortDir])
 
   return (
     <SidebarProvider
@@ -379,47 +479,103 @@ export default function SatuanPage() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Nama Satuan</TableHead>
-                            <TableHead className="text-right">Jumlah Produk Terpakai</TableHead>
-                            <TableHead className="w-[120px] text-center">Aksi</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredUnits.map((unit) => (
-                            <TableRow key={unit.id} className="hover:bg-muted/30 transition-colors">
-                              <TableCell className="font-medium">{unit.name}</TableCell>
-                              <TableCell className="text-right">{usageCounts[unit.id] || 0}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => handleEdit(unit)}
-                                    className="size-8"
-                                    title="Edit Satuan"
-                                  >
-                                    <IconEdit className="size-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => handleDelete(unit)}
-                                    className="size-8 text-destructive hover:bg-destructive/10"
-                                    title="Hapus Satuan"
-                                  >
-                                    <IconTrash className="size-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
+                    <>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>
+                                <button type="button" onClick={() => handleUnitSort("name")} className="flex items-center gap-1 hover:text-foreground">
+                                  Nama Satuan <SortIcon active={unitSortKey === "name"} dir={unitSortDir} />
+                                </button>
+                              </TableHead>
+                              <TableHead className="text-right">
+                                <button type="button" onClick={() => handleUnitSort("usage")} className="flex items-center gap-1 ml-auto hover:text-foreground">
+                                  Jumlah Produk Terpakai <SortIcon active={unitSortKey === "usage"} dir={unitSortDir} />
+                                </button>
+                              </TableHead>
+                              <TableHead className="w-[120px] text-center">Aksi</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                          </TableHeader>
+                          <TableBody>
+                            {paginatedUnits.map((unit) => (
+                              <TableRow key={unit.id} className="hover:bg-muted/30 transition-colors">
+                                <TableCell className="font-medium">{unit.name}</TableCell>
+                                <TableCell className="text-right">{usageCounts[unit.id] || 0}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => handleEdit(unit)}
+                                      className="size-8"
+                                      title="Edit Satuan"
+                                    >
+                                      <IconEdit className="size-4" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => handleDelete(unit)}
+                                      className="size-8 text-destructive hover:bg-destructive/10"
+                                      title="Hapus Satuan"
+                                    >
+                                      <IconTrash className="size-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/50 pt-4 mt-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <span>Tampilkan</span>
+                          <Select value={unitItemsPerPage.toString()} onValueChange={(val) => setUnitItemsPerPage(parseInt(val))}>
+                            <SelectTrigger className="h-8 w-[72px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="10">10</SelectItem>
+                              <SelectItem value="25">25</SelectItem>
+                              <SelectItem value="50">50</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <span>per halaman</span>
+                        </div>
+
+                        {unitTotalPages > 1 && (
+                          <div className="flex items-center gap-3">
+                            <p>
+                              Halaman <span className="font-semibold text-foreground">{unitPage}</span> dari{" "}
+                              <span className="font-semibold text-foreground">{unitTotalPages}</span>
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                disabled={unitPage === 1}
+                                onClick={() => setUnitPage((p) => Math.max(p - 1, 1))}
+                                className="size-8"
+                              >
+                                <IconChevronLeft className="size-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                disabled={unitPage === unitTotalPages}
+                                onClick={() => setUnitPage((p) => Math.min(p + 1, unitTotalPages))}
+                                className="size-8"
+                              >
+                                <IconChevronRight className="size-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -461,19 +617,36 @@ export default function SatuanPage() {
                       </p>
                     </div>
                   ) : (
+                    <>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>SKU</TableHead>
-                            <TableHead>Nama Produk</TableHead>
-                            <TableHead>Kategori</TableHead>
-                            <TableHead className="w-[220px]">Satuan Dasar</TableHead>
+                            <TableHead>
+                              <button type="button" onClick={() => handleProductSort("sku")} className="flex items-center gap-1 hover:text-foreground">
+                                SKU <SortIcon active={productSortKey === "sku"} dir={productSortDir} />
+                              </button>
+                            </TableHead>
+                            <TableHead>
+                              <button type="button" onClick={() => handleProductSort("name")} className="flex items-center gap-1 hover:text-foreground">
+                                Nama Produk <SortIcon active={productSortKey === "name"} dir={productSortDir} />
+                              </button>
+                            </TableHead>
+                            <TableHead>
+                              <button type="button" onClick={() => handleProductSort("category")} className="flex items-center gap-1 hover:text-foreground">
+                                Kategori <SortIcon active={productSortKey === "category"} dir={productSortDir} />
+                              </button>
+                            </TableHead>
+                            <TableHead className="w-[220px]">
+                              <button type="button" onClick={() => handleProductSort("unit")} className="flex items-center gap-1 hover:text-foreground">
+                                Satuan Dasar <SortIcon active={productSortKey === "unit"} dir={productSortDir} />
+                              </button>
+                            </TableHead>
                             <TableHead className="w-[140px] text-center">Multi-Satuan</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredProducts.map((product) => (
+                          {paginatedAssignProducts.map((product) => (
                             <TableRow key={product.id} className="hover:bg-muted/30 transition-colors">
                               <TableCell className="font-mono text-xs font-semibold">
                                 {product.sku || "-"}
@@ -521,6 +694,53 @@ export default function SatuanPage() {
                         </TableBody>
                       </Table>
                     </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/50 pt-4 mt-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <span>Tampilkan</span>
+                        <Select value={productItemsPerPage.toString()} onValueChange={(val) => setProductItemsPerPage(parseInt(val))}>
+                          <SelectTrigger className="h-8 w-[72px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="25">25</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <span>per halaman</span>
+                      </div>
+
+                      {productTotalPages > 1 && (
+                        <div className="flex items-center gap-3">
+                          <p>
+                            Halaman <span className="font-semibold text-foreground">{productPage}</span> dari{" "}
+                            <span className="font-semibold text-foreground">{productTotalPages}</span>
+                          </p>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              disabled={productPage === 1}
+                              onClick={() => setProductPage((p) => Math.max(p - 1, 1))}
+                              className="size-8"
+                            >
+                              <IconChevronLeft className="size-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              disabled={productPage === productTotalPages}
+                              onClick={() => setProductPage((p) => Math.min(p + 1, productTotalPages))}
+                              className="size-8"
+                            >
+                              <IconChevronRight className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -575,7 +795,7 @@ export default function SatuanPage() {
 
         {/* Multi-unit variant management dialog */}
         <Dialog open={variantOpen} onOpenChange={setVariantOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Kelola Varian Satuan: {variantProduct?.name}</DialogTitle>
               <DialogDescription>
