@@ -30,7 +30,7 @@ type ProductUnit = {
   price: number
   multiplier: number
   stock: number        // calculated stock in this unit (product.stock / multiplier)
-  time_weight: number | null
+  time_weight?: number | null
 }
 
 type Product = {
@@ -81,7 +81,7 @@ export default function CustomerCatalogPage() {
         .select(`
           id, sku, name, description, price, stock, unit, image_url, category_id, is_multi_unit,
           categories:category_id ( name ),
-          product_units ( id, name, price, multiplier, time_weight )
+          product_units ( id, name:unit_name, price, multiplier )
         `)
         .order("name")
       if (prodErr) throw prodErr

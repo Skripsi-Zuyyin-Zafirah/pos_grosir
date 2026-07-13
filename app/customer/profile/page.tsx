@@ -45,26 +45,38 @@ export default function CustomerProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.user) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
           setLoading(false)
           router.push("/login")
           return
         }
-        setUserId(session.user.id)
-        setEmail(session.user.email || "")
+        setUserId(user.id)
+        setEmail(user.email || "")
 
         const { data: profile, error } = await supabase
           .from("profiles")
           .select("full_name, role, phone_number, address")
-          .eq("id", session.user.id)
-          .single()
+          .eq("id", user.id)
+          .maybeSingle()
         if (error) throw error
 
-        setFullName(profile?.full_name || "")
-        setRole(profile?.role || "customer")
-        setPhoneNumber(profile?.phone_number || "")
-        setAddress(profile?.address || "")
+        if (!profile) {
+          // Profile doesn't exist yet — create it
+          const { error: upsertError } = await supabase.from("profiles").upsert({
+            id: user.id,
+            full_name: (user.user_metadata?.full_name as string) || "",
+            phone_number: (user.user_metadata?.phone_number as string) || null,
+            role: "customer",
+          })
+          if (upsertError) throw upsertError
+          setRole("customer")
+        } else {
+          setFullName(profile.full_name || "")
+          setRole(profile.role || "customer")
+          setPhoneNumber(profile.phone_number || "")
+          setAddress(profile.address || "")
+        }
       } catch (err: any) {
         toast.error("Gagal memuat profil: " + err.message)
       } finally {
