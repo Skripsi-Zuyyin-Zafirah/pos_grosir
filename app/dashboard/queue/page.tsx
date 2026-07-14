@@ -7,6 +7,7 @@ import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -88,8 +89,12 @@ export default function CashierDashboardPage() {
 
   // Dialog konfirmasi pembayaran
   const [payOrder, setPayOrder] = useState<Order | null>(null)
-  const [payMethod, setPayMethod] = useState<"tunai" | "online">("tunai")
+  const [payMethod, setPayMethod] = useState<"tunai" | "transfer" | "qris">("tunai")
+  const [amountPaid, setAmountPaid] = useState("")
   const [paying, setPaying] = useState(false)
+
+  const calculatedChange =
+    payOrder && !isNaN(parseFloat(amountPaid)) ? parseFloat(amountPaid) - payOrder.total_price : 0
 
   const fetchData = async () => {
     try {
@@ -196,6 +201,11 @@ export default function CashierDashboardPage() {
   // SECTION 4: konfirmasi pembayaran
   const handleConfirmPayment = async () => {
     if (!payOrder) return
+    const paidVal = parseFloat(amountPaid)
+    if (isNaN(paidVal) || paidVal < payOrder.total_price) {
+      toast.error("Jumlah bayar kurang atau tidak valid")
+      return
+    }
     try {
       setPaying(true)
       const { error } = await supabase.rpc("finalize_order_payment", {
@@ -265,7 +275,7 @@ export default function CashierDashboardPage() {
           {/* Top bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 border-b border-border/50">
             <div>
-              <h1 className="text-lg font-semibold">Dashboard Kasir</h1>
+              <h1 className="text-lg font-semibold">Kasir & Pembayaran</h1>
               <p className="text-xs text-muted-foreground">
                 Assign pesanan ke pegawai, cetak struk, tandai selesai packing, lalu konfirmasi pembayaran.
               </p>
@@ -502,6 +512,7 @@ export default function CashierDashboardPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 text-white"
                             onClick={() => {
                               setPayMethod("tunai")
+                              setAmountPaid(order.total_price.toString())
                               setPayOrder(order)
                             }}
                           >
@@ -622,16 +633,45 @@ export default function CashierDashboardPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Metode Pembayaran</Label>
-              <Select value={payMethod} onValueChange={(v) => setPayMethod(v as any)} disabled={paying}>
+              <Select
+                value={payMethod}
+                onValueChange={(v) => {
+                  setPayMethod(v as any)
+                  if (v !== "tunai" && payOrder) {
+                    setAmountPaid(payOrder.total_price.toString())
+                  }
+                }}
+                disabled={paying}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tunai">Tunai</SelectItem>
-                  <SelectItem value="online">Online / Transfer</SelectItem>
+                  <SelectItem value="tunai">Tunai / Cash</SelectItem>
+                  <SelectItem value="transfer">Transfer Bank</SelectItem>
+                  <SelectItem value="qris">QRIS Digital</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="amtPaid">Jumlah Uang Diterima (IDR)</Label>
+              <Input
+                id="amtPaid"
+                type="number"
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(e.target.value)}
+                required
+                disabled={paying || payMethod !== "tunai"}
+              />
+            </div>
+            {payMethod === "tunai" && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex justify-between items-center text-sm">
+                <span className="font-semibold text-primary">Kembalian:</span>
+                <span className={cn("text-lg font-bold", calculatedChange < 0 ? "text-rose-500" : "text-primary")}>
+                  {calculatedChange < 0 ? "Kurang bayar" : formatRupiah(calculatedChange)}
+                </span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayOrder(null)} disabled={paying}>
@@ -639,7 +679,7 @@ export default function CashierDashboardPage() {
             </Button>
             <Button
               onClick={handleConfirmPayment}
-              disabled={paying}
+              disabled={paying || isNaN(parseFloat(amountPaid)) || (!!payOrder && parseFloat(amountPaid) < payOrder.total_price)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {paying && <IconLoader2 className="size-4 mr-2 animate-spin" />}

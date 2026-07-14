@@ -17,15 +17,11 @@ import {
 } from "@/components/ui/sidebar"
 import {
   IconDashboard,
-  IconSettings,
-  IconDatabase,
   IconReport,
   IconPackage,
-  IconClipboardList,
   IconClipboardCheck,
   IconCash,
   IconShoppingCart,
-  IconClock,
   IconRuler2,
   IconUsers,
 } from "@tabler/icons-react"
@@ -54,19 +50,14 @@ const navSections: { label: string; items: NavItem[] }[] = [
         icon: <IconShoppingCart />,
       },
       {
-        title: "Proses Gudang",
-        url: "/dashboard/picking",
+        title: "Kelola Pegawai",
+        url: "/dashboard/employee",
         icon: <IconClipboardCheck />,
       },
       {
         title: "Kasir & Pembayaran",
-        url: "/dashboard/cashier",
-        icon: <IconCash />,
-      },
-      {
-        title: "Dashboard Kasir",
         url: "/dashboard/queue",
-        icon: <IconClipboardList />,
+        icon: <IconCash />,
       },
     ],
   },
@@ -85,19 +76,13 @@ const navSections: { label: string; items: NavItem[] }[] = [
         icon: <IconRuler2 />,
         roles: ["admin"],
       },
-      {
-        title: "Waktu Pengambilan",
-        url: "/dashboard/waktu-pengambilan",
-        icon: <IconClock />,
-        roles: ["admin"],
-      },
     ],
   },
   {
     label: "Laporan & Administrasi",
     items: [
       {
-        title: "Laporan & Evaluasi",
+        title: "Laporan Transaksi",
         url: "/dashboard/reports",
         icon: <IconReport />,
         roles: ["admin"],

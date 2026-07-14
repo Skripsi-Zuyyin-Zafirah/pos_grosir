@@ -9,9 +9,9 @@ import { IconLoader2 } from "@tabler/icons-react"
 // Routes only "admin" role may access; "cashier" is redirected back to /dashboard.
 const ADMIN_ONLY_PREFIXES = [
   "/dashboard/products",
-  "/dashboard/inventory",
+  "/dashboard/satuan",
   "/dashboard/reports",
-  "/dashboard/settings",
+  "/dashboard/users",
 ]
 
 export default function DashboardLayout({

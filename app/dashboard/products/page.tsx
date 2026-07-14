@@ -32,6 +32,7 @@ import {
   IconArrowsSort,
   IconSortAscending,
   IconSortDescending,
+  IconClock,
 } from "@tabler/icons-react"
 
 type Product = {
@@ -117,6 +118,12 @@ export default function ProductsPage() {
       <IconSortDescending className="size-3.5 text-foreground" />
     )
   }
+
+  // Bulk edit waktu pengambilan modal state
+  const [bulkWaktuOpen, setBulkWaktuOpen] = useState(false)
+  const [bulkWaktuCategory, setBulkWaktuCategory] = useState("all")
+  const [bulkWaktuValue, setBulkWaktuValue] = useState("")
+  const [bulkWaktuSaving, setBulkWaktuSaving] = useState(false)
 
   // Main Form modal state
   const [open, setOpen] = useState(false)
@@ -465,6 +472,34 @@ export default function ProductsPage() {
     }
   }
 
+  // Bulk edit waktu pengambilan
+  const handleApplyBulkWaktu = async () => {
+    const val = parseInt(bulkWaktuValue)
+    if (isNaN(val) || val < 0) {
+      toast.error("Waktu massal harus berupa angka detik yang valid.")
+      return
+    }
+    setBulkWaktuSaving(true)
+    try {
+      const targets = products.filter((p) => bulkWaktuCategory === "all" || p.category_id === bulkWaktuCategory)
+      const updates = targets.map((p) =>
+        supabase.from("products").update({ waktu_pengambilan: val }).eq("id", p.id)
+      )
+      const results = await Promise.all(updates)
+      const failed = results.find((r) => r.error)
+      if (failed) throw failed.error
+
+      toast.success(`Waktu pengambilan berhasil diterapkan ke ${targets.length} produk!`)
+      setBulkWaktuOpen(false)
+      setBulkWaktuValue("")
+      fetchData()
+    } catch (err: any) {
+      toast.error("Gagal menerapkan waktu pengambilan massal: " + err.message)
+    } finally {
+      setBulkWaktuSaving(false)
+    }
+  }
+
   // Quick Stock Edit action
   const handleOpenStockEdit = (product: Product) => {
     setStockProduct(product)
@@ -651,9 +686,14 @@ export default function ProductsPage() {
                 Kelola daftar produk, SKU, harga, stok, dan kategori barang grosir Anda.
               </p>
             </div>
-            <Button onClick={handleAdd} className="w-full md:w-auto">
-              <IconPlus className="size-4 mr-2" /> Tambah Produk
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <Button variant="outline" onClick={() => setBulkWaktuOpen(true)} className="w-full sm:w-auto">
+                <IconClock className="size-4 mr-2" /> Bulk Edit Waktu Pengambilan
+              </Button>
+              <Button onClick={handleAdd} className="w-full sm:w-auto">
+                <IconPlus className="size-4 mr-2" /> Tambah Produk
+              </Button>
+            </div>
           </div>
 
           <Card className="border-border/50 shadow-md">
@@ -1338,6 +1378,63 @@ export default function ProductsPage() {
               </Button>
               <Button type="button" onClick={handleCapturePhoto} disabled={!!cameraError || cameraLoading}>
                 <IconCamera className="size-4 mr-2" /> Ambil Foto
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Edit Waktu Pengambilan Dialog */}
+        <Dialog open={bulkWaktuOpen} onOpenChange={setBulkWaktuOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <IconClock className="size-5 text-primary" /> Bulk Edit Waktu Pengambilan
+              </DialogTitle>
+              <DialogDescription>
+                Terapkan estimasi waktu pengambilan (detik) ke banyak produk sekaligus, berdasarkan kategori. Nilai ini menjadi bobot waktu kalkulasi ECT.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Kategori Target</Label>
+                <Select value={bulkWaktuCategory} onValueChange={setBulkWaktuCategory} disabled={bulkWaktuSaving}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Kategori</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="bulkWaktuValue">Waktu Pengambilan Baru (detik)</Label>
+                <Input
+                  id="bulkWaktuValue"
+                  type="number"
+                  placeholder="60"
+                  value={bulkWaktuValue}
+                  onChange={(e) => setBulkWaktuValue(e.target.value)}
+                  disabled={bulkWaktuSaving}
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button type="button" variant="outline" onClick={() => setBulkWaktuOpen(false)} disabled={bulkWaktuSaving}>
+                Batal
+              </Button>
+              <Button type="button" onClick={handleApplyBulkWaktu} disabled={bulkWaktuSaving}>
+                {bulkWaktuSaving ? (
+                  <>
+                    <IconLoader2 className="mr-2 h-4 w-4 animate-spin" /> Menyimpan...
+                  </>
+                ) : (
+                  "Terapkan"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -246,7 +246,7 @@ export default function ReportsPage() {
         <SiteHeader />
         <div className="flex flex-1 flex-col p-6 space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Laporan & Evaluasi</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Laporan Transaksi</h1>
             <p className="text-muted-foreground mt-1">
               Pantau laporan transaksi penjualan dan audit log riwayat stok masuk & keluar.
             </p>
