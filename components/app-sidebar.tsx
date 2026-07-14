@@ -5,7 +5,6 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 
 import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -28,81 +27,90 @@ import {
   IconShoppingCart,
   IconClock,
   IconRuler2,
+  IconUsers,
 } from "@tabler/icons-react"
 
 type Role = "admin" | "cashier"
 
-const navMainData: { title: string; url: string; icon: React.ReactNode; roles?: Role[] }[] = [
+type NavItem = { title: string; url: string; icon: React.ReactNode; roles?: Role[] }
+
+const navSections: { label: string; items: NavItem[] }[] = [
   {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: (
-      <IconDashboard />
-    ),
+    label: "Utama",
+    items: [
+      {
+        title: "Dashboard",
+        url: "/dashboard",
+        icon: <IconDashboard />,
+      },
+    ],
   },
   {
-    title: "Kelola Produk dan Stok",
-    url: "/dashboard/products",
-    icon: (
-      <IconPackage />
-    ),
-    roles: ["admin"],
+    label: "Operasional",
+    items: [
+      {
+        title: "POS Walk-in",
+        url: "/dashboard/pos",
+        icon: <IconShoppingCart />,
+      },
+      {
+        title: "Proses Gudang",
+        url: "/dashboard/picking",
+        icon: <IconClipboardCheck />,
+      },
+      {
+        title: "Kasir & Pembayaran",
+        url: "/dashboard/cashier",
+        icon: <IconCash />,
+      },
+      {
+        title: "Dashboard Kasir",
+        url: "/dashboard/queue",
+        icon: <IconClipboardList />,
+      },
+    ],
   },
   {
-    title: "Kelola Satuan",
-    url: "/dashboard/satuan",
-    icon: (
-      <IconRuler2 />
-    ),
-    roles: ["admin"],
+    label: "Manajemen Produk",
+    items: [
+      {
+        title: "Kelola Produk dan Stok",
+        url: "/dashboard/products",
+        icon: <IconPackage />,
+        roles: ["admin"],
+      },
+      {
+        title: "Kelola Satuan",
+        url: "/dashboard/satuan",
+        icon: <IconRuler2 />,
+        roles: ["admin"],
+      },
+      {
+        title: "Waktu Pengambilan",
+        url: "/dashboard/waktu-pengambilan",
+        icon: <IconClock />,
+        roles: ["admin"],
+      },
+    ],
   },
   {
-    title: "Waktu Pengambilan",
-    url: "/dashboard/waktu-pengambilan",
-    icon: (
-      <IconClock />
-    ),
-    roles: ["admin"],
-  },
-  {
-    title: "POS Walk-in",
-    url: "/dashboard/pos",
-    icon: (
-      <IconShoppingCart />
-    ),
-  },
-  {
-    title: "Proses Gudang",
-    url: "/dashboard/picking",
-    icon: (
-      <IconClipboardCheck />
-    ),
-  },
-  {
-    title: "Kasir & Pembayaran",
-    url: "/dashboard/cashier",
-    icon: (
-      <IconCash />
-    ),
-  },
-  {
-    title: "Papan Antrian",
-    url: "/dashboard/queue",
-    icon: (
-      <IconClipboardList />
-    ),
-  },
-  {
-    title: "Laporan & Evaluasi",
-    url: "/dashboard/reports",
-    icon: (
-      <IconReport />
-    ),
-    roles: ["admin"],
+    label: "Laporan & Administrasi",
+    items: [
+      {
+        title: "Laporan & Evaluasi",
+        url: "/dashboard/reports",
+        icon: <IconReport />,
+        roles: ["admin"],
+      },
+      {
+        title: "Kelola Pengguna",
+        url: "/dashboard/users",
+        icon: <IconUsers />,
+        roles: ["admin"],
+      },
+    ],
   },
 ]
-
-const navSecondaryData: { title: string; url: string; icon: React.ReactNode; roles?: Role[] }[] = []
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const supabase = createClient()
@@ -137,8 +145,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     fetchUser()
   }, [])
 
-  const navMain = navMainData.filter((item) => !item.roles || item.roles.includes(role))
-  const navSecondary = navSecondaryData.filter((item) => !item.roles || item.roles.includes(role))
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.roles || item.roles.includes(role)),
+    }))
+    .filter((section) => section.items.length > 0)
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -162,8 +174,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navMain} />
-        {navSecondary.length > 0 && <NavSecondary items={navSecondary} className="mt-auto" />}
+        {visibleSections.map((section) => (
+          <NavMain key={section.label} label={section.label} items={section.items} />
+        ))}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/60 pt-2">
         <NavUser user={currentUser} />

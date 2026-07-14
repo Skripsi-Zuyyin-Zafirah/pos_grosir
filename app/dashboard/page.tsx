@@ -139,15 +139,15 @@ export default function Page() {
       // 7. Fetch Top Sold Products (Best Sellers)
       const { data: orderItems, error: itemsErr } = await supabase
         .from("order_items")
-        .select("quantity, price, products:product_id ( name )")
+        .select("qty, unit_price, products:product_id ( name )")
       if (itemsErr) throw itemsErr
 
       const salesMap: Record<string, { quantity: number; revenue: number }> = {}
       if (orderItems) {
         orderItems.forEach((item: any) => {
           const prodName = item.products?.name || "Produk Terhapus"
-          const qty = item.quantity || 0
-          const rev = qty * (item.price || 0)
+          const qty = item.qty || 0
+          const rev = qty * (item.unit_price || 0)
           if (!salesMap[prodName]) {
             salesMap[prodName] = { quantity: 0, revenue: 0 }
           }

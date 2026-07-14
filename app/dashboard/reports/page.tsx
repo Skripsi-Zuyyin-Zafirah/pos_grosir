@@ -68,14 +68,25 @@ export default function ReportsPage() {
       endIso.setHours(23, 59, 59, 999)
 
       const { data, error } = await supabase
-        .from("payments")
-        .select("id, amount, paid_at, method, orders:order_id ( order_number, customer_name )")
-        .gte("paid_at", startIso.toISOString())
-        .lte("paid_at", endIso.toISOString())
-        .order("paid_at", { ascending: false })
+        .from("orders")
+        .select("id, total_price, completed_at, payment_method, order_number, customer_name")
+        .eq("status", "selesai")
+        .gte("completed_at", startIso.toISOString())
+        .lte("completed_at", endIso.toISOString())
+        .order("completed_at", { ascending: false })
 
       if (error) throw error
-      setSalesPayments((data as any) || [])
+      const mapped: PaymentReport[] = (data || []).map((o: any) => ({
+        id: o.id,
+        amount: o.total_price || 0,
+        paid_at: o.completed_at,
+        method: o.payment_method || "-",
+        orders: {
+          order_number: o.order_number,
+          customer_name: o.customer_name,
+        },
+      }))
+      setSalesPayments(mapped)
     } catch (err: any) {
       toast.error("Gagal memuat laporan penjualan: " + err.message)
     } finally {
