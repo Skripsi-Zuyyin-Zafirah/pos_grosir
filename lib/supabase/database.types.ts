@@ -361,6 +361,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          is_active: boolean
           name: string
           status: Database["public"]["Enums"]["staff_status"] | null
           updated_at: string | null
@@ -368,6 +369,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          is_active?: boolean
           name: string
           status?: Database["public"]["Enums"]["staff_status"] | null
           updated_at?: string | null
@@ -375,6 +377,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          is_active?: boolean
           name?: string
           status?: Database["public"]["Enums"]["staff_status"] | null
           updated_at?: string | null

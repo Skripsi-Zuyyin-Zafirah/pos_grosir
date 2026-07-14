@@ -24,6 +24,8 @@ import {
   IconShieldCheck,
   IconCash,
   IconUser,
+  IconChevronLeft,
+  IconChevronRight,
 } from "@tabler/icons-react"
 
 type UserRole = "admin" | "cashier" | "customer"
@@ -71,6 +73,10 @@ export default function UsersPage() {
   // Dialog hapus
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // Pagination
+  const [page, setPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   const fetchUsers = async () => {
     try {
@@ -193,6 +199,13 @@ export default function UsersPage() {
 
   const countByRole = (role: UserRole) => users.filter((u) => u.role === role).length
 
+  const totalPages = Math.ceil(filtered.length / itemsPerPage)
+  const paginatedUsers = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, roleFilter, itemsPerPage])
+
   return (
     <SidebarProvider
       style={
@@ -297,6 +310,7 @@ export default function UsersPage() {
                   Tidak ada pengguna ditemukan
                 </div>
               ) : (
+                <>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -311,7 +325,7 @@ export default function UsersPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filtered.map((u) => (
+                      {paginatedUsers.map((u) => (
                         <TableRow key={u.id} className="hover:bg-muted/30 transition-colors">
                           <TableCell className="font-medium">
                             {u.full_name || "-"}
@@ -355,6 +369,53 @@ export default function UsersPage() {
                     </TableBody>
                   </Table>
                 </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/50 pt-4 mt-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span>Tampilkan</span>
+                    <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(parseInt(val))}>
+                      <SelectTrigger className="h-8 w-[72px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span>per halaman</span>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-3">
+                      <p>
+                        Halaman <span className="font-semibold text-foreground">{page}</span> dari{" "}
+                        <span className="font-semibold text-foreground">{totalPages}</span>
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={page === 1}
+                          onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                          className="size-8"
+                        >
+                          <IconChevronLeft className="size-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={page === totalPages}
+                          onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                          className="size-8"
+                        >
+                          <IconChevronRight className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

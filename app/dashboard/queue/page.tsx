@@ -100,7 +100,7 @@ export default function CashierDashboardPage() {
     try {
       const [{ data: staffData, error: staffErr }, { data: activeOrders, error: orderErr }] =
         await Promise.all([
-          supabase.from("staff").select("id, name, status").order("name").limit(4),
+          supabase.from("staff").select("id, name, status").eq("is_active", true).order("name").limit(4),
           supabase.from("orders").select("*").in("status", ["antri", "diproses"]),
         ])
       if (staffErr) throw staffErr

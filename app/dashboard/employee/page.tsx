@@ -37,6 +37,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconUsers,
+  IconPower,
 } from "@tabler/icons-react"
 
 function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
@@ -53,6 +54,7 @@ type Staff = {
   name: string
   status: "idle" | "sibuk" | null
   created_at: string | null
+  is_active: boolean
 }
 
 type ActiveOrderInfo = {
@@ -90,7 +92,7 @@ export default function EmployeePage() {
     try {
       setLoadingStaff(true)
       const [{ data: staffData, error: staffErr }, { data: activeOrders, error: orderErr }] = await Promise.all([
-        supabase.from("staff").select("id, name, status, created_at").order("name"),
+        supabase.from("staff").select("id, name, status, created_at, is_active").order("name"),
         supabase
           .from("orders")
           .select("id, order_number, staff_id")
@@ -206,6 +208,26 @@ export default function EmployeePage() {
       fetchStaffList()
     } catch (err: any) {
       toast.error("Gagal menghapus pegawai: " + err.message)
+    }
+  }
+
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  const handleToggleActive = async (staff: Staff) => {
+    if (staff.status === "sibuk" && staff.is_active) {
+      toast.error(`Pegawai "${staff.name}" sedang menangani pesanan dan tidak bisa dinonaktifkan.`)
+      return
+    }
+    setTogglingId(staff.id)
+    try {
+      const { error } = await supabase.from("staff").update({ is_active: !staff.is_active }).eq("id", staff.id)
+      if (error) throw error
+      toast.success(`Pegawai "${staff.name}" berhasil ${staff.is_active ? "dinonaktifkan" : "diaktifkan"}!`)
+      fetchStaffList()
+    } catch (err: any) {
+      toast.error("Gagal mengubah status aktif pegawai: " + err.message)
+    } finally {
+      setTogglingId(null)
     }
   }
 
@@ -390,6 +412,7 @@ export default function EmployeePage() {
                       const order = activeOrderByStaff[staff.id]
                       const busy = staff.status === "sibuk"
                       const selected = activeStaff?.id === staff.id
+                      const inactive = !staff.is_active
                       return (
                         <button
                           key={staff.id}
@@ -398,32 +421,69 @@ export default function EmployeePage() {
                           className={cn(
                             "relative flex flex-col items-center gap-2 rounded-xl border p-5 text-center transition-colors",
                             selected && "ring-2 ring-primary",
-                            busy ? "border-amber-500/30 bg-amber-500/[0.04]" : "border-emerald-500/30 bg-emerald-500/[0.04]"
+                            inactive
+                              ? "border-border bg-muted/30 opacity-60"
+                              : busy
+                              ? "border-amber-500/30 bg-amber-500/[0.04]"
+                              : "border-emerald-500/30 bg-emerald-500/[0.04]"
                           )}
                         >
                           <span
                             className={cn(
                               "absolute top-3 right-3 size-2 rounded-full",
-                              busy ? "bg-amber-500" : "bg-emerald-500"
+                              inactive ? "bg-muted-foreground/40" : busy ? "bg-amber-500" : "bg-emerald-500"
                             )}
                           />
                           <IconUserCircle className="size-8 text-muted-foreground" />
                           <span className="font-medium text-sm truncate max-w-full">{staff.name}</span>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "font-semibold",
-                              busy
-                                ? "border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/5"
-                                : "border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/5"
-                            )}
-                          >
-                            {busy ? "Sibuk" : "Idle"}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "font-semibold",
+                                busy
+                                  ? "border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/5"
+                                  : "border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/5"
+                              )}
+                            >
+                              {busy ? "Sibuk" : "Idle"}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "font-semibold",
+                                inactive
+                                  ? "border-muted-foreground/30 text-muted-foreground bg-muted/40"
+                                  : "border-sky-500/40 text-sky-700 dark:text-sky-400 bg-sky-500/5"
+                              )}
+                            >
+                              {inactive ? "Nonaktif" : "Aktif"}
+                            </Badge>
+                          </div>
                           <span className="font-mono text-[11px] text-muted-foreground truncate max-w-full">
                             {order ? `#${order.order_number || order.id.substring(0, 8).toUpperCase()}` : "-"}
                           </span>
                           <div className="flex items-center justify-center gap-1.5 mt-1">
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (togglingId !== staff.id) handleToggleActive(staff)
+                              }}
+                              className={cn(
+                                "inline-flex size-8 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                                inactive && "text-emerald-600",
+                                !inactive && "text-muted-foreground"
+                              )}
+                              title={inactive ? "Aktifkan Pegawai" : "Nonaktifkan Pegawai"}
+                            >
+                              {togglingId === staff.id ? (
+                                <IconLoader2 className="size-4 animate-spin" />
+                              ) : (
+                                <IconPower className="size-4" />
+                              )}
+                            </span>
                             <span
                               role="button"
                               tabIndex={0}
