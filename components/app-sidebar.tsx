@@ -24,6 +24,7 @@ import {
   IconShoppingCart,
   IconRuler2,
   IconUsers,
+  IconCategory,
 } from "@tabler/icons-react"
 
 type Role = "admin" | "cashier"
@@ -74,6 +75,12 @@ const navSections: { label: string; items: NavItem[] }[] = [
         title: "Kelola Satuan",
         url: "/dashboard/satuan",
         icon: <IconRuler2 />,
+        roles: ["admin"],
+      },
+      {
+        title: "Kelola Kategori",
+        url: "/dashboard/kategori",
+        icon: <IconCategory />,
         roles: ["admin"],
       },
     ],
