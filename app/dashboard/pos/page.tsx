@@ -12,6 +12,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Receipt } from "@/components/receipt"
+import { cartItemKey } from "@/lib/cart/cart-context"
 import { toast } from "sonner"
 import {
   IconLoader2,
@@ -27,15 +28,25 @@ import {
   IconPrinter,
 } from "@tabler/icons-react"
 
+type ProductUnit = {
+  id: string
+  name: string
+  price: number
+  multiplier: number
+  stock: number // stok terhitung dalam satuan kemasan ini (stock produk / multiplier)
+}
+
 type Product = {
   id: string
   sku: string | null
   name: string
   price: number
-  stock_qty: number
+  stock: number
   image_url: string | null
   category_id: string | null
+  is_multi_unit: boolean | null
   categories: { name: string } | null
+  product_units: ProductUnit[]
 }
 
 type Category = {
@@ -45,6 +56,9 @@ type Category = {
 
 type CartItem = {
   productId: string
+  unitId: string | null
+  unitName: string | null
+  multiplier: number
   name: string
   price: number
   stockQty: number
@@ -79,6 +93,9 @@ export default function PosWalkinPage() {
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
 
+  // Per-product state: kemasan/unit yang dipilih untuk produk multi-satuan
+  const [selectedUnit, setSelectedUnit] = useState<Record<string, string>>({})
+
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([])
 
@@ -104,10 +121,34 @@ export default function PosWalkinPage() {
 
       const { data: prodData, error: prodErr } = await supabase
         .from("products")
-        .select("*, categories:category_id ( name )")
+        .select(`
+          id, sku, name, price, stock, image_url, category_id, is_multi_unit,
+          categories:category_id ( name ),
+          product_units ( id, name:unit_name, price, multiplier )
+        `)
         .order("name")
       if (prodErr) throw prodErr
-      setProducts((prodData as any) || [])
+
+      const mappedProducts: Product[] = ((prodData as any) || []).map((p: any) => {
+        const units: ProductUnit[] = (p.product_units || []).map((u: any) => ({
+          ...u,
+          stock: u.multiplier > 0 ? Math.floor((p.stock ?? 0) / u.multiplier) : 0,
+        }))
+        return { ...p, product_units: units }
+      })
+      setProducts(mappedProducts)
+
+      // Pilih kemasan pertama yang masih ada stoknya untuk tiap produk multi-satuan
+      setSelectedUnit((prev) => {
+        const next = { ...prev }
+        mappedProducts.forEach((p) => {
+          if (p.is_multi_unit && p.product_units.length > 0 && !next[p.id]) {
+            const firstAvailable = p.product_units.find((u) => u.stock > 0) || p.product_units[0]
+            next[p.id] = firstAvailable.id
+          }
+        })
+        return next
+      })
     } catch (err: any) {
       toast.error("Gagal memuat produk: " + err.message)
     } finally {
@@ -132,21 +173,61 @@ export default function PosWalkinPage() {
   const totalItems = cart.reduce((sum, i) => sum + i.quantity, 0)
   const totalPrice = cart.reduce((sum, i) => sum + i.quantity * i.price, 0)
 
+  // Kemasan yang sedang dipilih untuk produk multi-satuan
+  const getActiveUnit = (product: Product): ProductUnit | null => {
+    if (!product.is_multi_unit || product.product_units.length === 0) return null
+    const uid = selectedUnit[product.id]
+    return product.product_units.find((u) => u.id === uid) || product.product_units[0]
+  }
+
+  const getEffectiveStock = (product: Product): number => {
+    if (product.is_multi_unit) return getActiveUnit(product)?.stock ?? 0
+    return product.stock ?? 0
+  }
+
+  const getEffectivePrice = (product: Product): number => {
+    if (product.is_multi_unit) return getActiveUnit(product)?.price ?? product.price
+    return product.price
+  }
+
   const addToCart = (product: Product) => {
-    const stock = product.stock_qty ?? 0
-    if (stock <= 0) return
+    const effectiveStock = getEffectiveStock(product)
+    if (effectiveStock <= 0) {
+      toast.error(`Stok ${product.name} tidak mencukupi.`)
+      return
+    }
+
+    const unit = product.is_multi_unit ? getActiveUnit(product) : null
+    const unitId = unit?.id ?? null
+    const unitName = unit?.name ?? null
+    const multiplier = unit?.multiplier ?? 1
+    const price = unit?.price ?? product.price
+    const key = cartItemKey(product.id, unitId)
+
     setCart((prev) => {
-      const existing = prev.find((i) => i.productId === product.id)
+      const existing = prev.find((i) => cartItemKey(i.productId, i.unitId) === key)
       if (existing) {
-        if (existing.quantity >= stock) {
+        if (existing.quantity >= effectiveStock) {
           toast.error(`Stok ${product.name} tidak mencukupi.`)
           return prev
         }
         return prev.map((i) =>
-          i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
+          cartItemKey(i.productId, i.unitId) === key ? { ...i, quantity: i.quantity + 1 } : i
         )
       }
-      return [...prev, { productId: product.id, name: product.name, price: product.price, stockQty: stock, quantity: 1 }]
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          unitId,
+          unitName,
+          multiplier,
+          name: product.name,
+          price,
+          stockQty: effectiveStock,
+          quantity: 1,
+        },
+      ]
     })
   }
 
@@ -158,15 +239,19 @@ export default function PosWalkinPage() {
     }
   }, [totalPrice, paymentMethod])
 
-  const updateQuantity = (productId: string, qty: number) => {
+  const updateQuantity = (productId: string, unitId: string | null, qty: number) => {
+    const key = cartItemKey(productId, unitId)
     setCart((prev) => {
-      if (qty <= 0) return prev.filter((i) => i.productId !== productId)
-      return prev.map((i) => (i.productId === productId ? { ...i, quantity: Math.min(qty, i.stockQty) } : i))
+      if (qty <= 0) return prev.filter((i) => cartItemKey(i.productId, i.unitId) !== key)
+      return prev.map((i) =>
+        cartItemKey(i.productId, i.unitId) === key ? { ...i, quantity: Math.min(qty, i.stockQty) } : i
+      )
     })
   }
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((i) => i.productId !== productId))
+  const removeFromCart = (productId: string, unitId: string | null) => {
+    const key = cartItemKey(productId, unitId)
+    setCart((prev) => prev.filter((i) => cartItemKey(i.productId, i.unitId) !== key))
   }
 
   const handleClearCart = () => {
@@ -191,19 +276,21 @@ export default function PosWalkinPage() {
 
     setSubmitting(true)
     try {
-      // 1. Re-validate current stock before submitting
-      const productIds = cart.map((i) => i.productId)
+      // 1. Re-validate current stock before submitting (dalam pcs, akun untuk multiplier kemasan)
+      const productIds = [...new Set(cart.map((i) => i.productId))]
       const { data: stockData, error: stockErr } = await supabase
         .from("products")
-        .select("id, stock_qty")
+        .select("id, stock")
         .in("id", productIds)
       if (stockErr) throw stockErr
 
-      const stockMap = new Map((stockData || []).map((s) => [s.id, s.stock_qty]))
+      const stockMap = new Map((stockData || []).map((s) => [s.id, s.stock]))
       for (const item of cart) {
-        const available = stockMap.get(item.productId) ?? 0
-        if (item.quantity > available) {
-          toast.error(`Stok ${item.name} tidak mencukupi (tersisa ${available}).`)
+        const rawStock = stockMap.get(item.productId) ?? 0
+        const pcsNeeded = item.quantity * item.multiplier
+        if (pcsNeeded > rawStock) {
+          const unitStock = item.multiplier > 0 ? Math.floor(rawStock / item.multiplier) : 0
+          toast.error(`Stok ${item.name} (${item.unitName || "pcs"}) tidak mencukupi (tersisa ${unitStock}).`)
           setSubmitting(false)
           return
         }
@@ -218,6 +305,8 @@ export default function PosWalkinPage() {
           product_id: i.productId,
           qty: i.quantity,
           unit_price: i.price,
+          unit_id: i.unitId,
+          unit_name: i.unitName,
         })),
         p_total_items: totalItems,
         p_total_price: totalPrice,
@@ -248,7 +337,7 @@ export default function PosWalkinPage() {
           id: i.productId,
           qty: i.quantity,
           unit_price: i.price,
-          products: { name: i.name },
+          products: { name: i.unitName ? `${i.name} (${i.unitName})` : i.name },
         })),
       })
       setReceiptOpen(true)
@@ -338,38 +427,80 @@ export default function PosWalkinPage() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                   {filteredProducts.map((product) => {
-                    const stock = product.stock_qty ?? 0
-                    const outOfStock = stock <= 0
+                    const isMulti = !!product.is_multi_unit && product.product_units.length > 0
+                    const activeUnit = getActiveUnit(product)
+                    const effectiveStock = getEffectiveStock(product)
+                    const effectivePrice = getEffectivePrice(product)
+                    const outOfStock = effectiveStock <= 0
                     return (
-                      <button
+                      <div
                         key={product.id}
-                        type="button"
-                        disabled={outOfStock}
-                        onClick={() => addToCart(product)}
                         style={{ contentVisibility: "auto", containIntrinsicSize: "0 180px" } as React.CSSProperties}
-                        className="text-left rounded-lg border border-border/50 bg-card p-2 disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                        className="rounded-lg border border-border/50 bg-card p-2 hover:border-primary/40 transition-colors flex flex-col"
                       >
-                        <div className="aspect-square w-full rounded-md bg-muted flex items-center justify-center overflow-hidden mb-2">
-                          {product.image_url ? (
-                            <img
-                              src={product.image_url}
-                              alt={product.name}
-                              loading="lazy"
-                              decoding="async"
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <IconPhoto className="size-8 text-muted-foreground/50" />
-                          )}
-                        </div>
-                        <h3 className="text-xs font-semibold leading-snug line-clamp-2 min-h-[2rem]">
-                          {product.name}
-                        </h3>
-                        <p className="text-sm font-bold text-primary mt-0.5">{formatRupiah(product.price)}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          {outOfStock ? "Stok habis" : `Stok ${stock} pcs`}
-                        </p>
-                      </button>
+                        <button
+                          type="button"
+                          disabled={outOfStock}
+                          onClick={() => addToCart(product)}
+                          className="text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="aspect-square w-full rounded-md bg-muted flex items-center justify-center overflow-hidden mb-2 relative">
+                            {product.image_url ? (
+                              <img
+                                src={product.image_url}
+                                alt={product.name}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <IconPhoto className="size-8 text-muted-foreground/50" />
+                            )}
+                            {isMulti && (
+                              <span className="absolute top-1 right-1 rounded bg-primary/90 px-1 py-0.5 text-[8px] font-bold text-primary-foreground">
+                                GROSIR
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-xs font-semibold leading-snug line-clamp-2 min-h-[2rem]">
+                            {product.name}
+                          </h3>
+                          <p className="text-sm font-bold text-primary mt-0.5">{formatRupiah(effectivePrice)}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {outOfStock
+                              ? "Stok habis"
+                              : `Stok ${effectiveStock} ${isMulti ? activeUnit?.name || "unit" : "pcs"}`}
+                          </p>
+                        </button>
+
+                        {isMulti && (
+                          <Select
+                            value={selectedUnit[product.id] || ""}
+                            onValueChange={(val) =>
+                              setSelectedUnit((prev) => ({ ...prev, [product.id]: val }))
+                            }
+                          >
+                            <SelectTrigger className="h-6 text-[10px] mt-1.5 font-semibold border-primary/30">
+                              <SelectValue placeholder="Pilih kemasan..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {product.product_units.map((unit) => {
+                                const unitOutOfStock = unit.stock <= 0
+                                return (
+                                  <SelectItem
+                                    key={unit.id}
+                                    value={unit.id}
+                                    disabled={unitOutOfStock}
+                                    className={`text-[11px] ${unitOutOfStock ? "opacity-50 line-through" : ""}`}
+                                  >
+                                    {unit.name} ({formatRupiah(unit.price)}){unitOutOfStock ? " - Habis" : ` - Stok: ${unit.stock}`}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
@@ -399,10 +530,17 @@ export default function PosWalkinPage() {
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {cart.map((item) => (
-                      <div key={item.productId} className="flex items-center gap-2 border border-border/50 rounded-lg p-2">
+                      <div key={cartItemKey(item.productId, item.unitId)} className="flex items-center gap-2 border border-border/50 rounded-lg p-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{item.name}</p>
-                          <p className="text-[10px] text-muted-foreground">{formatRupiah(item.price)} / pcs</p>
+                          <p className="text-xs font-semibold truncate">
+                            {item.name}
+                            {item.unitName && (
+                              <span className="ml-1 font-normal text-muted-foreground">({item.unitName})</span>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatRupiah(item.price)} / {item.unitName || "pcs"}
+                          </p>
                         </div>
                         <div className="flex items-center border border-border rounded-md shrink-0">
                           <Button
@@ -410,7 +548,7 @@ export default function PosWalkinPage() {
                             variant="ghost"
                             size="icon"
                             className="size-6 rounded-none"
-                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                            onClick={() => updateQuantity(item.productId, item.unitId, item.quantity - 1)}
                           >
                             <IconMinus className="size-3" />
                           </Button>
@@ -421,7 +559,7 @@ export default function PosWalkinPage() {
                             size="icon"
                             className="size-6 rounded-none"
                             disabled={item.quantity >= item.stockQty}
-                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                            onClick={() => updateQuantity(item.productId, item.unitId, item.quantity + 1)}
                           >
                             <IconPlus className="size-3" />
                           </Button>
@@ -431,7 +569,7 @@ export default function PosWalkinPage() {
                           variant="ghost"
                           size="icon"
                           className="size-6 text-destructive hover:bg-destructive/10 shrink-0"
-                          onClick={() => removeFromCart(item.productId)}
+                          onClick={() => removeFromCart(item.productId, item.unitId)}
                         >
                           <IconTrash className="size-3.5" />
                         </Button>
