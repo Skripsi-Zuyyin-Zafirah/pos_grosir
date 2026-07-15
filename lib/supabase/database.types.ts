@@ -229,6 +229,7 @@ export type Database = {
           sku: string | null
           stock: number
           stock_qty: number | null
+          time_weight: number
           unit: string | null
           unit_id: string | null
           waktu_pengambilan: number | null
@@ -246,6 +247,7 @@ export type Database = {
           sku?: string | null
           stock?: number
           stock_qty?: number | null
+          time_weight?: number
           unit?: string | null
           unit_id?: string | null
           waktu_pengambilan?: number | null
@@ -263,6 +265,7 @@ export type Database = {
           sku?: string | null
           stock?: number
           stock_qty?: number | null
+          time_weight?: number
           unit?: string | null
           unit_id?: string | null
           waktu_pengambilan?: number | null

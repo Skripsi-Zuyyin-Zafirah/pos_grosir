@@ -25,6 +25,7 @@ import {
   IconRuler2,
   IconUsers,
   IconCategory,
+  IconClockHour4,
 } from "@tabler/icons-react"
 
 type Role = "admin" | "cashier"
@@ -81,6 +82,12 @@ const navSections: { label: string; items: NavItem[] }[] = [
         title: "Kelola Kategori",
         url: "/dashboard/kategori",
         icon: <IconCategory />,
+        roles: ["admin"],
+      },
+      {
+        title: "Waktu Proses Produk",
+        url: "/dashboard/waktu-proses",
+        icon: <IconClockHour4 />,
         roles: ["admin"],
       },
     ],

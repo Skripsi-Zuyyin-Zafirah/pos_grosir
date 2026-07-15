@@ -50,6 +50,7 @@ type Product = {
   image_url: string | null
   category_id: string | null
   is_multi_unit: boolean | null
+  time_weight: number // bobot waktu (Wi) satuan dasar untuk kalkulasi EWP antrian
   categories: { name: string } | null
   product_units: ProductUnit[]
 }
@@ -151,7 +152,7 @@ export default function PosWalkinPage() {
       const { data: prodData, error: prodErr } = await supabase
         .from("products")
         .select(`
-          id, sku, name, price, stock, unit, image_url, category_id, is_multi_unit,
+          id, sku, name, price, stock, unit, image_url, category_id, is_multi_unit, time_weight,
           categories:category_id ( name ),
           product_units ( id, name:unit_name, price, multiplier, time_weight )
         `)
@@ -213,7 +214,7 @@ export default function PosWalkinPage() {
     price: product.price,
     multiplier: 1,
     stock: product.stock ?? 0,
-    time_weight: 1,
+    time_weight: product.time_weight,
   })
 
   // Kemasan yang sedang dipilih untuk produk multi-satuan (termasuk satuan dasar)
@@ -253,7 +254,7 @@ export default function PosWalkinPage() {
     const unitName = unit?.name ?? product.unit ?? null
     const multiplier = unit?.multiplier ?? 1
     const price = unit?.price ?? product.price
-    const timeWeight = unit?.time_weight ?? 1
+    const timeWeight = unit?.time_weight ?? product.time_weight
     const key = cartItemKey(product.id, unitId)
 
     setCart((prev) => {

@@ -58,6 +58,7 @@ type Product = {
   image_url: string | null
   category_id: string | null
   is_multi_unit: boolean | null
+  time_weight: number // bobot waktu (Wi) satuan dasar untuk kalkulasi EWP antrian
   categories: { name: string } | null
   product_units: ProductUnit[]
 }
@@ -95,7 +96,7 @@ export default function CustomerCatalogPage() {
       const { data: prodData, error: prodErr } = await supabase
         .from("products")
         .select(`
-          id, sku, name, description, price, stock, unit, image_url, category_id, is_multi_unit,
+          id, sku, name, description, price, stock, unit, image_url, category_id, is_multi_unit, time_weight,
           categories:category_id ( name ),
           product_units ( id, name:unit_name, price, multiplier, time_weight )
         `)
@@ -219,7 +220,7 @@ export default function CustomerCatalogPage() {
         price: unit.price,
         imageUrl: product.image_url,
         stockQty: unit.stock,
-        timeWeight: unit.time_weight ?? 1,
+        timeWeight: unit.time_weight ?? product.time_weight,
       }, qty)
       toast.success(`${qty} ${unit.name} ${product.name} ditambahkan ke keranjang!`)
     } else {
@@ -232,7 +233,7 @@ export default function CustomerCatalogPage() {
         price: product.price,
         imageUrl: product.image_url,
         stockQty: product.stock,
-        timeWeight: 1,
+        timeWeight: product.time_weight,
       }, qty)
       toast.success(`${qty} ${product.unit || "pcs"} ${product.name} ditambahkan ke keranjang!`)
     }
