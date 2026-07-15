@@ -1,0 +1,163 @@
+# Product Requirements Document (PRD)
+## Rancang Bangun Sistem Point of Sale Grosir dengan Penerapan Priority Queue pada Antrian Pesanan
+**Studi Kasus: Grosir Jasa**
+
+| | |
+|---|---|
+| **Versi** | 2.0 (Sistem Baru) |
+| **Tanggal** | Juli 2026 |
+| **Penyusun** | Zuyyin Zafirah (NIM: 2022573010058) |
+| **Stack** | Next.js 15+ (App Router) + TypeScript + Tailwind CSS + Supabase (PostgreSQL, Auth, Realtime) |
+| **Algoritma Inti** | Priority Queue berbasis Min-Heap dengan pendekatan Shortest Job First (SJF) |
+
+---
+
+## 1. Ringkasan Eksekutif
+
+Sistem Point of Sale (POS) Grosir Jasa di Aceh Timur dirancang untuk menggantikan pengelolaan pemesanan manual yang tidak efisien menjadi sistem digital berbasis web yang terstruktur. Usaha grosir ini melayani volume pesanan yang besar dengan karakteristik belanja yang bervariasi. Jika pesanan diproses menggunakan aturan First-In First-Out (FIFO) konvensional, pesanan kecil dengan jumlah item sedikit akan terhambat di belakang pesanan besar, sehingga meningkatkan rata-rata waktu tunggu pelanggan secara keseluruhan.
+
+Sistem ini menerapkan **Priority Queue** menggunakan struktur data **Min-Heap** dengan pendekatan **Shortest Job First (SJF)**. Setiap pesanan baru yang masuk akan dihitung nilai **Estimasi Waktu Proses (EWP)** berdasarkan kuantitas barang dikali waktu pengambilan rata-rata hasil observasi. Pesanan dengan EWP terkecil diprioritaskan di bagian atas antrian. Sistem secara otomatis mendistribusikan pesanan prioritas tertinggi kepada salah satu dari empat pegawai yang sedang dalam kondisi tersedia (*idle*) menggunakan model **Single Queue Multiple Server**.
+
+---
+
+## 2. Latar Belakang & Pernyataan Masalah
+
+Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat daftar belanja di kertas, menyerahkannya ke salah satu dari empat pegawai, lalu pegawai mengambil barang secara fisik dan kasir memproses pembayaran tunai. Hal ini menimbulkan beberapa kendala utama:
+1. **Ketidakadilan dan Inefisiensi Antrian**: Pesanan dengan jumlah item sedikit harus menunggu pegawai menyelesaikan pesanan berukuran sangat besar. Hal ini meningkatkan waktu tunggu rata-rata.
+2. **Distribusi Beban Kerja Pegawai yang Tidak Merata**: Tanpa adanya sistem pembagian tugas formal, beban kerja pegawai tidak merata dan bergantung pada pilihan subjektif pembeli atau pegawai itu sendiri.
+3. **Ketiadaan Informasi Real-Time**: Pembeli tidak dapat memantau status pengerjaan pesanan secara langsung dan tidak dapat mengecek stok barang sebelum berkunjung ke toko.
+4. **Keterbatasan Metode Pembayaran**: Transaksi pembayaran terbatas pada uang tunai di kasir tanpa adanya pencatatan pembayaran online.
+
+---
+
+## 3. Tujuan & Metrik Keberhasilan
+
+### 3.1 Tujuan Produk
+1. Membangun aplikasi POS grosir berbasis web yang mencakup modul Pemesanan Pembeli, Dasbor Antrian Kasir, Manajemen Inventori, dan Laporan Penjualan Admin.
+2. Mengotomatisasi pengurutan antrian menggunakan Min-Heap Priority Queue berdasarkan estimasi waktu proses (EWP).
+3. Mendistribusikan pesanan secara otomatis ke 4 pegawai berdasarkan status ketersediaan (*idle/busy*).
+4. Menyediakan antarmuka status pesanan secara real-time untuk pembeli dan kasir menggunakan Supabase Realtime.
+
+### 3.2 Metrik Keberhasilan
+- **Fungsionalitas**: Tingkat keberhasilan pengujian fungsionalitas utama menggunakan Black Box Testing mencapai 100%.
+- **Kebenaran Algoritma**: Hasil pengurutan Min-Heap dan ekstraksi prioritas 100% konsisten dengan perhitungan manual.
+- **Tie-Breaking**: Keadilan antrian terjamin, di mana pesanan dengan EWP sama otomatis diurutkan berdasarkan waktu kedatangan (`created_at` paling awal).
+- **Sinkronisasi Real-Time**: Status pesanan dan antrian diperbarui di dasbor dalam waktu < 1 detik setelah perubahan status.
+
+---
+
+## 4. Lingkup (Scope)
+
+### 4.1 Fitur Utama (In-Scope)
+- **Modul Pembeli**:
+  - Registrasi dan login akun pembeli.
+  - Katalog produk dengan harga grosir dan informasi stok real-time.
+  - Keranjang belanja dan pembuatan pesanan digital via perangkat mobile.
+  - Pelacakan status pesanan real-time (`DIPROSES` -> `DIKEMAS` -> `SIAP` -> `SELESAI`).
+- **Modul Kasir**:
+  - Dasbor antrian Priority Queue terurut EWP real-time.
+  - Informasi status ketersediaan 4 pegawai (*idle* / *sibuk*).
+  - Pencetakan struk transaksi untuk pegawai.
+  - Konfirmasi pembayaran tunai maupun online.
+- **Modul Admin**:
+  - CRUD produk, kategori, dan stok barang.
+  - Manajemen data pengguna (kasir dan pembeli).
+  - Visualisasi laporan penjualan bulanan dan produk terlaris dalam bentuk grafik.
+- **Logika Sistem (Otomatis)**:
+  - Perhitungan EWP otomatis saat pesanan dibuat.
+  - Operasi insert Min-Heap (heapify-up) dan extract-min (heapify-down).
+  - Algoritma pembagian tugas otomatis ke pegawai yang idle.
+
+### 4.2 Diluar Lingkup (Out-of-Scope)
+- Fitur pengiriman barang ke rumah (pembeli mengambil barang sendiri ke toko).
+- Integrasi otomatis payment gateway pihak ketiga (kasir mencatat status pembayaran tunai/online secara manual).
+
+---
+
+## 5. Peran Pengguna (User Roles)
+
+| Peran | Deskripsi | Akses Utama |
+|---|---|---|
+| **Pembeli (Customer)** | Pelanggan Grosir Jasa | Melakukan pendaftaran, melihat katalog produk, membuat pesanan digital, memantau status antrian |
+| **Kasir (Cashier)** | Pegawai kasir yang mengelola transaksi | Memantau dasbor antrian prioritas, mencetak struk pesanan, memproses pembayaran tunai/online |
+| **Admin** | Pemilik toko atau pengelola penuh | Mengelola stok, produk, kategori, membuat akun kasir/pembeli, memantau grafik laporan penjualan |
+
+---
+
+## 6. Alur Kerja Sistem (System Workflows)
+
+### 6.1 Alur Pembuatan dan Penugasan Pesanan
+1. Pembeli menyusun keranjang belanja dan mengirimkan pesanan.
+2. Sistem menghitung EWP pesanan dengan rumus:
+   $$EWP = \sum_{i=1}^{n} (Q_i \times W_i)$$
+3. Pesanan dimasukkan ke dalam Min-Heap pada posisi daun terakhir, kemudian dijalankan proses **Heapify-Up** berdasarkan nilai EWP untuk menempatkan pesanan pada urutan antrian yang tepat.
+4. Sistem memeriksa ketersediaan 4 pegawai pada tabel `staff`:
+   - Jika ada pegawai berstatus *idle*, sistem melakukan operasi **Extract-Min** (mengambil pesanan dari akar Min-Heap, memindahkan daun terakhir ke akar, lalu menjalankan **Heapify-Down**).
+   - Pesanan tersebut ditugaskan ke pegawai tersebut, dan status pegawai diubah menjadi *busy*.
+   - Dasbor antrian kasir dan status pesanan pembeli diperbarui secara real-time.
+   - Jika semua pegawai sibuk, pesanan tetap mengantri di dalam Min-Heap.
+
+### 6.2 Alur Pemrosesan di Toko dan Pembayaran
+1. Kasir membuka dasbor antrian prioritas, memilih pesanan teratas, dan mencetak struknya.
+2. Pegawai mengambil barang secara fisik di rak berdasarkan struk tersebut.
+3. Setelah barang siap, kasir mengubah status pesanan menjadi `SIAP`.
+4. Pembeli melakukan pembayaran (tunai atau online).
+5. Kasir mengonfirmasi pembayaran selesai:
+   - Status pesanan berubah menjadi `SELESAI`.
+   - Stok barang terpotong otomatis di database.
+   - Status pegawai yang menangani pesanan diubah kembali menjadi *idle*.
+   - Pegawai tersebut siap menerima pesanan berikutnya dari akar Min-Heap.
+
+---
+
+## 7. Kebutuhan Fungsional (Functional Requirements)
+
+| Kode | Kebutuhan Fungsional | Aktor |
+|---|---|---|
+| **F-01** | Registrasi akun pembeli dan login multi-role (pembeli, kasir, admin) | Pembeli, Kasir, Admin |
+| **F-02** | Tampilan katalog produk dengan informasi stok dan harga real-time | Pembeli |
+| **F-03** | Pembuatan pesanan digital melalui perangkat mobile | Pembeli |
+| **F-04** | Perhitungan total harga belanja secara otomatis | Sistem (Otomatis) |
+| **F-05** | Perhitungan nilai Estimasi Waktu Proses (EWP) pesanan | Sistem (Otomatis) |
+| **F-06** | Pengelolaan antrian pesanan terurut dengan struktur Min-Heap | Sistem (Otomatis) |
+| **F-07** | Distribusi tugas otomatis ke pegawai idle (Single Queue Multiple Server) | Sistem (Otomatis) |
+| **F-08** | Monitoring dasbor antrian prioritas secara real-time | Kasir |
+| **F-09** | Pencetakan struk transaksi berdasarkan nomor prioritas teratas | Kasir |
+| **F-10** | Konfirmasi pembayaran, update status pegawai, dan status pesanan | Kasir |
+| **F-11** | CRUD produk, kategori, dan stok barang | Admin |
+| **F-12** | CRUD data pengguna kasir dan pembeli | Admin |
+| **F-13** | Visualisasi grafik laporan penjualan bulanan dan produk terlaris | Admin |
+| **F-14** | Pembaruan stok produk otomatis setelah pembayaran terkonfirmasi | Sistem (Otomatis) |
+
+---
+
+## 8. Kebutuhan Non-Fungsional (Non-Functional Requirements)
+
+| Kode | Aspek | Deskripsi Kebutuhan |
+|---|---|---|
+| **NF-01** | Keamanan (*Security*) | Autentikasi aman menggunakan Supabase Auth dan pembatasan data via Role-Based Access Control (RBAC) / Row Level Security (RLS). |
+| **NF-02** | Performa (*Performance*) | Latensi pembaruan dasbor antrian < 1 detik dengan Supabase Realtime subscription. |
+| **NF-03** | Usabilitas (*Usability*) | Antarmuka web responsif untuk perangkat mobile (pembeli) maupun layar monitor/tablet (kasir/admin) menggunakan Tailwind CSS. |
+| **NF-04** | Keandalan (*Reliability*) | Sinkronisasi data real-time yang menjamin tidak ada pesanan yang hilang atau terlewat dari antrian database Postgres. |
+
+---
+
+## 9. Desain Algoritma Priority Queue Min-Heap
+
+### 9.1 Rumus Perhitungan EWP (Shortest Job First)
+Estimasi Waktu Proses (EWP) total dihitung berdasarkan kuantitas masing-masing item pesanan dikalikan waktu pengambilan rata-rata per item hasil observasi lapangan:
+$$EWP = \sum_{i=1}^{n} (Q_i \times W_i)$$
+
+*Contoh Parameter Waktu Ambil ($W_i$):*
+- Produk Jajanan (Snack/Permen): 5 detik/unit.
+- Kebutuhan Dapur (Minyak/Tepung): 15 detik/unit.
+- Produk Rokok/Sembako Berat (Beras/Karton): 30 detik/unit.
+
+### 9.2 Logika Heapify-Up (INSERT)
+Ketika pesanan baru masuk dengan nilai $EWP_{baru}$, pesanan disisipkan di indeks terakhir array Min-Heap. Proses Heapify-Up membandingkan pesanan tersebut dengan elemen induknya (`parent` di indeks $\lfloor (i-1)/2 \rfloor$). Jika EWP pesanan baru lebih kecil, maka posisinya ditukar dengan induknya. Proses ini berulang hingga properti Min-Heap terpenuhi atau pesanan berada di akar (indeks 0).
+
+### 9.3 Logika Heapify-Down (EXTRACT-MIN)
+Ketika ada pegawai idle, pesanan di akar (indeks 0) diambil. Elemen pada indeks terakhir array dipindahkan ke akar. Proses Heapify-Down membandingkan elemen akar baru ini dengan kedua anaknya (`left` di indeks $2i+1$, `right` di indeks $2i+2$). Akar ditukar dengan anak yang memiliki EWP terkecil jika EWP akar lebih besar dari anak terkecil tersebut. Proses ini diulangi hingga properti Min-Heap terpenuhi kembali.
+
+### 9.4 Tie-Breaking (Keadilan Antrian)
+Jika dua pesanan memiliki EWP yang sama, kunci pembanding kedua adalah waktu pembuatan pesanan (`created_at`). Pesanan yang memiliki timestamp lebih awal (datang lebih dulu) akan ditempatkan di atas pesanan yang datang belakangan, sehingga asas keadilan (first-come first-served) tetap terjaga untuk pesanan dengan kompleksitas setara.
