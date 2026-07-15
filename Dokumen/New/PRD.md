@@ -16,7 +16,7 @@
 
 Sistem Point of Sale (POS) Grosir Jasa di Aceh Timur dirancang untuk menggantikan pengelolaan pemesanan manual yang tidak efisien menjadi sistem digital berbasis web yang terstruktur. Usaha grosir ini melayani volume pesanan yang besar dengan karakteristik belanja yang bervariasi. Jika pesanan diproses menggunakan aturan First-In First-Out (FIFO) konvensional, pesanan kecil dengan jumlah item sedikit akan terhambat di belakang pesanan besar, sehingga meningkatkan rata-rata waktu tunggu pelanggan secara keseluruhan.
 
-Sistem ini menerapkan **Priority Queue** menggunakan struktur data **Min-Heap** dengan pendekatan **Shortest Job First (SJF)**. Setiap pesanan baru yang masuk akan dihitung nilai **Estimasi Waktu Proses (EWP)** berdasarkan kuantitas barang dikali waktu pengambilan rata-rata hasil observasi. Pesanan dengan EWP terkecil diprioritaskan di bagian atas antrian. Sistem secara otomatis mendistribusikan pesanan prioritas tertinggi kepada salah satu dari empat pegawai yang sedang dalam kondisi tersedia (*idle*) menggunakan model **Single Queue Multiple Server**.
+Sistem ini menerapkan **Priority Queue** menggunakan struktur data **Min-Heap** dengan pendekatan **Shortest Job First (SJF)**. Setiap pesanan baru yang masuk akan dihitung nilai **Estimasi Waktu Proses (EWP)** berdasarkan kuantitas barang dikali waktu pengambilan rata-rata hasil observasi. Pesanan dengan EWP terkecil diprioritaskan di bagian atas antrian. Melalui dashboard kasir, tugas prioritas teratas didelegasikan (baik secara otomatis via aplikasi dengan opsi auto-assign maupun secara manual oleh kasir) kepada pegawai yang sedang dalam kondisi tersedia (*idle*) menggunakan model **Single Queue Multiple Server**.
 
 ---
 
@@ -35,7 +35,7 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 ### 3.1 Tujuan Produk
 1. Membangun aplikasi POS grosir berbasis web yang mencakup modul Pemesanan Pembeli, Dasbor Antrian Kasir, Manajemen Inventori, dan Laporan Penjualan Admin.
 2. Mengotomatisasi pengurutan antrian menggunakan Min-Heap Priority Queue berdasarkan estimasi waktu proses (EWP).
-3. Mendistribusikan pesanan secara otomatis ke 4 pegawai berdasarkan status ketersediaan (*idle/busy*).
+3. Mendistribusikan pesanan ke 4 pegawai berdasarkan status ketersediaan (*idle/sibuk*) baik secara otomatis via dashboard maupun secara manual.
 4. Menyediakan antarmuka status pesanan secara real-time untuk pembeli dan kasir menggunakan Supabase Realtime.
 
 ### 3.2 Metrik Keberhasilan
@@ -53,10 +53,10 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
   - Registrasi dan login akun pembeli.
   - Katalog produk dengan harga grosir dan informasi stok real-time.
   - Keranjang belanja dan pembuatan pesanan digital via perangkat mobile.
-  - Pelacakan status pesanan real-time (`DIPROSES` -> `DIKEMAS` -> `SIAP` -> `SELESAI`).
+  - Pelacakan status pesanan real-time (`antri` -> `diproses` -> `selesai`).
 - **Modul Kasir**:
   - Dasbor antrian Priority Queue terurut EWP real-time.
-  - Informasi status ketersediaan 4 pegawai (*idle* / *sibuk*).
+  - Informasi status ketersediaan 4 pegawai (`idle` / `sibuk`).
   - Pencetakan struk transaksi untuk pegawai.
   - Konfirmasi pembayaran tunai maupun online.
 - **Modul Admin**:
@@ -65,8 +65,8 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
   - Visualisasi laporan penjualan bulanan dan produk terlaris dalam bentuk grafik.
 - **Logika Sistem (Otomatis)**:
   - Perhitungan EWP otomatis saat pesanan dibuat.
-  - Operasi insert Min-Heap (heapify-up) dan extract-min (heapify-down).
-  - Algoritma pembagian tugas otomatis ke pegawai yang idle.
+  - Operasi insert Min-Heap (heapify-up) dan extract-min (heapify-down) pada tingkat aplikasi.
+  - Mekanisme pembagian tugas ke pegawai idle (otomatis via aplikasi/manual via kasir).
 
 ### 4.2 Diluar Lingkup (Out-of-Scope)
 - Fitur pengiriman barang ke rumah (pembeli mengambil barang sendiri ke toko).
@@ -90,23 +90,25 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 1. Pembeli menyusun keranjang belanja dan mengirimkan pesanan.
 2. Sistem menghitung EWP pesanan dengan rumus:
    $$EWP = \sum_{i=1}^{n} (Q_i \times W_i)$$
-3. Pesanan dimasukkan ke dalam Min-Heap pada posisi daun terakhir, kemudian dijalankan proses **Heapify-Up** berdasarkan nilai EWP untuk menempatkan pesanan pada urutan antrian yang tepat.
-4. Sistem memeriksa ketersediaan 4 pegawai pada tabel `staff`:
-   - Jika ada pegawai berstatus *idle*, sistem melakukan operasi **Extract-Min** (mengambil pesanan dari akar Min-Heap, memindahkan daun terakhir ke akar, lalu menjalankan **Heapify-Down**).
-   - Pesanan tersebut ditugaskan ke pegawai tersebut, dan status pegawai diubah menjadi *busy*.
-   - Dasbor antrian kasir dan status pesanan pembeli diperbarui secara real-time.
+3. Pesanan dimasukkan ke dalam Min-Heap pada tingkat aplikasi (frontend), kemudian dijalankan proses **Heapify-Up** berdasarkan nilai EWP untuk menempatkan pesanan pada urutan antrian yang tepat.
+4. Melalui dashboard kasir, sistem mendeteksi ketersediaan 4 pegawai pada tabel `staff` (status `idle` / `sibuk`).
+   - Jika opsi auto-assign aktif dan ada pegawai berstatus `idle`, sistem otomatis memanggil fungsi database `assign_order_to_staff` untuk menugaskan pesanan prioritas teratas (akar Min-Heap) ke pegawai tersebut. Kasir juga dapat menugaskannya secara manual.
+   - Pegawai yang ditugaskan akan berubah statusnya menjadi `sibuk`.
+   - Sistem secara otomatis membuka dialog struk transaksi agar kasir dapat mencetaknya langsung.
+   - Dasbor antrian kasir dan pelacakan status pesanan pembeli diperbarui secara real-time.
    - Jika semua pegawai sibuk, pesanan tetap mengantri di dalam Min-Heap.
 
 ### 6.2 Alur Pemrosesan di Toko dan Pembayaran
-1. Kasir membuka dasbor antrian prioritas, memilih pesanan teratas, dan mencetak struknya.
-2. Pegawai mengambil barang secara fisik di rak berdasarkan struk tersebut.
-3. Setelah barang siap, kasir mengubah status pesanan menjadi `SIAP`.
-4. Pembeli melakukan pembayaran (tunai atau online).
-5. Kasir mengonfirmasi pembayaran selesai:
-   - Status pesanan berubah menjadi `SELESAI`.
-   - Stok barang terpotong otomatis di database.
-   - Status pegawai yang menangani pesanan diubah kembali menjadi *idle*.
-   - Pegawai tersebut siap menerima pesanan berikutnya dari akar Min-Heap.
+1. Kasir mencetak struk pesanan yang ditugaskan dan menyerahkannya kepada pegawai.
+2. Pegawai mengambil barang secara fisik di rak berdasarkan struk tersebut dan mengemasnya.
+3. Setelah pengemasan selesai, kasir menandai selesai mengemas (memanggil fungsi database `complete_packing`):
+   - Kolom `packed_at` pada pesanan terisi timestamp saat itu (status pesanan di mata pembeli menjadi siap diambil).
+   - Status pegawai kembali diubah menjadi `idle` agar dapat menerima pesanan baru.
+4. Pembeli melakukan pembayaran ke kasir (metode `tunai` atau `online`).
+5. Kasir mengonfirmasi pembayaran selesai (memanggil fungsi database `finalize_order_payment`):
+   - Status pesanan berubah menjadi `selesai`.
+   - Catatan transaksi pembayaran tersimpan di tabel `payments`.
+   - *(Catatan: Pemotongan stok produk dan pencatatan mutasi stok jenis 'sale' terjadi secara otomatis di database saat pembeli membuat pesanan / checkout).*
 
 ---
 
@@ -114,20 +116,20 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 
 | Kode | Kebutuhan Fungsional | Aktor |
 |---|---|---|
-| **F-01** | Registrasi akun pembeli dan login multi-role (pembeli, kasir, admin) | Pembeli, Kasir, Admin |
+| **F-01** | Registrasi akun pembeli dan login multi-role (customer, cashier, admin) | Pembeli, Kasir, Admin |
 | **F-02** | Tampilan katalog produk dengan informasi stok dan harga real-time | Pembeli |
 | **F-03** | Pembuatan pesanan digital melalui perangkat mobile | Pembeli |
 | **F-04** | Perhitungan total harga belanja secara otomatis | Sistem (Otomatis) |
 | **F-05** | Perhitungan nilai Estimasi Waktu Proses (EWP) pesanan | Sistem (Otomatis) |
 | **F-06** | Pengelolaan antrian pesanan terurut dengan struktur Min-Heap | Sistem (Otomatis) |
-| **F-07** | Distribusi tugas otomatis ke pegawai idle (Single Queue Multiple Server) | Sistem (Otomatis) |
+| **F-07** | Mekanisme penugasan (otomatis via dashboard kasir/manual) ke pegawai idle | Sistem (Otomatis) |
 | **F-08** | Monitoring dasbor antrian prioritas secara real-time | Kasir |
 | **F-09** | Pencetakan struk transaksi berdasarkan nomor prioritas teratas | Kasir |
-| **F-10** | Konfirmasi pembayaran, update status pegawai, dan status pesanan | Kasir |
+| **F-10** | Konfirmasi pembayaran, selesai pengemasan (membebaskan status pegawai), dan status pesanan | Kasir |
 | **F-11** | CRUD produk, kategori, dan stok barang | Admin |
 | **F-12** | CRUD data pengguna kasir dan pembeli | Admin |
 | **F-13** | Visualisasi grafik laporan penjualan bulanan dan produk terlaris | Admin |
-| **F-14** | Pembaruan stok produk otomatis setelah pembayaran terkonfirmasi | Sistem (Otomatis) |
+| **F-14** | Pembaruan stok produk otomatis saat pesanan dibuat (checkout) | Sistem (Otomatis) |
 
 ---
 

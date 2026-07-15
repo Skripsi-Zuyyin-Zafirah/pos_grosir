@@ -95,29 +95,35 @@ graph TD
 ```
 
 ### 2.2 Sequence Diagram: Proses Checkout dan Distribusi Pesanan
-Sequence diagram di bawah ini menjelaskan alur pengolahan antrian pesanan baru menggunakan algoritma Priority Queue berbasis Min-Heap, dilanjutkan dengan alur penugasan otomatis ke pegawai idle (*Single Queue Multiple Server*).
+Sequence diagram di bawah ini menjelaskan alur pembuatan pesanan oleh pembeli (checkout) beserta delegasi tugas ke pegawai (baik otomatis maupun manual) melalui dasbor kasir dengan visualisasi antrian terurut Min-Heap.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Pembeli
-    participant Sistem as Sistem POS (Next.js)
+    actor Kasir
+    participant Sistem as Dashboard Kasir (Next.js)
     participant DB as Supabase PostgreSQL
     actor Pegawai
     
-    Pembeli->>Sistem: Kirim Keranjang Belanja (Checkout)
-    Note over Sistem: Hitung EWP = sum(Q_i * W_i)
-    Sistem->>DB: Insert Order (EWP, created_at, status='ANTRI')
-    Note over Sistem: Heapify-Up berdasarkan EWP & created_at
-    Sistem->>DB: Cek status 4 pegawai di tabel staff (idle?)
-    alt Ada pegawai idle
-        Sistem->>DB: Extract-Min dari akar Min-Heap (Heapify-Down)
-        Sistem->>DB: Set status pegawai = busy & hubungkan order
-        Sistem->>Sistem: Broadcast update antrian (Supabase Realtime)
-        Pegawai->>Pegawai: Ambil barang secara fisik
-    else Semua pegawai sibuk
-        Sistem->>Sistem: Pertahankan order di antrian Min-Heap
+    Pembeli->>DB: Kirim Keranjang Belanja (Checkout)
+    Note over DB: Kurangi Stok & Simpan Order (status='antri')
+    Sistem->>DB: Langganan Realtime (Dapatkan Antrian Baru)
+    Note over Sistem: Urutkan Antrian via Min-Heap (EWP & created_at)
+    
+    alt Opsi Auto-Assign Aktif & Ada Pegawai Idle
+        Sistem->>DB: RPC assign_order_to_staff(order_id, staff_id)
+        DB->>DB: Set order='diproses', staff='sibuk'
+        Sistem->>Kasir: Tampilkan Dialog Cetak Struk
+    else Penugasan Manual oleh Kasir
+        Kasir->>Sistem: Pilih Pegawai & Klik 'Tugaskan'
+        Sistem->>DB: RPC assign_order_to_staff(order_id, staff_id)
+        DB->>DB: Set order='diproses', staff='sibuk'
+        Sistem->>Kasir: Cetak Struk Transaksi
     end
+    
+    Kasir->>Pegawai: Serahkan Struk Fisik
+    Pegawai->>Pegawai: Ambil & Kemas Barang di Rak
 ```
 
 ---
@@ -127,7 +133,7 @@ sequenceDiagram
 Sistem menggunakan basis data relasional PostgreSQL (melalui Supabase) yang terdiri dari 9 tabel utama untuk mendukung integritas data transaksi, inventori, dan log antrian.
 
 ```mermaid
-erjiagram
+erDiagram
     profiles ||--o{ orders : "membuat"
     categories ||--o{ products : "memiliki"
     products ||--o{ product_units : "memiliki"
@@ -140,12 +146,15 @@ erjiagram
     profiles {
         uuid id PK
         text full_name
-        enum role "pelanggan, kasir, admin"
-        boolean is_active
+        enum role "customer, cashier, admin"
+        text address
+        text phone_number
+        timestamptz updated_at
     }
     categories {
         uuid id PK
         text name
+        timestamptz created_at
     }
     products {
         uuid id PK
@@ -155,21 +164,34 @@ erjiagram
         numeric price
         text unit
         int stock
+        numeric time_weight
+        int waktu_pengambilan
     }
     product_units {
         uuid id PK
         uuid product_id FK
         text unit_name
-        numeric conversion_factor
+        int multiplier
+        numeric time_weight
+        numeric pickup_time_seconds
+        numeric price
+        uuid unit_id FK
+        timestamptz created_at
     }
     orders {
         uuid id PK
-        uuid customer_id FK
-        numeric total_amount
-        numeric ewp "Estimasi Waktu Proses"
-        numeric priority_score
-        enum status "ANTRI, DIPROSES, SIAP, SELESAI, BATAL"
+        text order_number
+        text customer_name
+        uuid user_id FK
+        numeric total_price
+        int total_items
+        numeric ewp
+        enum status "antri, diproses, selesai, batal"
         uuid staff_id FK
+        timestamptz enqueued_at
+        timestamptz dequeued_at
+        timestamptz packed_at
+        timestamptz completed_at
         timestamptz created_at
     }
     order_items {
@@ -182,13 +204,14 @@ erjiagram
     staff {
         uuid id PK
         text name
-        enum status "idle, busy"
+        enum status "idle, sibuk"
+        boolean is_active
     }
     payments {
         uuid id PK
         uuid order_id FK
         uuid cashier_id FK
-        enum method "tunai, transfer, qris"
+        enum method "tunai, online"
         numeric amount
         timestamptz paid_at
     }
@@ -203,12 +226,12 @@ erjiagram
 
 ### 3.1 Detail Kamus Data & Relasi Tabel
 
-1. **Tabel `profiles`**: Menyimpan kredensial pengguna yang terintegrasi dengan tabel `auth.users` Supabase. Pembatasan akses berbasis peran (*Role-Based Access Control*) diterapkan pada level tabel melalui PostgreSQL Row Level Security (RLS) policies.
-2. **Tabel `products` & `categories`**: Menyimpan data barang dagangan grosir. Kolom `stock` menyimpan kuantitas stok ter-update secara real-time.
-3. **Tabel `product_units`**: Mendukung variasi satuan penjualan grosir (eceran, lusin, karton).
-4. **Tabel `orders` & `order_items`**: Tabel transaksi inti. Kolom `ewp` menyimpan nilai Estimasi Waktu Proses pesanan, yang bertindak sebagai kunci prioritas Min-Heap.
-5. **Tabel `staff`**: Menyimpan identitas 4 orang pegawai toko. Kolom `status` (`idle` / `busy`) menentukan alur distribusi penugasan otomatis *Extract-Min*.
-6. **Tabel `payments`**: Menyimpan transaksi pembayaran kasir lunas dengan metode tunai atau online.
+1. **Tabel `profiles`**: Menyimpan data profil pengguna yang terintegrasi dengan `auth.users` Supabase. Hak akses diatur melalui enum `user_role` (`'customer'`, `'cashier'`, `'admin'`).
+2. **Tabel `products` & `categories`**: Menyimpan informasi barang dagang grosir. Dilengkapi kolom `time_weight` dan `waktu_pengambilan` untuk menampung bobot waktu pengambilan barang.
+3. **Tabel `product_units`**: Menyimpan variasi kemasan grosir (eceran, pak, karton) dengan kolom `multiplier` sebagai faktor perkalian kuantitas ke pcs.
+4. **Tabel `orders` & `order_items`**: Menyimpan data pesanan belanja. Nilai prioritas ditentukan oleh kolom `ewp` (Estimasi Waktu Proses) yang dihitung di aplikasi. Total belanja disimpan dalam `total_price` dan statusnya berupa enum `'antri'`, `'diproses'`, `'selesai'`, `'batal'`.
+5. **Tabel `staff`**: Menyimpan status ketersediaan 4 orang pegawai (`'idle'` atau `'sibuk'`). Status pegawai dikelola secara real-time via fungsi `assign_order_to_staff` dan `complete_packing`.
+6. **Tabel `payments`**: Menyimpan rincian transaksi pembayaran lunas dengan enum `payment_method` (`'tunai'` atau `'online'`).
 
 ---
 
