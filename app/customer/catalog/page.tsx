@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { useCart } from "@/lib/cart/cart-context"
+import { useCart, cartItemKey } from "@/lib/cart/cart-context"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -11,6 +12,14 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet"
 import { toast } from "sonner"
 import {
   IconLoader2,
@@ -22,6 +31,9 @@ import {
   IconPackageOff,
   IconAlertTriangle,
   IconCircleCheck,
+  IconShoppingCart,
+  IconTrash,
+  IconTrashX,
 } from "@tabler/icons-react"
 
 type ProductUnit = {
@@ -55,12 +67,13 @@ type Category = {
 
 export default function CustomerCatalogPage() {
   const supabase = createClient()
-  const { addItem } = useCart()
+  const { items: cartItems, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice } = useCart()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [cartOpen, setCartOpen] = useState(false)
 
   // Per-product state: selected unit & qty
   const [selectedUnit, setSelectedUnit] = useState<Record<string, string>>({})
@@ -447,7 +460,119 @@ export default function CustomerCatalogPage() {
             </div>
           )}
         </div>
+
+        {/* Floating cart button */}
+        <Button
+          size="icon"
+          className="fixed bottom-6 right-6 z-40 size-14 rounded-full shadow-lg"
+          onClick={() => setCartOpen(true)}
+        >
+          <IconShoppingCart className="size-5" />
+          {totalItems > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">
+              {totalItems}
+            </span>
+          )}
+        </Button>
       </SidebarInset>
+
+      {/* Cart drawer */}
+      <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <IconShoppingCart className="size-5 text-primary" /> Keranjang
+            </SheetTitle>
+            <SheetDescription>{cartItems.length} produk dipilih</SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 space-y-2">
+            {cartItems.length === 0 ? (
+              <div className="text-center py-16 text-sm text-muted-foreground">
+                Keranjang Anda masih kosong. Pilih produk di katalog untuk mulai berbelanja.
+              </div>
+            ) : (
+              cartItems.map((item) => (
+                <div
+                  key={cartItemKey(item.productId, item.unitId)}
+                  className="flex items-center gap-2 border border-border/50 rounded-lg p-2"
+                >
+                  <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <IconPhoto className="size-4 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">
+                      {item.name}
+                      {item.unitName && (
+                        <span className="ml-1 font-normal text-muted-foreground">({item.unitName})</span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">{formatRupiah(item.price)}</p>
+                  </div>
+                  <div className="flex items-center border border-border rounded-md shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 rounded-none"
+                      onClick={() => updateQuantity(item.productId, item.quantity - 1, item.unitId)}
+                    >
+                      <IconMinus className="size-3" />
+                    </Button>
+                    <span className="w-6 text-center text-xs font-semibold tabular-nums">{item.quantity}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 rounded-none"
+                      disabled={item.quantity >= item.stockQty}
+                      onClick={() => updateQuantity(item.productId, item.quantity + 1, item.unitId)}
+                    >
+                      <IconPlus className="size-3" />
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 text-destructive hover:bg-destructive/10 shrink-0"
+                    onClick={() => removeItem(item.productId, item.unitId)}
+                  >
+                    <IconTrash className="size-3.5" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <SheetFooter>
+            {cartItems.length > 0 && (
+              <>
+                <div className="flex items-center justify-between text-sm border-t pt-3">
+                  <span className="text-muted-foreground">Total ({totalItems} item)</span>
+                  <span className="font-bold text-lg text-primary">{formatRupiah(totalPrice)}</span>
+                </div>
+                <Button asChild className="w-full font-semibold" size="lg" onClick={() => setCartOpen(false)}>
+                  <Link href="/customer/cart">Lanjut ke Checkout</Link>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full text-destructive hover:text-destructive"
+                  onClick={() => {
+                    if (confirm("Kosongkan keranjang?")) clearCart()
+                  }}
+                >
+                  <IconTrashX className="size-4 mr-1.5" /> Kosongkan Keranjang
+                </Button>
+              </>
+            )}
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </SidebarProvider>
   )
 }
