@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
+import { formatDuration } from "@/lib/queue/ewp"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -133,9 +134,9 @@ export default function CustomerDashboardPage() {
     .reduce((sum, o) => sum + o.total_price, 0)
   const currentOrder = activeOrders[activeOrders.length - 1] || activeOrders[0] || null
 
-  const getTimeLeft = (createdAtStr: string, ewpMinutes: number) => {
+  const getTimeLeft = (createdAtStr: string, ewpSeconds: number) => {
     const createdAt = new Date(createdAtStr)
-    const deadline = new Date(createdAt.getTime() + ewpMinutes * 60 * 1000)
+    const deadline = new Date(createdAt.getTime() + ewpSeconds * 1000)
     const diffMs = deadline.getTime() - now.getTime()
     return Math.ceil(diffMs / 1000 / 60)
   }
@@ -246,10 +247,7 @@ export default function CustomerDashboardPage() {
                   </CardDescription>
                   <CardTitle className="text-2xl font-bold mt-1 text-violet-600 dark:text-violet-400">
                     {waitEstimate !== null ? (
-                      <>
-                        {waitEstimate <= 0 ? "Segera" : `~${Math.round(waitEstimate)}`}{" "}
-                        {waitEstimate > 0 && <span className="text-xs font-normal text-muted-foreground">menit</span>}
-                      </>
+                      formatDuration(waitEstimate)
                     ) : (
                       <span className="text-base font-semibold text-muted-foreground">-</span>
                     )}

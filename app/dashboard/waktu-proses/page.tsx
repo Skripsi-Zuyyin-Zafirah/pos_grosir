@@ -158,8 +158,8 @@ export default function WaktuProsesPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Waktu Proses Produk</h1>
             <p className="text-muted-foreground mt-1">
-              Master data bobot waktu (Wi) per produk/satuan, dipakai untuk kalkulasi prioritas antrian
-              EWP = Σ (Qi × Wi).
+              Master data bobot waktu (Wi) dalam <b>detik</b> per produk/satuan, dipakai untuk kalkulasi
+              prioritas antrian EWP = Σ (Qi × Wi).
             </p>
           </div>
 
@@ -167,9 +167,11 @@ export default function WaktuProsesPage() {
             <CardContent className="flex items-start gap-3 py-4">
               <IconInfoCircle className="size-5 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                Semakin besar bobot waktu suatu satuan, semakin lama produk itu dianggap butuh waktu untuk
-                dikemas/diproses — pesanan yang berisi produk berbobot besar akan mendapat EWP lebih tinggi
-                (prioritas lebih rendah) di antrian Min-Heap. Nilai default adalah <b>1</b> untuk semua produk.
+                Isi dengan perkiraan <b>detik</b> yang dibutuhkan pegawai untuk mengambil &amp; mengemas 1
+                satuan produk itu (mis. 60 detik untuk produk yang butuh ~1 menit diproses). Semakin besar
+                nilainya, semakin lama produk itu dianggap butuh waktu — pesanan yang berisi produk berbobot
+                besar akan mendapat EWP lebih tinggi (prioritas lebih rendah) di antrian Min-Heap. Nilai
+                default adalah <b>60 detik</b> (~1 menit) untuk produk baru.
               </p>
             </CardContent>
           </Card>
@@ -223,7 +225,7 @@ export default function WaktuProsesPage() {
                         <TableHead>Produk</TableHead>
                         <TableHead>Kategori</TableHead>
                         <TableHead>Satuan</TableHead>
-                        <TableHead className="w-40 text-center">Bobot Waktu (Wi)</TableHead>
+                        <TableHead className="w-40 text-center">Bobot Waktu (Wi) - detik</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -251,7 +253,7 @@ export default function WaktuProsesPage() {
                               <div className="flex items-center justify-center gap-1.5">
                                 <Input
                                   type="number"
-                                  step="0.1"
+                                  step="5"
                                   min={0}
                                   defaultValue={product.time_weight}
                                   className="h-8 w-20 text-center text-xs"
@@ -283,9 +285,9 @@ export default function WaktuProsesPage() {
                                   <div className="flex items-center justify-center gap-1.5">
                                     <Input
                                       type="number"
-                                      step="0.1"
+                                      step="5"
                                       min={0}
-                                      defaultValue={unit.time_weight ?? 1}
+                                      defaultValue={unit.time_weight ?? 60}
                                       className="h-8 w-20 text-center text-xs"
                                       onBlur={(e) => handleUpdateUnitWeight(product, unit, e.target.value)}
                                     />

@@ -285,7 +285,7 @@ export default function ProductsPage() {
   const addUnitRow = () => {
     setProductUnitRows((rows) => [
       ...rows,
-      { id: null, unit_id: "", multiplier: "1", price: "", pickup_time_seconds: "", time_weight: "1" },
+      { id: null, unit_id: "", multiplier: "1", price: "", pickup_time_seconds: "", time_weight: "60" },
     ])
   }
 
@@ -462,7 +462,7 @@ export default function ProductsPage() {
               multiplier: parseFloat(row.multiplier) || 1,
               price: parseFloat(row.price),
               pickup_time_seconds: row.pickup_time_seconds ? parseFloat(row.pickup_time_seconds) : null,
-              time_weight: row.time_weight ? parseFloat(row.time_weight) : 1,
+              time_weight: row.time_weight ? parseFloat(row.time_weight) : 60,
             }))
             const { error: insertErr } = await supabase.from("product_units").insert(rowsPayload)
             if (insertErr) throw insertErr
@@ -1204,13 +1204,14 @@ export default function ProductsPage() {
                                   disabled={submitting}
                                 />
                               </div>
-                              <div className="w-20 space-y-1">
-                                <Label className="text-xs text-muted-foreground" title="Bobot waktu (Wi) untuk prioritas antrian: EWP = Qi x Wi">
-                                  Bobot (Wi)
+                              <div className="w-24 space-y-1">
+                                <Label className="text-xs text-muted-foreground" title="Bobot waktu (Wi) dalam detik untuk prioritas antrian: EWP = Qi x Wi">
+                                  Bobot (Wi) detik
                                 </Label>
                                 <Input
                                   type="number"
-                                  step="0.1"
+                                  step="5"
+                                  min={0}
                                   className="h-8 text-xs"
                                   value={row.time_weight}
                                   onChange={(e) => updateUnitRow(index, "time_weight", e.target.value)}

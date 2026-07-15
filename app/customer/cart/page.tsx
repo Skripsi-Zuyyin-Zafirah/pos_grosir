@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useCart, cartItemKey } from "@/lib/cart/cart-context"
-import { computeEWP } from "@/lib/queue/ewp"
+import { computeEWP, formatDuration } from "@/lib/queue/ewp"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -78,9 +78,9 @@ export default function CustomerCartPage() {
     }
   }, [])
 
-  // Estimasi waktu selesai keranjang ini: sisa antrian saat ini + waktu kemas pesanan ini sendiri
+  // Estimasi waktu selesai keranjang ini (detik): sisa antrian saat ini + waktu kemas pesanan ini sendiri
   const cartEwp = computeEWP(items.map((i) => ({ qty: i.quantity, weight: i.timeWeight ?? 1 })))
-  const estimatedCompletionMinutes = queueBacklog + cartEwp
+  const estimatedCompletionSeconds = queueBacklog + cartEwp
 
   const handleCheckout = async () => {
     if (items.length === 0) return
@@ -355,7 +355,7 @@ export default function CustomerCartPage() {
                       <IconHourglassHigh className="size-4" /> Estimasi Waktu Selesai
                     </span>
                     <span className="text-sm font-bold text-primary">
-                      {estimatedCompletionMinutes <= 0 ? "Segera" : `~${Math.round(estimatedCompletionMinutes)} menit`}
+                      {formatDuration(estimatedCompletionSeconds)}
                     </span>
                   </div>
                 </CardContent>

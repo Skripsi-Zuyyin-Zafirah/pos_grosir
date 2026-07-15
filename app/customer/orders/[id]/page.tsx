@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
+import { formatDuration } from "@/lib/queue/ewp"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -280,7 +281,7 @@ export default function CustomerOrderDetailPage() {
                         <p className="text-muted-foreground text-xs flex items-center gap-1">
                           <IconClock className="size-3" /> Estimasi Kemas
                         </p>
-                        <p className="font-medium">{order.ewp} menit</p>
+                        <p className="font-medium">{formatDuration(order.ewp)}</p>
                       </div>
                       {order.status === "antri" && queuePosition !== null && (
                         <div>
@@ -298,7 +299,7 @@ export default function CustomerOrderDetailPage() {
                             <IconHourglassHigh className="size-3" /> Estimasi Tunggu
                           </p>
                           <p className="font-medium">
-                            {waitEstimate <= 0 ? "Segera dikerjakan" : `~${Math.round(waitEstimate)} menit`}
+                            {formatDuration(waitEstimate)}
                           </p>
                         </div>
                       )}

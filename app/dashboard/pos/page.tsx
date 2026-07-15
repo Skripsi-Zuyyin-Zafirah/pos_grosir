@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Receipt } from "@/components/receipt"
 import { cartItemKey } from "@/lib/cart/cart-context"
-import { computeEWP } from "@/lib/queue/ewp"
+import { computeEWP, formatDuration } from "@/lib/queue/ewp"
 import { toast } from "sonner"
 import {
   IconLoader2,
@@ -203,9 +203,9 @@ export default function PosWalkinPage() {
   const totalItems = cart.reduce((sum, i) => sum + i.quantity, 0)
   const totalPrice = cart.reduce((sum, i) => sum + i.quantity * i.price, 0)
 
-  // Estimasi waktu selesai keranjang ini: sisa antrian saat ini + waktu kemas keranjang sendiri
+  // Estimasi waktu selesai keranjang ini (detik): sisa antrian saat ini + waktu kemas keranjang sendiri
   const cartEwp = computeEWP(cart.map((i) => ({ qty: i.quantity, weight: i.timeWeight })))
-  const estimatedCompletionMinutes = queueBacklog + cartEwp
+  const estimatedCompletionSeconds = queueBacklog + cartEwp
 
   // Satuan dasar produk, direpresentasikan sebagai "kemasan" dengan multiplier 1
   const getBaseUnit = (product: Product): ProductUnit => ({
@@ -765,7 +765,7 @@ export default function PosWalkinPage() {
                         <IconClock className="size-3.5" /> Estimasi Selesai
                       </span>
                       <span className="text-sm font-bold text-primary">
-                        {estimatedCompletionMinutes <= 0 ? "Segera" : `~${Math.round(estimatedCompletionMinutes)} menit`}
+                        {formatDuration(estimatedCompletionSeconds)}
                       </span>
                     </div>
                   )}

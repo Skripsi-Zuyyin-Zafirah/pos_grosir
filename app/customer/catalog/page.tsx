@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useCart, cartItemKey } from "@/lib/cart/cart-context"
-import { computeEWP } from "@/lib/queue/ewp"
+import { computeEWP, formatDuration } from "@/lib/queue/ewp"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -152,9 +152,9 @@ export default function CustomerCatalogPage() {
     }
   }, [])
 
-  // Estimasi waktu selesai keranjang: sisa antrian saat ini + waktu kemas isi keranjang sendiri
+  // Estimasi waktu selesai keranjang (detik): sisa antrian saat ini + waktu kemas isi keranjang sendiri
   const cartEwp = computeEWP(cartItems.map((i) => ({ qty: i.quantity, weight: i.timeWeight ?? 1 })))
-  const estimatedCompletionMinutes = queueBacklog + cartEwp
+  const estimatedCompletionSeconds = queueBacklog + cartEwp
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -585,7 +585,7 @@ export default function CustomerCatalogPage() {
                     <IconHourglassHigh className="size-4" /> Estimasi Selesai
                   </span>
                   <span className="text-sm font-bold text-primary">
-                    {estimatedCompletionMinutes <= 0 ? "Segera" : `~${Math.round(estimatedCompletionMinutes)} menit`}
+                    {formatDuration(estimatedCompletionSeconds)}
                   </span>
                 </div>
                 <Button asChild className="w-full font-semibold" size="lg" onClick={() => setCartOpen(false)}>

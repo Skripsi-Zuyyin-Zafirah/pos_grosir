@@ -53,8 +53,8 @@ export class PriorityQueueService {
     return positions
   }
 
-  // Peta id pesanan -> estimasi menit tunggu sebelum mulai dikerjakan,
-  // yaitu akumulasi EWP seluruh pesanan yang ada di depannya pada Min-Heap.
+  // Peta id pesanan -> estimasi detik tunggu sebelum mulai dikerjakan,
+  // yaitu akumulasi EWP (detik) seluruh pesanan yang ada di depannya pada Min-Heap.
   static getWaitEstimates<T extends QueueOrderLike>(orders: T[]): Map<string, number> {
     const sorted = this.getSortedQueue(orders)
     const estimates = new Map<string, number>()

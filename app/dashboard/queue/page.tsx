@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Receipt } from "@/components/receipt"
 import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
+import { formatDuration } from "@/lib/queue/ewp"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -149,9 +150,9 @@ export default function CashierDashboardPage() {
     }
   }, [])
 
-  const getTimeLeft = (createdAtStr: string, ewpMinutes: number) => {
+  const getTimeLeft = (createdAtStr: string, ewpSeconds: number) => {
     const createdAt = new Date(createdAtStr)
-    const deadline = new Date(createdAt.getTime() + ewpMinutes * 60 * 1000)
+    const deadline = new Date(createdAt.getTime() + ewpSeconds * 1000)
     return Math.ceil((deadline.getTime() - now.getTime()) / 1000 / 60)
   }
 
@@ -166,7 +167,7 @@ export default function CashierDashboardPage() {
     .filter((o) => o.status === "diproses" && o.packed_at)
     .sort((a, b) => new Date(a.packed_at!).getTime() - new Date(b.packed_at!).getTime())
 
-  // Estimasi tunggu: akumulasi EWP pesanan di depannya dalam antrian
+  // Estimasi tunggu (detik): akumulasi EWP pesanan di depannya dalam antrian
   const waitEstimate = (idx: number) =>
     Math.round(waitingOrders.slice(0, idx).reduce((sum, o) => sum + (o.ewp || 0), 0))
 
@@ -174,7 +175,7 @@ export default function CashierDashboardPage() {
   const avgEwp = waitingOrders.length
     ? Math.round((waitingOrders.reduce((sum, o) => sum + (o.ewp || 0), 0) / waitingOrders.length) * 10) / 10
     : 0
-  const totalQueueClearMinutes = waitEstimate(waitingOrders.length)
+  const totalQueueClearSeconds = waitEstimate(waitingOrders.length)
 
   const idleStaff = staffPool.filter((s) => s.status === "idle")
   const staffName = (id: string | null) => staffPool.find((s) => s.id === id)?.name || "Pegawai"
@@ -353,8 +354,8 @@ export default function CashierDashboardPage() {
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                     <StatCard label="Menunggu" value={waitingOrders.length} suffix="pesanan" />
                     <StatCard label="Diproses" value={packingOrders.length} suffix="pesanan" />
-                    <StatCard label="Rata-rata EWP" value={avgEwp} suffix="mnt/pesanan" />
-                    <StatCard label="Estimasi Kosongkan Antrian" value={totalQueueClearMinutes} suffix="menit" />
+                    <StatCard label="Rata-rata EWP" value={formatDuration(avgEwp)} suffix="/pesanan" />
+                    <StatCard label="Estimasi Kosongkan Antrian" value={formatDuration(totalQueueClearSeconds)} />
                     <StatCard
                       label="Pegawai Idle"
                       value={idleStaff.length}
@@ -396,7 +397,7 @@ export default function CashierDashboardPage() {
                           {order ? `#${order.order_number || order.id.substring(0, 8).toUpperCase()}` : "-"}
                         </span>
                         <span className="text-[11px] text-muted-foreground">
-                          {order ? `EWP: ${order.ewp} mnt` : " "}
+                          {order ? `EWP: ${formatDuration(order.ewp)}` : " "}
                         </span>
                       </div>
                     )
@@ -448,12 +449,12 @@ export default function CashierDashboardPage() {
                               <TimeBadge timeLeft={timeLeft} />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              📦 {order.total_items} item &middot; EWP: {order.ewp} mnt &middot; Masuk:{" "}
+                              📦 {order.total_items} item &middot; EWP: {formatDuration(order.ewp)} &middot; Masuk:{" "}
                               {formatClock(order.created_at)}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               💰 <span className="font-semibold text-foreground">{formatRupiah(order.total_price)}</span>{" "}
-                              &middot; 🕐 Estimasi: {estimate === 0 ? "segera" : `~${estimate} menit`}
+                              &middot; 🕐 Estimasi: {formatDuration(estimate)}
                             </p>
                           </div>
                           <div className="flex gap-2 shrink-0 items-center">
@@ -528,7 +529,7 @@ export default function CashierDashboardPage() {
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            📦 {order.total_items} item &middot; EWP: {order.ewp} mnt
+                            📦 {order.total_items} item &middot; EWP: {formatDuration(order.ewp)}
                             {order.dequeued_at && <> &middot; Mulai: {formatClock(order.dequeued_at)}</>}
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -685,7 +686,7 @@ export default function CashierDashboardPage() {
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <span className="text-sm text-muted-foreground">
-                  Total ({detailOrder?.total_items} item &middot; EWP {detailOrder?.ewp} mnt)
+                  Total ({detailOrder?.total_items} item &middot; EWP {detailOrder ? formatDuration(detailOrder.ewp) : "-"})
                 </span>
                 <span className="text-lg font-bold">
                   {detailOrder ? formatRupiah(detailOrder.total_price) : "-"}
@@ -792,15 +793,15 @@ function StatCard({
   accent,
 }: {
   label: string
-  value: number
-  suffix: string
+  value: number | string
+  suffix?: string
   accent?: string
 }) {
   return (
     <div className="rounded-lg border border-border p-3">
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className={cn("text-xl font-bold tabular-nums", accent)}>
-        {value} <span className="text-xs font-normal text-muted-foreground">{suffix}</span>
+        {value} {suffix && <span className="text-xs font-normal text-muted-foreground">{suffix}</span>}
       </p>
     </div>
   )
