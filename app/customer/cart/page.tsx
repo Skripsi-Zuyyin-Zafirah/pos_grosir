@@ -27,6 +27,7 @@ import {
   IconTrashX,
   IconReceipt2,
   IconTag,
+  IconHourglassHigh,
 } from "@tabler/icons-react"
 
 export default function CustomerCartPage() {
@@ -37,6 +38,7 @@ export default function CustomerCartPage() {
   const [customerName, setCustomerName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [loadingProfile, setLoadingProfile] = useState(true)
+  const [queueBacklog, setQueueBacklog] = useState(0)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -58,7 +60,27 @@ export default function CustomerCartPage() {
       }
     }
     fetchProfile()
+
+    // Total EWP pesanan yang sudah antri, dipakai untuk estimasi waktu selesai keranjang ini
+    const fetchQueueBacklog = async () => {
+      const { data } = await supabase.from("orders").select("ewp").eq("status", "antri")
+      setQueueBacklog((data || []).reduce((sum, o) => sum + (o.ewp || 0), 0))
+    }
+    fetchQueueBacklog()
+
+    const channel = supabase
+      .channel("customer-cart-queue-backlog")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchQueueBacklog())
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
+
+  // Estimasi waktu selesai keranjang ini: sisa antrian saat ini + waktu kemas pesanan ini sendiri
+  const cartEwp = computeEWP(items.map((i) => ({ qty: i.quantity, weight: i.timeWeight ?? 1 })))
+  const estimatedCompletionMinutes = queueBacklog + cartEwp
 
   const handleCheckout = async () => {
     if (items.length === 0) return
@@ -326,6 +348,15 @@ export default function CustomerCartPage() {
                       <span className="font-semibold">Total Pembayaran</span>
                       <span className="font-bold text-lg text-primary">{formatRupiah(totalPrice)}</span>
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                      <IconHourglassHigh className="size-4" /> Estimasi Waktu Selesai
+                    </span>
+                    <span className="text-sm font-bold text-primary">
+                      {estimatedCompletionMinutes <= 0 ? "Segera" : `~${Math.round(estimatedCompletionMinutes)} menit`}
+                    </span>
                   </div>
                 </CardContent>
                 <CardFooter className="flex-col gap-2">

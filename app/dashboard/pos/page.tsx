@@ -18,6 +18,7 @@ import { computeEWP } from "@/lib/queue/ewp"
 import { toast } from "sonner"
 import {
   IconLoader2,
+  IconClock,
   IconSearch,
   IconPhoto,
   IconMinus,
@@ -117,6 +118,26 @@ export default function PosWalkinPage() {
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [lastOrder, setLastOrder] = useState<ReceiptOrder | null>(null)
 
+  // Total EWP pesanan yang sedang antri, dipakai untuk estimasi waktu selesai keranjang kasir
+  const [queueBacklog, setQueueBacklog] = useState(0)
+
+  useEffect(() => {
+    const fetchQueueBacklog = async () => {
+      const { data } = await supabase.from("orders").select("ewp").eq("status", "antri")
+      setQueueBacklog((data || []).reduce((sum, o) => sum + (o.ewp || 0), 0))
+    }
+    fetchQueueBacklog()
+
+    const channel = supabase
+      .channel("pos-queue-backlog")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchQueueBacklog())
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   const fetchProducts = async () => {
     try {
       setLoadingProducts(true)
@@ -180,6 +201,10 @@ export default function PosWalkinPage() {
 
   const totalItems = cart.reduce((sum, i) => sum + i.quantity, 0)
   const totalPrice = cart.reduce((sum, i) => sum + i.quantity * i.price, 0)
+
+  // Estimasi waktu selesai keranjang ini: sisa antrian saat ini + waktu kemas keranjang sendiri
+  const cartEwp = computeEWP(cart.map((i) => ({ qty: i.quantity, weight: i.timeWeight })))
+  const estimatedCompletionMinutes = queueBacklog + cartEwp
 
   // Satuan dasar produk, direpresentasikan sebagai "kemasan" dengan multiplier 1
   const getBaseUnit = (product: Product): ProductUnit => ({
@@ -733,6 +758,16 @@ export default function PosWalkinPage() {
                     <span className="font-semibold">Total Bayar</span>
                     <span className="font-bold text-lg text-primary">{formatRupiah(totalPrice)}</span>
                   </div>
+                  {cart.length > 0 && (
+                    <div className="flex justify-between items-center bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mt-2">
+                      <span className="flex items-center gap-1.5 font-semibold text-primary text-xs">
+                        <IconClock className="size-3.5" /> Estimasi Selesai
+                      </span>
+                      <span className="text-sm font-bold text-primary">
+                        {estimatedCompletionMinutes <= 0 ? "Segera" : `~${Math.round(estimatedCompletionMinutes)} menit`}
+                      </span>
+                    </div>
+                  )}
                   {paymentMethod === "tunai" && (
                     <div className="flex justify-between items-center bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mt-2">
                       <span className="font-semibold text-primary text-xs">Kembalian</span>

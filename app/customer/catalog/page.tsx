@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useCart, cartItemKey } from "@/lib/cart/cart-context"
+import { computeEWP } from "@/lib/queue/ewp"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -34,6 +35,7 @@ import {
   IconShoppingCart,
   IconTrash,
   IconTrashX,
+  IconHourglassHigh,
 } from "@tabler/icons-react"
 
 type ProductUnit = {
@@ -74,6 +76,7 @@ export default function CustomerCatalogPage() {
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [cartOpen, setCartOpen] = useState(false)
+  const [queueBacklog, setQueueBacklog] = useState(0)
 
   // Per-product state: selected unit & qty
   const [selectedUnit, setSelectedUnit] = useState<Record<string, string>>({})
@@ -130,7 +133,27 @@ export default function CustomerCatalogPage() {
 
   useEffect(() => {
     fetchData()
+
+    // Total EWP pesanan yang sedang antri, dipakai untuk estimasi waktu selesai keranjang
+    const fetchQueueBacklog = async () => {
+      const { data } = await supabase.from("orders").select("ewp").eq("status", "antri")
+      setQueueBacklog((data || []).reduce((sum, o) => sum + (o.ewp || 0), 0))
+    }
+    fetchQueueBacklog()
+
+    const channel = supabase
+      .channel("customer-catalog-queue-backlog")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchQueueBacklog())
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
+
+  // Estimasi waktu selesai keranjang: sisa antrian saat ini + waktu kemas isi keranjang sendiri
+  const cartEwp = computeEWP(cartItems.map((i) => ({ qty: i.quantity, weight: i.timeWeight ?? 1 })))
+  const estimatedCompletionMinutes = queueBacklog + cartEwp
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -555,6 +578,14 @@ export default function CustomerCatalogPage() {
                 <div className="flex items-center justify-between text-sm border-t pt-3">
                   <span className="text-muted-foreground">Total ({totalItems} item)</span>
                   <span className="font-bold text-lg text-primary">{formatRupiah(totalPrice)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                    <IconHourglassHigh className="size-4" /> Estimasi Selesai
+                  </span>
+                  <span className="text-sm font-bold text-primary">
+                    {estimatedCompletionMinutes <= 0 ? "Segera" : `~${Math.round(estimatedCompletionMinutes)} menit`}
+                  </span>
                 </div>
                 <Button asChild className="w-full font-semibold" size="lg" onClick={() => setCartOpen(false)}>
                   <Link href="/customer/cart">Lanjut ke Checkout</Link>
