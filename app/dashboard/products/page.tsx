@@ -153,6 +153,10 @@ export default function ProductsPage() {
   const [stockValue, setStockValue] = useState("")
   const [stockNotes, setStockNotes] = useState("")
   const [updatingStock, setUpdatingStock] = useState(false)
+  // Varian/kemasan yang dipilih untuk input stok (khusus produk multi-unit); "" = satuan dasar
+  const [stockUnitOptions, setStockUnitOptions] = useState<{ id: string; unit_name: string; multiplier: number }[]>([])
+  const [stockUnitId, setStockUnitId] = useState("")
+  const [loadingStockUnits, setLoadingStockUnits] = useState(false)
 
   // History modal state
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
@@ -501,12 +505,31 @@ export default function ProductsPage() {
   }
 
   // Quick Stock Edit action
-  const handleOpenStockEdit = (product: Product) => {
+  const handleOpenStockEdit = async (product: Product) => {
     setStockProduct(product)
     setStockValue("")
     setStockAction("adjust")
     setStockNotes("")
+    setStockUnitId("")
+    setStockUnitOptions([])
     setStockModalOpen(true)
+
+    if (product.is_multi_unit) {
+      setLoadingStockUnits(true)
+      try {
+        const { data, error } = await supabase
+          .from("product_units")
+          .select("id, unit_name, multiplier")
+          .eq("product_id", product.id)
+          .order("multiplier")
+        if (error) throw error
+        setStockUnitOptions(data || [])
+      } catch (err: any) {
+        toast.error("Gagal memuat varian satuan: " + err.message)
+      } finally {
+        setLoadingStockUnits(false)
+      }
+    }
   }
 
   const handleUpdateStockSubmit = async (e: React.FormEvent) => {
@@ -520,11 +543,17 @@ export default function ProductsPage() {
 
     setUpdatingStock(true)
     try {
+      // Varian yang dipilih menentukan konversi ke stok dasar (pcs)
+      const selectedVariant = stockUnitOptions.find((u) => u.id === stockUnitId)
+      const multiplier = selectedVariant?.multiplier || 1
+      const unitLabel = selectedVariant?.unit_name || stockProduct.unit || "pcs"
+      const pcsValue = value * multiplier
+
       let newStock = stockProduct.stock
       if (stockAction === "set") {
-        newStock = value
+        newStock = pcsValue
       } else {
-        newStock += value
+        newStock += pcsValue
       }
 
       if (newStock < 0) {
@@ -540,12 +569,13 @@ export default function ProductsPage() {
 
       if (error) throw error
 
+      const conversionNote = selectedVariant ? ` (${value} ${unitLabel} = ${pcsValue} ${stockProduct.unit || "pcs"})` : ""
       const { data: { user } } = await supabase.auth.getUser()
       const { error: mutationErr } = await supabase.from("stock_mutations").insert({
         product_id: stockProduct.id,
-        change_qty: stockAction === "set" ? newStock - stockProduct.stock : value,
-        type: stockAction === "set" ? "adjustment" : value >= 0 ? "restock" : "adjustment",
-        notes: stockNotes || null,
+        change_qty: stockAction === "set" ? newStock - stockProduct.stock : pcsValue,
+        type: stockAction === "set" ? "adjustment" : pcsValue >= 0 ? "restock" : "adjustment",
+        notes: (stockNotes ? stockNotes : "") + conversionNote || null,
         user_id: user?.id || null,
       })
       if (mutationErr) console.error("Gagal mencatat riwayat stok:", mutationErr.message)
@@ -1224,6 +1254,25 @@ export default function ProductsPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleUpdateStockSubmit} className="space-y-4">
+              {stockProduct?.is_multi_unit && (
+                <div className="flex flex-col space-y-2">
+                  <Label>Satuan Input</Label>
+                  <Select value={stockUnitId || "__base__"} onValueChange={(val) => setStockUnitId(val === "__base__" ? "" : val)} disabled={loadingStockUnits}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih satuan..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__base__">{stockProduct.unit || "pcs"} (Satuan Dasar)</SelectItem>
+                      {stockUnitOptions.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.unit_name} (1 {u.unit_name} = {u.multiplier} {stockProduct.unit || "pcs"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col space-y-2">
                   <Label>Metode Update</Label>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Receipt } from "@/components/receipt"
@@ -42,6 +43,7 @@ type Product = {
   name: string
   price: number
   stock: number
+  unit: string | null
   image_url: string | null
   category_id: string | null
   is_multi_unit: boolean | null
@@ -53,6 +55,9 @@ type Category = {
   id: string
   name: string
 }
+
+// Id sintetis untuk merepresentasikan satuan dasar produk di dalam dropdown kemasan
+const BASE_UNIT_ID = "__base__"
 
 type CartItem = {
   productId: string
@@ -122,7 +127,7 @@ export default function PosWalkinPage() {
       const { data: prodData, error: prodErr } = await supabase
         .from("products")
         .select(`
-          id, sku, name, price, stock, image_url, category_id, is_multi_unit,
+          id, sku, name, price, stock, unit, image_url, category_id, is_multi_unit,
           categories:category_id ( name ),
           product_units ( id, name:unit_name, price, multiplier )
         `)
@@ -173,10 +178,20 @@ export default function PosWalkinPage() {
   const totalItems = cart.reduce((sum, i) => sum + i.quantity, 0)
   const totalPrice = cart.reduce((sum, i) => sum + i.quantity * i.price, 0)
 
-  // Kemasan yang sedang dipilih untuk produk multi-satuan
+  // Satuan dasar produk, direpresentasikan sebagai "kemasan" dengan multiplier 1
+  const getBaseUnit = (product: Product): ProductUnit => ({
+    id: BASE_UNIT_ID,
+    name: product.unit || "pcs",
+    price: product.price,
+    multiplier: 1,
+    stock: product.stock ?? 0,
+  })
+
+  // Kemasan yang sedang dipilih untuk produk multi-satuan (termasuk satuan dasar)
   const getActiveUnit = (product: Product): ProductUnit | null => {
     if (!product.is_multi_unit || product.product_units.length === 0) return null
     const uid = selectedUnit[product.id]
+    if (uid === BASE_UNIT_ID) return getBaseUnit(product)
     return product.product_units.find((u) => u.id === uid) || product.product_units[0]
   }
 
@@ -190,6 +205,13 @@ export default function PosWalkinPage() {
     return product.price
   }
 
+  // QTY produk ini yang sudah ada di keranjang (untuk kemasan yang sedang dipilih)
+  const getCartQty = (product: Product): number => {
+    const unit = product.is_multi_unit ? getActiveUnit(product) : null
+    const key = cartItemKey(product.id, unit?.id ?? null)
+    return cart.find((i) => cartItemKey(i.productId, i.unitId) === key)?.quantity ?? 0
+  }
+
   const addToCart = (product: Product) => {
     const effectiveStock = getEffectiveStock(product)
     if (effectiveStock <= 0) {
@@ -199,7 +221,7 @@ export default function PosWalkinPage() {
 
     const unit = product.is_multi_unit ? getActiveUnit(product) : null
     const unitId = unit?.id ?? null
-    const unitName = unit?.name ?? null
+    const unitName = unit?.name ?? product.unit ?? null
     const multiplier = unit?.multiplier ?? 1
     const price = unit?.price ?? product.price
     const key = cartItemKey(product.id, unitId)
@@ -305,7 +327,7 @@ export default function PosWalkinPage() {
           product_id: i.productId,
           qty: i.quantity,
           unit_price: i.price,
-          unit_id: i.unitId,
+          unit_id: i.unitId === BASE_UNIT_ID ? null : i.unitId,
           unit_name: i.unitName,
         })),
         p_total_items: totalItems,
@@ -432,10 +454,12 @@ export default function PosWalkinPage() {
                     const effectiveStock = getEffectiveStock(product)
                     const effectivePrice = getEffectivePrice(product)
                     const outOfStock = effectiveStock <= 0
+                    const cartQty = getCartQty(product)
+                    const unitId = isMulti ? activeUnit?.id ?? null : null
                     return (
                       <div
                         key={product.id}
-                        style={{ contentVisibility: "auto", containIntrinsicSize: "0 180px" } as React.CSSProperties}
+                        style={{ contentVisibility: "auto", containIntrinsicSize: "0 220px" } as React.CSSProperties}
                         className="rounded-lg border border-border/50 bg-card p-2 hover:border-primary/40 transition-colors flex flex-col"
                       >
                         <button
@@ -461,16 +485,36 @@ export default function PosWalkinPage() {
                                 GROSIR
                               </span>
                             )}
+                            {cartQty > 0 && (
+                              <span className="absolute top-1 left-1 rounded-full bg-emerald-600 min-w-4 h-4 px-1 flex items-center justify-center text-[9px] font-bold text-white">
+                                {cartQty}
+                              </span>
+                            )}
                           </div>
+                          {product.categories?.name && (
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 mb-1 font-normal">
+                              {product.categories.name}
+                            </Badge>
+                          )}
                           <h3 className="text-xs font-semibold leading-snug line-clamp-2 min-h-[2rem]">
                             {product.name}
                           </h3>
+                          {product.sku && (
+                            <p className="text-[9px] text-muted-foreground/70 mt-0.5 font-mono truncate">
+                              {product.sku}
+                            </p>
+                          )}
                           <p className="text-sm font-bold text-primary mt-0.5">{formatRupiah(effectivePrice)}</p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
                             {outOfStock
                               ? "Stok habis"
-                              : `Stok ${effectiveStock} ${isMulti ? activeUnit?.name || "unit" : "pcs"}`}
+                              : `Stok ${effectiveStock} ${isMulti ? activeUnit?.name || "unit" : product.unit || "pcs"}`}
                           </p>
+                          {isMulti && activeUnit && activeUnit.id !== BASE_UNIT_ID && (
+                            <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                              1 {activeUnit.name} = {activeUnit.multiplier} {product.unit || "pcs"}
+                            </p>
+                          )}
                         </button>
 
                         {isMulti && (
@@ -484,6 +528,19 @@ export default function PosWalkinPage() {
                               <SelectValue placeholder="Pilih kemasan..." />
                             </SelectTrigger>
                             <SelectContent>
+                              {(() => {
+                                const baseUnit = getBaseUnit(product)
+                                const baseOutOfStock = baseUnit.stock <= 0
+                                return (
+                                  <SelectItem
+                                    value={baseUnit.id}
+                                    disabled={baseOutOfStock}
+                                    className={`text-[11px] ${baseOutOfStock ? "opacity-50 line-through" : ""}`}
+                                  >
+                                    {baseUnit.name} (Satuan Dasar)
+                                  </SelectItem>
+                                )
+                              })()}
                               {product.product_units.map((unit) => {
                                 const unitOutOfStock = unit.stock <= 0
                                 return (
@@ -493,12 +550,48 @@ export default function PosWalkinPage() {
                                     disabled={unitOutOfStock}
                                     className={`text-[11px] ${unitOutOfStock ? "opacity-50 line-through" : ""}`}
                                   >
-                                    {unit.name} ({formatRupiah(unit.price)}){unitOutOfStock ? " - Habis" : ` - Stok: ${unit.stock}`}
+                                    {unit.name}
                                   </SelectItem>
                                 )
                               })}
                             </SelectContent>
                           </Select>
+                        )}
+
+                        {cartQty > 0 ? (
+                          <div className="flex items-center border border-primary/30 rounded-md mt-1.5 shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-6 rounded-none"
+                              onClick={() => updateQuantity(product.id, unitId, cartQty - 1)}
+                            >
+                              <IconMinus className="size-3" />
+                            </Button>
+                            <span className="flex-1 text-center text-xs font-semibold tabular-nums">{cartQty}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-6 rounded-none"
+                              disabled={cartQty >= effectiveStock}
+                              onClick={() => updateQuantity(product.id, unitId, cartQty + 1)}
+                            >
+                              <IconPlus className="size-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={outOfStock}
+                            onClick={() => addToCart(product)}
+                            className="h-6 text-[10px] mt-1.5 disabled:opacity-50"
+                          >
+                            <IconPlus className="size-3 mr-1" /> Tambah
+                          </Button>
                         )}
                       </div>
                     )
