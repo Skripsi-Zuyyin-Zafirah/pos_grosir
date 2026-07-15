@@ -73,6 +73,7 @@ type ProductUnitRow = {
   multiplier: string
   price: string
   pickup_time_seconds: string
+  time_weight: string // Wi untuk kalkulasi EWP antrian (EWP = Qi x Wi)
 }
 
 type StockMutation = {
@@ -258,7 +259,7 @@ export default function ProductsPage() {
       try {
         const { data, error } = await supabase
           .from("product_units")
-          .select("id, unit_id, multiplier, price, pickup_time_seconds")
+          .select("id, unit_id, multiplier, price, pickup_time_seconds, time_weight")
           .eq("product_id", product.id)
           .order("multiplier")
         if (error) throw error
@@ -269,6 +270,7 @@ export default function ProductsPage() {
             multiplier: row.multiplier?.toString() || "",
             price: row.price?.toString() || "",
             pickup_time_seconds: row.pickup_time_seconds?.toString() || "",
+            time_weight: row.time_weight?.toString() || "",
           }))
         )
       } catch (err: any) {
@@ -283,7 +285,7 @@ export default function ProductsPage() {
   const addUnitRow = () => {
     setProductUnitRows((rows) => [
       ...rows,
-      { id: null, unit_id: "", multiplier: "1", price: "", pickup_time_seconds: "" },
+      { id: null, unit_id: "", multiplier: "1", price: "", pickup_time_seconds: "", time_weight: "1" },
     ])
   }
 
@@ -460,6 +462,7 @@ export default function ProductsPage() {
               multiplier: parseFloat(row.multiplier) || 1,
               price: parseFloat(row.price),
               pickup_time_seconds: row.pickup_time_seconds ? parseFloat(row.pickup_time_seconds) : null,
+              time_weight: row.time_weight ? parseFloat(row.time_weight) : 1,
             }))
             const { error: insertErr } = await supabase.from("product_units").insert(rowsPayload)
             if (insertErr) throw insertErr
@@ -1198,6 +1201,19 @@ export default function ProductsPage() {
                                   className="h-8 text-xs"
                                   value={row.price}
                                   onChange={(e) => updateUnitRow(index, "price", e.target.value)}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div className="w-20 space-y-1">
+                                <Label className="text-xs text-muted-foreground" title="Bobot waktu (Wi) untuk prioritas antrian: EWP = Qi x Wi">
+                                  Bobot (Wi)
+                                </Label>
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  className="h-8 text-xs"
+                                  value={row.time_weight}
+                                  onChange={(e) => updateUnitRow(index, "time_weight", e.target.value)}
                                   disabled={submitting}
                                 />
                               </div>

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Receipt } from "@/components/receipt"
 import { cartItemKey } from "@/lib/cart/cart-context"
+import { computeEWP } from "@/lib/queue/ewp"
 import { toast } from "sonner"
 import {
   IconLoader2,
@@ -35,6 +36,7 @@ type ProductUnit = {
   price: number
   multiplier: number
   stock: number // stok terhitung dalam satuan kemasan ini (stock produk / multiplier)
+  time_weight: number | null // bobot waktu (Wi) untuk kalkulasi EWP antrian
 }
 
 type Product = {
@@ -68,6 +70,7 @@ type CartItem = {
   price: number
   stockQty: number
   quantity: number
+  timeWeight: number // Wi (bobot waktu per satuan) untuk kalkulasi EWP antrian
 }
 
 type ReceiptOrder = {
@@ -129,7 +132,7 @@ export default function PosWalkinPage() {
         .select(`
           id, sku, name, price, stock, unit, image_url, category_id, is_multi_unit,
           categories:category_id ( name ),
-          product_units ( id, name:unit_name, price, multiplier )
+          product_units ( id, name:unit_name, price, multiplier, time_weight )
         `)
         .order("name")
       if (prodErr) throw prodErr
@@ -185,6 +188,7 @@ export default function PosWalkinPage() {
     price: product.price,
     multiplier: 1,
     stock: product.stock ?? 0,
+    time_weight: 1,
   })
 
   // Kemasan yang sedang dipilih untuk produk multi-satuan (termasuk satuan dasar)
@@ -224,6 +228,7 @@ export default function PosWalkinPage() {
     const unitName = unit?.name ?? product.unit ?? null
     const multiplier = unit?.multiplier ?? 1
     const price = unit?.price ?? product.price
+    const timeWeight = unit?.time_weight ?? 1
     const key = cartItemKey(product.id, unitId)
 
     setCart((prev) => {
@@ -248,6 +253,7 @@ export default function PosWalkinPage() {
           price,
           stockQty: effectiveStock,
           quantity: 1,
+          timeWeight,
         },
       ]
     })
@@ -320,9 +326,10 @@ export default function PosWalkinPage() {
 
       // 2. Create the order
       const finalCustomerName = customerName.trim() || "Pelanggan Umum"
+      const ewp = computeEWP(cart.map((i) => ({ qty: i.quantity, weight: i.timeWeight })))
       const { data: orderId, error: checkoutErr } = await supabase.rpc("checkout_order", {
         p_customer_name: finalCustomerName,
-        p_ewp: 0,
+        p_ewp: ewp,
         p_items: cart.map((i) => ({
           product_id: i.productId,
           qty: i.quantity,

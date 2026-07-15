@@ -12,6 +12,7 @@ export type CartItem = {
   imageUrl: string | null
   stockQty: number           // stok dalam satuan unit kemasan
   quantity: number
+  timeWeight: number         // Wi (bobot waktu per satuan) untuk kalkulasi EWP antrian
 }
 
 // Unique key per kombinasi produk+unit agar bisa add 2 kemasan berbeda dari produk sama

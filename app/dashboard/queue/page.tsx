@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Receipt } from "@/components/receipt"
+import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -138,9 +139,8 @@ export default function CashierDashboardPage() {
     return Math.ceil((deadline.getTime() - now.getTime()) / 1000 / 60)
   }
 
-  const waitingOrders = orders
-    .filter((o) => o.status === "antri")
-    .sort((a, b) => a.ewp - b.ewp || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  // Min-Heap by EWP: root = pesanan dengan prioritas tertinggi (EWP terkecil)
+  const waitingOrders = PriorityQueueService.getSortedQueue(orders.filter((o) => o.status === "antri"))
 
   const packingOrders = orders
     .filter((o) => o.status === "diproses" && !o.packed_at)
@@ -161,7 +161,7 @@ export default function CashierDashboardPage() {
 
   // SECTION 2: assign ke pegawai idle pertama + cetak struk
   const handleAssignAndPrint = async (order: Order) => {
-    const target = idleStaff[0]
+    const target = PriorityQueueService.findIdleStaff(staffPool)
     if (!target) {
       toast.error("Semua pegawai sedang sibuk. Tunggu ada yang selesai packing.")
       return
@@ -182,6 +182,15 @@ export default function CashierDashboardPage() {
       setActionId(null)
     }
   }
+
+  // Distribusi otomatis: begitu ada pegawai idle & antrian tidak kosong,
+  // cabut akar Min-Heap (EWP terkecil) dan tugaskan otomatis (EXTRACT-MIN).
+  useEffect(() => {
+    if (loading || actionId) return
+    if (idleStaff.length === 0 || waitingOrders.length === 0) return
+    handleAssignAndPrint(waitingOrders[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idleStaff.length, waitingOrders.length, loading, actionId])
 
   // SECTION 3: tandai selesai packing (pegawai kembali idle)
   const handleCompletePacking = async (order: Order) => {

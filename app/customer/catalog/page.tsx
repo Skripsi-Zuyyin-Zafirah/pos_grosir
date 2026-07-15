@@ -81,7 +81,7 @@ export default function CustomerCatalogPage() {
         .select(`
           id, sku, name, description, price, stock, unit, image_url, category_id, is_multi_unit,
           categories:category_id ( name ),
-          product_units ( id, name:unit_name, price, multiplier )
+          product_units ( id, name:unit_name, price, multiplier, time_weight )
         `)
         .order("name")
       if (prodErr) throw prodErr
@@ -183,6 +183,7 @@ export default function CustomerCatalogPage() {
         price: unit.price,
         imageUrl: product.image_url,
         stockQty: unit.stock,
+        timeWeight: unit.time_weight ?? 1,
       }, qty)
       toast.success(`${qty} ${unit.name} ${product.name} ditambahkan ke keranjang!`)
     } else {
@@ -195,6 +196,7 @@ export default function CustomerCatalogPage() {
         price: product.price,
         imageUrl: product.image_url,
         stockQty: product.stock,
+        timeWeight: 1,
       }, qty)
       toast.success(`${qty} ${product.unit || "pcs"} ${product.name} ditambahkan ke keranjang!`)
     }

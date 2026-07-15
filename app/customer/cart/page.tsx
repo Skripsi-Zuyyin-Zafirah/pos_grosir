@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useCart, cartItemKey } from "@/lib/cart/cart-context"
-import { computeECT } from "@/lib/ect/calculate"
+import { computeEWP } from "@/lib/queue/ewp"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -100,21 +100,8 @@ export default function CustomerCartPage() {
         }
       }
 
-      // 2. Fetch ECT parameters from system settings
-      let tBase = 5, tPick = 1, tPack = 0.5
-      const { data: settings } = await supabase
-        .from("system_settings")
-        .select("key, value")
-      settings?.forEach((s) => {
-        if (s.key === "t_base") tBase = Number(s.value)
-        if (s.key === "t_pick") tPick = Number(s.value)
-        if (s.key === "t_pack") tPack = Number(s.value)
-      })
-
-      const ewp = computeECT(
-        items.map((i) => ({ quantity: i.quantity * i.multiplier, weight: 0 })),
-        { t_base: tBase, t_pick: tPick, t_pack: tPack }
-      )
+      // 2. Kalkulasi prioritas antrian: EWP = Σ (Qi x Wi)
+      const ewp = computeEWP(items.map((i) => ({ qty: i.quantity, weight: i.timeWeight })))
 
       // 3. Submit the order via checkout RPC
       // Pass unit_id and unit_name so warehouse knows which kemasan was ordered
