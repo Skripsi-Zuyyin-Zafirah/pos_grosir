@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -38,6 +39,7 @@ type Order = {
 type QueueEntry = {
   id: string
   user_id: string
+  ewp: number
   created_at: string
 }
 
@@ -49,6 +51,7 @@ export default function CustomerDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [queuePosition, setQueuePosition] = useState<number | null>(null)
   const [queueLength, setQueueLength] = useState<number>(0)
+  const [waitEstimate, setWaitEstimate] = useState<number | null>(null)
   const [now, setNow] = useState<Date>(new Date())
 
   const fetchDashboardData = async () => {
@@ -76,20 +79,21 @@ export default function CustomerDashboardPage() {
       if (ordersErr) throw ordersErr
       setOrders((myOrders as Order[]) || [])
 
-      // 2. Fetch the full waiting queue (FIFO order) to compute this customer's position
+      // 2. Fetch the full waiting queue and compute this customer's position via Min-Heap (EWP)
       const { data: waitingQueue, error: queueErr } = await supabase
         .from("orders")
-        .select("id, user_id, created_at")
+        .select("id, user_id, ewp, created_at")
         .eq("status", "antri")
       if (queueErr) throw queueErr
 
-      const sortedQueue = ((waitingQueue as QueueEntry[]) || []).sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      )
-      setQueueLength(sortedQueue.length)
+      const queue = (waitingQueue as QueueEntry[]) || []
+      setQueueLength(queue.length)
 
-      const myIndex = sortedQueue.findIndex((q) => q.user_id === session.user.id)
-      setQueuePosition(myIndex === -1 ? null : myIndex + 1)
+      const positions = PriorityQueueService.getPositions(queue)
+      const waitEstimates = PriorityQueueService.getWaitEstimates(queue)
+      const myEntry = queue.find((q) => q.user_id === session.user.id)
+      setQueuePosition(myEntry ? positions.get(myEntry.id) ?? null : null)
+      setWaitEstimate(myEntry ? waitEstimates.get(myEntry.id) ?? null : null)
     } catch (err: any) {
       toast.error("Gagal memuat dashboard: " + err.message)
     } finally {
@@ -232,6 +236,27 @@ export default function CustomerDashboardPage() {
                 </CardHeader>
                 <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
                   <p>Urutan pesanan Anda pada antrian gudang saat ini.</p>
+                </CardFooter>
+              </Card>
+
+              <Card className="@container/card">
+                <CardHeader>
+                  <CardDescription className="flex items-center gap-1.5 font-medium">
+                    <IconClock className="size-4 text-violet-500" /> Estimasi Tunggu
+                  </CardDescription>
+                  <CardTitle className="text-2xl font-bold mt-1 text-violet-600 dark:text-violet-400">
+                    {waitEstimate !== null ? (
+                      <>
+                        {waitEstimate <= 0 ? "Segera" : `~${Math.round(waitEstimate)}`}{" "}
+                        {waitEstimate > 0 && <span className="text-xs font-normal text-muted-foreground">menit</span>}
+                      </>
+                    ) : (
+                      <span className="text-base font-semibold text-muted-foreground">-</span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardFooter className="flex-col items-start gap-1 text-xs text-muted-foreground">
+                  <p>Estimasi sebelum pegawai mulai mengerjakan pesanan Anda.</p>
                 </CardFooter>
               </Card>
 

@@ -101,7 +101,7 @@ export default function CustomerCartPage() {
       }
 
       // 2. Kalkulasi prioritas antrian: EWP = Σ (Qi x Wi)
-      const ewp = computeEWP(items.map((i) => ({ qty: i.quantity, weight: i.timeWeight })))
+      const ewp = computeEWP(items.map((i) => ({ qty: i.quantity, weight: i.timeWeight ?? 1 })))
 
       // 3. Submit the order via checkout RPC
       // Pass unit_id and unit_name so warehouse knows which kemasan was ordered

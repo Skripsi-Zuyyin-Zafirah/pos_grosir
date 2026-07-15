@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -21,6 +22,8 @@ import {
   IconCircleDashed,
   IconBan,
   IconPackageOff,
+  IconListNumbers,
+  IconHourglassHigh,
 } from "@tabler/icons-react"
 
 type Order = {
@@ -43,6 +46,9 @@ export default function CustomerTrackingPage() {
   const supabase = createClient()
   const [activeOrders, setActiveOrders] = useState<Order[]>([])
   const [latestOrder, setLatestOrder] = useState<Order | null>(null)
+  const [queuePositions, setQueuePositions] = useState<Map<string, number>>(new Map())
+  const [waitEstimates, setWaitEstimates] = useState<Map<string, number>>(new Map())
+  const [queueLength, setQueueLength] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const fetchOrders = async () => {
@@ -54,17 +60,27 @@ export default function CustomerTrackingPage() {
         return
       }
 
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at, enqueued_at, dequeued_at, staff:staff_id ( name, status )")
-        .eq("user_id", session.user.id)
-        .order("created_at", { ascending: false })
+      const [{ data, error }, { data: waitingQueue, error: queueErr }] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at, enqueued_at, dequeued_at, staff:staff_id ( name, status )")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false }),
+        supabase.from("orders").select("id, ewp, created_at").eq("status", "antri"),
+      ])
 
       if (error) throw error
+      if (queueErr) throw queueErr
+
       const all = (data as any as Order[]) || []
       const active = all.filter((o) => ["antri", "diproses"].includes(o.status))
       setActiveOrders(active)
       setLatestOrder(active.length === 0 ? all[0] || null : null)
+
+      const queue = waitingQueue || []
+      setQueueLength(queue.length)
+      setQueuePositions(PriorityQueueService.getPositions(queue))
+      setWaitEstimates(PriorityQueueService.getWaitEstimates(queue))
     } catch (err: any) {
       toast.error("Gagal memuat status pesanan: " + err.message)
     } finally {
@@ -244,6 +260,24 @@ export default function CustomerTrackingPage() {
             <IconClock className="size-4" />
             Estimasi Kemas: <span className="font-semibold text-foreground">{order.ewp} menit</span>
           </div>
+          {order.status === "antri" && queuePositions.has(order.id) && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <IconListNumbers className="size-4" />
+              Posisi Antrian:{" "}
+              <span className="font-semibold text-foreground">
+                #{queuePositions.get(order.id)} dari {queueLength}
+              </span>
+            </div>
+          )}
+          {order.status === "antri" && waitEstimates.has(order.id) && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <IconHourglassHigh className="size-4" />
+              Estimasi Tunggu:{" "}
+              <span className="font-semibold text-foreground">
+                {waitEstimates.get(order.id)! <= 0 ? "Segera dikerjakan" : `~${Math.round(waitEstimates.get(order.id)!)} menit`}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <IconUserCog className="size-4" />
             Ditangani: <span className="font-semibold text-foreground">{order.staff?.name || "Belum ditugaskan"}</span>

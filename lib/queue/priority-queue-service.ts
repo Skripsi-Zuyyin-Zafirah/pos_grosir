@@ -43,4 +43,26 @@ export class PriorityQueueService {
   static findIdleStaff<T extends QueueStaffLike>(staff: T[]): T | null {
     return staff.find((s) => s.status === "idle") ?? null
   }
+
+  // Peta id pesanan -> posisi antrian (1-based) hasil urutan Min-Heap,
+  // dipakai untuk menampilkan "Posisi Antrian: #N" di halaman pelanggan/pegawai.
+  static getPositions<T extends QueueOrderLike>(orders: T[]): Map<string, number> {
+    const sorted = this.getSortedQueue(orders)
+    const positions = new Map<string, number>()
+    sorted.forEach((order, idx) => positions.set(order.id, idx + 1))
+    return positions
+  }
+
+  // Peta id pesanan -> estimasi menit tunggu sebelum mulai dikerjakan,
+  // yaitu akumulasi EWP seluruh pesanan yang ada di depannya pada Min-Heap.
+  static getWaitEstimates<T extends QueueOrderLike>(orders: T[]): Map<string, number> {
+    const sorted = this.getSortedQueue(orders)
+    const estimates = new Map<string, number>()
+    let cumulative = 0
+    sorted.forEach((order) => {
+      estimates.set(order.id, parseFloat(cumulative.toFixed(1)))
+      cumulative += order.ewp
+    })
+    return estimates
+  }
 }
