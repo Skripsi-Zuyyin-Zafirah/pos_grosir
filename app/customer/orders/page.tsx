@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
 import {
   useReactTable,
   getCoreRowModel,
@@ -81,6 +82,8 @@ export default function CustomerOrdersPage() {
   const supabase = createClient()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [queuePositions, setQueuePositions] = useState<Map<string, number>>(new Map())
+  const [queueLength, setQueueLength] = useState(0)
 
   // DataTable controls
   const [statusTab, setStatusTab] = useState<StatusTab>("all")
@@ -99,14 +102,22 @@ export default function CustomerOrdersPage() {
         return
       }
 
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at")
-        .eq("user_id", session.user.id)
-        .order("created_at", { ascending: false })
+      const [{ data, error }, { data: waitingQueue, error: queueErr }] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false }),
+        supabase.from("orders").select("id, ewp, created_at").eq("status", "antri"),
+      ])
 
       if (error) throw error
+      if (queueErr) throw queueErr
       setOrders((data as any) || [])
+
+      const queue = waitingQueue || []
+      setQueueLength(queue.length)
+      setQueuePositions(PriorityQueueService.getPositions(queue))
     } catch (err: any) {
       toast.error("Gagal memuat pesanan: " + err.message)
     } finally {
@@ -293,6 +304,18 @@ export default function CustomerOrdersPage() {
         cell: ({ row }) => getStatusBadge(row.original.status),
       },
       {
+        id: "queuePosition",
+        header: "Antrian",
+        cell: ({ row }) =>
+          row.original.status === "antri" && queuePositions.has(row.original.id) ? (
+            <Badge variant="outline" className="font-bold tabular-nums">
+              #{queuePositions.get(row.original.id)} / {queueLength}
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
+          ),
+      },
+      {
         id: "actions",
         header: () => <div className="text-right">Aksi</div>,
         cell: ({ row }) => (
@@ -320,7 +343,7 @@ export default function CustomerOrdersPage() {
         ),
       },
     ],
-    [cancellingId]
+    [cancellingId, queuePositions, queueLength]
   )
 
   const table = useReactTable({

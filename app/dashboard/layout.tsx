@@ -12,6 +12,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/dashboard/satuan",
   "/dashboard/reports",
   "/dashboard/users",
+  "/dashboard/waktu-proses",
 ]
 
 export default function DashboardLayout({

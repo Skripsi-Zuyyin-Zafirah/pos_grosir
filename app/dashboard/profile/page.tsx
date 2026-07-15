@@ -195,7 +195,7 @@ export default function AdminProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <div className="relative">
-                        <IconMail className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconMail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input id="email" type="email" value={email} className="pl-9" disabled />
                       </div>
                       <p className="text-xs text-muted-foreground">Email tidak dapat diubah.</p>
@@ -203,7 +203,7 @@ export default function AdminProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="fullName">Nama Lengkap</Label>
                       <div className="relative">
-                        <IconUser className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconUser className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="fullName"
                           type="text"
@@ -219,7 +219,7 @@ export default function AdminProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="phoneNumber">Nomor Telepon</Label>
                       <div className="relative">
-                        <IconPhone className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconPhone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="phoneNumber"
                           type="tel"
@@ -234,7 +234,7 @@ export default function AdminProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="address">Alamat Lengkap</Label>
                       <div className="relative">
-                        <IconMapPin className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconMapPin className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
                         <textarea
                           id="address"
                           placeholder="Alamat lengkap..."
@@ -275,7 +275,7 @@ export default function AdminProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="newPassword">Password Baru</Label>
                       <div className="relative">
-                        <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="newPassword"
                           type="password"
@@ -292,7 +292,7 @@ export default function AdminProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="confirmPassword">Konfirmasi Password Baru</Label>
                       <div className="relative">
-                        <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="confirmPassword"
                           type="password"

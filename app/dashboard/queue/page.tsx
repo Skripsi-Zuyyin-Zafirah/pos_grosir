@@ -20,6 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Receipt } from "@/components/receipt"
+import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
+import { formatDuration } from "@/lib/queue/ewp"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -33,6 +35,7 @@ import {
   IconPackage,
   IconShoppingBag,
   IconEye,
+  IconChartBar,
 } from "@tabler/icons-react"
 
 type Order = {
@@ -77,6 +80,9 @@ export default function CashierDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState<Date>(new Date())
   const [actionId, setActionId] = useState<string | null>(null)
+  const [role, setRole] = useState<"admin" | "cashier">("cashier")
+  const [manualStaff, setManualStaff] = useState<Record<string, string>>({})
+  const [autoAssign, setAutoAssign] = useState(true)
 
   // Dialog cetak struk
   const [receiptOrder, setReceiptOrder] = useState<ReceiptOrder | null>(null)
@@ -116,6 +122,18 @@ export default function CashierDashboardPage() {
   }
 
   useEffect(() => {
+    const fetchRole = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single()
+      if (profile?.role === "admin") setRole("admin")
+    }
+    fetchRole()
+
     fetchData()
 
     const channel = supabase
@@ -132,15 +150,14 @@ export default function CashierDashboardPage() {
     }
   }, [])
 
-  const getTimeLeft = (createdAtStr: string, ewpMinutes: number) => {
+  const getTimeLeft = (createdAtStr: string, ewpSeconds: number) => {
     const createdAt = new Date(createdAtStr)
-    const deadline = new Date(createdAt.getTime() + ewpMinutes * 60 * 1000)
+    const deadline = new Date(createdAt.getTime() + ewpSeconds * 1000)
     return Math.ceil((deadline.getTime() - now.getTime()) / 1000 / 60)
   }
 
-  const waitingOrders = orders
-    .filter((o) => o.status === "antri")
-    .sort((a, b) => a.ewp - b.ewp || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  // Min-Heap by EWP: root = pesanan dengan prioritas tertinggi (EWP terkecil)
+  const waitingOrders = PriorityQueueService.getSortedQueue(orders.filter((o) => o.status === "antri"))
 
   const packingOrders = orders
     .filter((o) => o.status === "diproses" && !o.packed_at)
@@ -150,18 +167,25 @@ export default function CashierDashboardPage() {
     .filter((o) => o.status === "diproses" && o.packed_at)
     .sort((a, b) => new Date(a.packed_at!).getTime() - new Date(b.packed_at!).getTime())
 
-  // Estimasi tunggu: akumulasi EWP pesanan di depannya dalam antrian
+  // Estimasi tunggu (detik): akumulasi EWP pesanan di depannya dalam antrian
   const waitEstimate = (idx: number) =>
     Math.round(waitingOrders.slice(0, idx).reduce((sum, o) => sum + (o.ewp || 0), 0))
+
+  // Statistik antrian (admin): rata-rata EWP & total estimasi waktu untuk menghabiskan seluruh antrian
+  const avgEwp = waitingOrders.length
+    ? Math.round((waitingOrders.reduce((sum, o) => sum + (o.ewp || 0), 0) / waitingOrders.length) * 10) / 10
+    : 0
+  const totalQueueClearSeconds = waitEstimate(waitingOrders.length)
 
   const idleStaff = staffPool.filter((s) => s.status === "idle")
   const staffName = (id: string | null) => staffPool.find((s) => s.id === id)?.name || "Pegawai"
   const staffOrder = (staffId: string) => packingOrders.find((o) => o.staff_id === staffId)
   const overdueCount = orders.filter((o) => getTimeLeft(o.created_at, o.ewp) <= 0).length
 
-  // SECTION 2: assign ke pegawai idle pertama + cetak struk
-  const handleAssignAndPrint = async (order: Order) => {
-    const target = idleStaff[0]
+  // SECTION 2: assign ke pegawai idle (default: idle pertama, admin bisa override) + cetak struk
+  const handleAssignAndPrint = async (order: Order, staffOverrideId?: string) => {
+    const override = staffOverrideId ? staffPool.find((s) => s.id === staffOverrideId && s.status === "idle") : null
+    const target = override || PriorityQueueService.findIdleStaff(staffPool)
     if (!target) {
       toast.error("Semua pegawai sedang sibuk. Tunggu ada yang selesai packing.")
       return
@@ -174,6 +198,11 @@ export default function CashierDashboardPage() {
       })
       if (error) throw error
       toast.success(`Pesanan #${order.order_number || ""} ditugaskan ke ${target.name}`)
+      setManualStaff((prev) => {
+        const next = { ...prev }
+        delete next[order.id]
+        return next
+      })
       await openReceipt({ ...order, staff_id: target.id })
       fetchData()
     } catch (err: any) {
@@ -182,6 +211,15 @@ export default function CashierDashboardPage() {
       setActionId(null)
     }
   }
+
+  // Distribusi otomatis: begitu ada pegawai idle & antrian tidak kosong,
+  // cabut akar Min-Heap (EWP terkecil) dan tugaskan otomatis (EXTRACT-MIN).
+  useEffect(() => {
+    if (!autoAssign || loading || actionId) return
+    if (idleStaff.length === 0 || waitingOrders.length === 0) return
+    handleAssignAndPrint(waitingOrders[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAssign, idleStaff.length, waitingOrders.length, loading, actionId])
 
   // SECTION 3: tandai selesai packing (pegawai kembali idle)
   const handleCompletePacking = async (order: Order) => {
@@ -286,6 +324,16 @@ export default function CashierDashboardPage() {
                   <IconAlertTriangle className="size-4" /> {overdueCount} terlambat
                 </span>
               )}
+              <Button
+                type="button"
+                size="sm"
+                variant={autoAssign ? "default" : "outline"}
+                onClick={() => setAutoAssign((v) => !v)}
+                title="Aktif: sistem otomatis EXTRACT-MIN dari Min-Heap begitu ada pegawai idle. Nonaktif: assign manual saja."
+              >
+                {autoAssign ? <IconCheck className="size-4 mr-1.5" /> : null}
+                Auto-Assign {autoAssign ? "Aktif" : "Nonaktif"}
+              </Button>
               <span className="tabular-nums font-medium">
                 {now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </span>
@@ -299,6 +347,25 @@ export default function CashierDashboardPage() {
             </div>
           ) : (
             <div className="flex-1 flex flex-col p-6 gap-6">
+              {/* ============ STATISTIK ANTRIAN (ADMIN) ============ */}
+              {role === "admin" && (
+                <section>
+                  <SectionTitle icon={<IconChartBar className="size-4" />} title="Statistik Antrian" hint="Min-Heap / EWP" />
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                    <StatCard label="Menunggu" value={waitingOrders.length} suffix="pesanan" />
+                    <StatCard label="Diproses" value={packingOrders.length} suffix="pesanan" />
+                    <StatCard label="Rata-rata EWP" value={formatDuration(avgEwp)} suffix="/pesanan" />
+                    <StatCard label="Estimasi Kosongkan Antrian" value={formatDuration(totalQueueClearSeconds)} />
+                    <StatCard
+                      label="Pegawai Idle"
+                      value={idleStaff.length}
+                      suffix={`dari ${staffPool.length}`}
+                      accent={idleStaff.length === 0 ? "text-rose-600" : "text-emerald-600"}
+                    />
+                  </div>
+                </section>
+              )}
+
               {/* ============ SECTION 1: STATUS PEGAWAI (REAL-TIME) ============ */}
               <section>
                 <SectionTitle icon={<IconUserCircle className="size-4" />} title="Status Pegawai" hint="real-time" />
@@ -330,7 +397,7 @@ export default function CashierDashboardPage() {
                           {order ? `#${order.order_number || order.id.substring(0, 8).toUpperCase()}` : "-"}
                         </span>
                         <span className="text-[11px] text-muted-foreground">
-                          {order ? `EWP: ${order.ewp} mnt` : " "}
+                          {order ? `EWP: ${formatDuration(order.ewp)}` : " "}
                         </span>
                       </div>
                     )
@@ -382,19 +449,36 @@ export default function CashierDashboardPage() {
                               <TimeBadge timeLeft={timeLeft} />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              📦 {order.total_items} item &middot; EWP: {order.ewp} mnt &middot; Masuk:{" "}
+                              📦 {order.total_items} item &middot; EWP: {formatDuration(order.ewp)} &middot; Masuk:{" "}
                               {formatClock(order.created_at)}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               💰 <span className="font-semibold text-foreground">{formatRupiah(order.total_price)}</span>{" "}
-                              &middot; 🕐 Estimasi: {estimate === 0 ? "segera" : `~${estimate} menit`}
+                              &middot; 🕐 Estimasi: {formatDuration(estimate)}
                             </p>
                           </div>
-                          <div className="flex gap-2 shrink-0">
+                          <div className="flex gap-2 shrink-0 items-center">
+                            {role === "admin" && idleStaff.length > 0 && (
+                              <Select
+                                value={manualStaff[order.id] || ""}
+                                onValueChange={(val) => setManualStaff((prev) => ({ ...prev, [order.id]: val }))}
+                              >
+                                <SelectTrigger className="h-8 w-36 text-xs" title="Override: pilih pegawai manual (admin)">
+                                  <SelectValue placeholder="Auto (idle pertama)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {idleStaff.map((s) => (
+                                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                                      {s.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                             <Button
                               size="sm"
                               disabled={idleStaff.length === 0 || actionId === order.id}
-                              onClick={() => handleAssignAndPrint(order)}
+                              onClick={() => handleAssignAndPrint(order, manualStaff[order.id])}
                             >
                               {actionId === order.id ? (
                                 <IconLoader2 className="size-4 mr-1.5 animate-spin" />
@@ -445,7 +529,7 @@ export default function CashierDashboardPage() {
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            📦 {order.total_items} item &middot; EWP: {order.ewp} mnt
+                            📦 {order.total_items} item &middot; EWP: {formatDuration(order.ewp)}
                             {order.dequeued_at && <> &middot; Mulai: {formatClock(order.dequeued_at)}</>}
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -602,7 +686,7 @@ export default function CashierDashboardPage() {
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <span className="text-sm text-muted-foreground">
-                  Total ({detailOrder?.total_items} item &middot; EWP {detailOrder?.ewp} mnt)
+                  Total ({detailOrder?.total_items} item &middot; EWP {detailOrder ? formatDuration(detailOrder.ewp) : "-"})
                 </span>
                 <span className="text-lg font-bold">
                   {detailOrder ? formatRupiah(detailOrder.total_price) : "-"}
@@ -698,6 +782,27 @@ function SectionTitle({ icon, title, hint }: { icon: React.ReactNode; title: str
       {icon}
       <h2 className="text-sm font-semibold">{title}</h2>
       {hint && <span className="text-xs text-muted-foreground">({hint})</span>}
+    </div>
+  )
+}
+
+function StatCard({
+  label,
+  value,
+  suffix,
+  accent,
+}: {
+  label: string
+  value: number | string
+  suffix?: string
+  accent?: string
+}) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className={cn("text-xl font-bold tabular-nums", accent)}>
+        {value} {suffix && <span className="text-xs font-normal text-muted-foreground">{suffix}</span>}
+      </p>
     </div>
   )
 }

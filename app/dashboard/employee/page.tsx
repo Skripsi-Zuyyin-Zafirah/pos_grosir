@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { formatDuration } from "@/lib/queue/ewp"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -694,7 +695,7 @@ function PickingTask({
           <p className="text-sm font-semibold">
             {checkedCount}/{total} item
           </p>
-          <p className="text-xs text-muted-foreground">Target {order?.ewp} menit</p>
+          <p className="text-xs text-muted-foreground">Target {order ? formatDuration(order.ewp) : "-"}</p>
         </div>
       </div>
 

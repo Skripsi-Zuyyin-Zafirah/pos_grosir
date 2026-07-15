@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { PriorityQueueService } from "@/lib/queue/priority-queue-service"
+import { formatDuration } from "@/lib/queue/ewp"
 import { CustomerSidebar } from "@/components/customer-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -23,6 +25,8 @@ import {
   IconCircleDashed,
   IconBan,
   IconPackageOff,
+  IconListNumbers,
+  IconHourglassHigh,
 } from "@tabler/icons-react"
 
 type OrderItem = {
@@ -58,6 +62,9 @@ export default function CustomerOrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelling, setCancelling] = useState(false)
+  const [queuePosition, setQueuePosition] = useState<number | null>(null)
+  const [waitEstimate, setWaitEstimate] = useState<number | null>(null)
+  const [queueLength, setQueueLength] = useState(0)
 
   const fetchOrder = async () => {
     try {
@@ -76,7 +83,25 @@ export default function CustomerOrderDetailPage() {
         .single()
 
       if (error) throw error
-      setOrder((data as any) || null)
+      const fetchedOrder = (data as any as Order) || null
+      setOrder(fetchedOrder)
+
+      if (fetchedOrder?.status === "antri") {
+        const { data: waitingQueue, error: queueErr } = await supabase
+          .from("orders")
+          .select("id, ewp, created_at")
+          .eq("status", "antri")
+        if (queueErr) throw queueErr
+
+        const queue = waitingQueue || []
+        setQueueLength(queue.length)
+        setQueuePosition(PriorityQueueService.getPositions(queue).get(fetchedOrder.id) ?? null)
+        setWaitEstimate(PriorityQueueService.getWaitEstimates(queue).get(fetchedOrder.id) ?? null)
+      } else {
+        setQueuePosition(null)
+        setWaitEstimate(null)
+        setQueueLength(0)
+      }
     } catch (err: any) {
       toast.error("Gagal memuat detail pesanan: " + err.message)
       setOrder(null)
@@ -88,11 +113,12 @@ export default function CustomerOrderDetailPage() {
   useEffect(() => {
     fetchOrder()
 
+    // Tanpa filter: posisi antrian dipengaruhi perubahan pesanan pelanggan lain juga.
     const channel = supabase
       .channel(`customer-order-detail-${params.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orders", filter: `id=eq.${params.id}` },
+        { event: "*", schema: "public", table: "orders" },
         () => {
           fetchOrder()
         }
@@ -253,10 +279,30 @@ export default function CustomerOrderDetailPage() {
                       </div>
                       <div>
                         <p className="text-muted-foreground text-xs flex items-center gap-1">
-                          <IconClock className="size-3" /> Estimasi Kemas (ECT)
+                          <IconClock className="size-3" /> Estimasi Kemas
                         </p>
-                        <p className="font-medium">{order.ewp} menit</p>
+                        <p className="font-medium">{formatDuration(order.ewp)}</p>
                       </div>
+                      {order.status === "antri" && queuePosition !== null && (
+                        <div>
+                          <p className="text-muted-foreground text-xs flex items-center gap-1">
+                            <IconListNumbers className="size-3" /> Posisi Antrian
+                          </p>
+                          <p className="font-medium">
+                            #{queuePosition} dari {queueLength}
+                          </p>
+                        </div>
+                      )}
+                      {order.status === "antri" && waitEstimate !== null && (
+                        <div>
+                          <p className="text-muted-foreground text-xs flex items-center gap-1">
+                            <IconHourglassHigh className="size-3" /> Estimasi Tunggu
+                          </p>
+                          <p className="font-medium">
+                            {formatDuration(waitEstimate)}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
