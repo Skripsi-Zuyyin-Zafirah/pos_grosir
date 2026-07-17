@@ -185,6 +185,16 @@ export default function KategoriPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const normalizedName = name.trim().toLowerCase()
+    const duplicateExists = categories.some(
+      (c) => c.name.trim().toLowerCase() === normalizedName && c.id !== editId
+    )
+    if (duplicateExists) {
+      toast.error("Kategori tersebut sudah ada.")
+      return
+    }
+
     setSubmitting(true)
 
     try {
@@ -208,7 +218,11 @@ export default function KategoriPage() {
       setOpen(false)
       fetchData()
     } catch (err: any) {
-      toast.error("Gagal menyimpan kategori: " + err.message)
+      if (err?.code === "23505") {
+        toast.error("Kategori tersebut sudah ada.")
+      } else {
+        toast.error("Gagal menyimpan kategori: " + err.message)
+      }
     } finally {
       setSubmitting(false)
     }

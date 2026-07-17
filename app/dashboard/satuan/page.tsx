@@ -239,6 +239,16 @@ export default function SatuanPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const normalizedName = name.trim().toLowerCase()
+    const duplicateExists = units.some(
+      (u) => u.name.trim().toLowerCase() === normalizedName && u.id !== editId
+    )
+    if (duplicateExists) {
+      toast.error("Satuan tersebut sudah ada.")
+      return
+    }
+
     setSubmitting(true)
 
     try {
@@ -262,7 +272,11 @@ export default function SatuanPage() {
       setOpen(false)
       fetchData()
     } catch (err: any) {
-      toast.error("Gagal menyimpan satuan: " + err.message)
+      if (err?.code === "23505") {
+        toast.error("Satuan tersebut sudah ada.")
+      } else {
+        toast.error("Gagal menyimpan satuan: " + err.message)
+      }
     } finally {
       setSubmitting(false)
     }

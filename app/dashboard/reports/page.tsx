@@ -58,6 +58,7 @@ export default function ReportsPage() {
   // Search filter
   const [salesSearch, setSalesSearch] = useState("")
   const [stockSearch, setStockSearch] = useState("")
+  const [activeFilter, setActiveFilter] = useState<"hari" | "minggu" | "bulan" | null>("bulan")
 
   const fetchSalesData = async () => {
     try {
@@ -132,6 +133,7 @@ export default function ReportsPage() {
     const today = new Date().toISOString().split("T")[0]
     setStartDate(today)
     setEndDate(today)
+    setActiveFilter("hari")
   }
 
   const filterMingguIni = () => {
@@ -139,6 +141,7 @@ export default function ReportsPage() {
     d.setDate(d.getDate() - 7)
     setStartDate(d.toISOString().split("T")[0])
     setEndDate(new Date().toISOString().split("T")[0])
+    setActiveFilter("minggu")
   }
 
   const filterBulanIni = () => {
@@ -146,6 +149,7 @@ export default function ReportsPage() {
     d.setDate(d.getDate() - 30)
     setStartDate(d.toISOString().split("T")[0])
     setEndDate(new Date().toISOString().split("T")[0])
+    setActiveFilter("bulan")
   }
 
   // Filter lists
@@ -276,7 +280,10 @@ export default function ReportsPage() {
                         id="sDate"
                         type="date"
                         value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        onChange={(e) => {
+                          setStartDate(e.target.value)
+                          setActiveFilter(null)
+                        }}
                         className="w-44 bg-background"
                       />
                     </div>
@@ -286,19 +293,37 @@ export default function ReportsPage() {
                         id="eDate"
                         type="date"
                         value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
+                        onChange={(e) => {
+                          setEndDate(e.target.value)
+                          setActiveFilter(null)
+                        }}
                         className="w-44 bg-background"
                       />
                     </div>
                     {/* Quick Filters */}
                     <div className="flex gap-2 mb-0.5">
-                      <Button variant="outline" size="sm" onClick={filterHariIni} className="text-xs h-9">
+                      <Button
+                        variant={activeFilter === "hari" ? "default" : "outline"}
+                        size="sm"
+                        onClick={filterHariIni}
+                        className="text-xs h-9"
+                      >
                         Hari Ini
                       </Button>
-                      <Button variant="outline" size="sm" onClick={filterMingguIni} className="text-xs h-9">
+                      <Button
+                        variant={activeFilter === "minggu" ? "default" : "outline"}
+                        size="sm"
+                        onClick={filterMingguIni}
+                        className="text-xs h-9"
+                      >
                         Minggu Ini
                       </Button>
-                      <Button variant="outline" size="sm" onClick={filterBulanIni} className="text-xs h-9">
+                      <Button
+                        variant={activeFilter === "bulan" ? "default" : "outline"}
+                        size="sm"
+                        onClick={filterBulanIni}
+                        className="text-xs h-9"
+                      >
                         Bulan Ini
                       </Button>
                     </div>
