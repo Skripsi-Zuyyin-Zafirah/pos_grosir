@@ -140,7 +140,6 @@ erDiagram
     products ||--o{ order_items : "terdapat"
     orders ||--o{ order_items : "memiliki"
     orders ||--o| payments : "dibayar"
-    orders ||--o{ notifications : "memicu"
     staff ||--o{ orders : "diproses"
     
     profiles {
@@ -214,13 +213,6 @@ erDiagram
         enum method "tunai, online"
         numeric amount
         timestamptz paid_at
-    }
-    notifications {
-        uuid id PK
-        uuid user_id FK
-        text message
-        boolean is_read
-        timestamptz created_at
     }
 ```
 

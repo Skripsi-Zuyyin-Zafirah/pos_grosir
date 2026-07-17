@@ -21,6 +21,8 @@ import {
   IconShieldLock,
   IconPhone,
   IconMapPin,
+  IconEye,
+  IconEyeOff,
 } from "@tabler/icons-react"
 
 export default function CustomerProfilePage() {
@@ -41,6 +43,8 @@ export default function CustomerProfilePage() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [savingPassword, setSavingPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -129,6 +133,8 @@ export default function CustomerProfilePage() {
       toast.success("Password berhasil diganti!")
       setNewPassword("")
       setConfirmPassword("")
+      setShowNewPassword(false)
+      setShowConfirmPassword(false)
     } catch (err: any) {
       toast.error("Gagal mengganti password: " + err.message)
     } finally {
@@ -195,7 +201,7 @@ export default function CustomerProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <div className="relative">
-                        <IconMail className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconMail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input id="email" type="email" value={email} className="pl-9" disabled />
                       </div>
                       <p className="text-xs text-muted-foreground">Email tidak dapat diubah.</p>
@@ -203,7 +209,7 @@ export default function CustomerProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="fullName">Nama Lengkap</Label>
                       <div className="relative">
-                        <IconUser className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconUser className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="fullName"
                           type="text"
@@ -219,7 +225,7 @@ export default function CustomerProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="phoneNumber">Nomor Telepon</Label>
                       <div className="relative">
-                        <IconPhone className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconPhone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="phoneNumber"
                           type="tel"
@@ -234,7 +240,7 @@ export default function CustomerProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="address">Alamat Lengkap</Label>
                       <div className="relative">
-                        <IconMapPin className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconMapPin className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
                         <textarea
                           id="address"
                           placeholder="Nama jalan, nomor rumah, kecamatan, kota..."
@@ -275,35 +281,53 @@ export default function CustomerProfilePage() {
                     <div className="space-y-2">
                       <Label htmlFor="newPassword">Password Baru</Label>
                       <div className="relative">
-                        <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="newPassword"
-                          type="password"
+                          type={showNewPassword ? "text" : "password"}
                           placeholder="••••••••"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          className="pl-9"
+                          className="pl-9 pr-10"
                           required
                           minLength={6}
                           disabled={savingPassword}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                          disabled={savingPassword}
+                          title={showNewPassword ? "Sembunyikan password" : "Tampilkan password"}
+                        >
+                          {showNewPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                        </button>
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="confirmPassword">Konfirmasi Password Baru</Label>
                       <div className="relative">
-                        <IconLock className="absolute left-3 top-3 size-4 text-muted-foreground" />
+                        <IconLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="confirmPassword"
-                          type="password"
+                          type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="pl-9"
+                          className="pl-9 pr-10"
                           required
                           minLength={6}
                           disabled={savingPassword}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                          disabled={savingPassword}
+                          title={showConfirmPassword ? "Sembunyikan password" : "Tampilkan password"}
+                        >
+                          {showConfirmPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                        </button>
                       </div>
                       <p className="text-xs text-muted-foreground">Minimal 6 karakter.</p>
                     </div>

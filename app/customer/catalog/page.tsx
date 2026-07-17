@@ -387,7 +387,7 @@ export default function CustomerCatalogPage() {
                       {isMulti && product.product_units.length > 0 ? (
                         <div className="space-y-1">
                           <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wide">
-                            Pilih Kemasan Grosir:
+                            Pilih Kemasan:
                           </p>
                           <Select
                             value={selectedUnit[product.id] || ""}

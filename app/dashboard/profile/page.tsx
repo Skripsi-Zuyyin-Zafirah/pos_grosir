@@ -21,6 +21,8 @@ import {
   IconShieldLock,
   IconPhone,
   IconMapPin,
+  IconEye,
+  IconEyeOff,
 } from "@tabler/icons-react"
 
 export default function AdminProfilePage() {
@@ -41,6 +43,8 @@ export default function AdminProfilePage() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [savingPassword, setSavingPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -129,6 +133,8 @@ export default function AdminProfilePage() {
       toast.success("Password berhasil diganti!")
       setNewPassword("")
       setConfirmPassword("")
+      setShowNewPassword(false)
+      setShowConfirmPassword(false)
     } catch (err: any) {
       toast.error("Gagal mengganti password: " + err.message)
     } finally {
@@ -278,15 +284,24 @@ export default function AdminProfilePage() {
                         <IconLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="newPassword"
-                          type="password"
+                          type={showNewPassword ? "text" : "password"}
                           placeholder="••••••••"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          className="pl-9"
+                          className="pl-9 pr-10"
                           required
                           minLength={6}
                           disabled={savingPassword}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                          disabled={savingPassword}
+                          title={showNewPassword ? "Sembunyikan password" : "Tampilkan password"}
+                        >
+                          {showNewPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                        </button>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -295,15 +310,24 @@ export default function AdminProfilePage() {
                         <IconLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input
                           id="confirmPassword"
-                          type="password"
+                          type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="pl-9"
+                          className="pl-9 pr-10"
                           required
                           minLength={6}
                           disabled={savingPassword}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                          disabled={savingPassword}
+                          title={showConfirmPassword ? "Sembunyikan password" : "Tampilkan password"}
+                        >
+                          {showConfirmPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                        </button>
                       </div>
                       <p className="text-xs text-muted-foreground">Minimal 6 karakter.</p>
                     </div>

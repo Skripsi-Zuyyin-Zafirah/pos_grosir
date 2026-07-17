@@ -26,6 +26,11 @@ import {
   IconUser,
   IconChevronLeft,
   IconChevronRight,
+  IconMail,
+  IconLock,
+  IconPhone,
+  IconEye,
+  IconEyeOff,
 } from "@tabler/icons-react"
 
 type UserRole = "admin" | "cashier" | "customer"
@@ -69,6 +74,7 @@ export default function UsersPage() {
   const [formName, setFormName] = useState("")
   const [formPhone, setFormPhone] = useState("")
   const [formRole, setFormRole] = useState<UserRole>("cashier")
+  const [showPassword, setShowPassword] = useState(false)
 
   // Dialog hapus
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null)
@@ -106,6 +112,7 @@ export default function UsersPage() {
     setFormName("")
     setFormPhone("")
     setFormRole("cashier")
+    setShowPassword(false)
     setOpen(true)
   }
 
@@ -116,6 +123,7 @@ export default function UsersPage() {
     setFormName(u.full_name)
     setFormPhone(u.phone_number)
     setFormRole(u.role)
+    setShowPassword(false)
     setOpen(true)
   }
 
@@ -157,6 +165,7 @@ export default function UsersPage() {
 
       toast.success(editUser ? "Pengguna berhasil diperbarui" : "Pengguna baru berhasil ditambahkan")
       setOpen(false)
+      setShowPassword(false)
       fetchUsers()
     } catch (err: any) {
       toast.error("Gagal menyimpan: " + err.message)
@@ -435,47 +444,72 @@ export default function UsersPage() {
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <Label htmlFor="uName">Nama Lengkap</Label>
-                <Input
-                  id="uName"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="cth: Budi Santoso"
-                  disabled={submitting}
-                />
+                <div className="relative">
+                  <IconUser className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="uName"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="cth: Budi Santoso"
+                    className="pl-9"
+                    disabled={submitting}
+                  />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="uEmail">Email</Label>
-                <Input
-                  id="uEmail"
-                  type="email"
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  placeholder="cth: kasir@posgrosir.com"
-                  disabled={submitting || !!editUser}
-                />
+                <div className="relative">
+                  <IconMail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="uEmail"
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder="cth: kasir@posgrosir.com"
+                    className="pl-9"
+                    disabled={submitting || !!editUser}
+                  />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="uPassword">
                   Password {editUser && <span className="text-muted-foreground font-normal">(kosongkan jika tidak diubah)</span>}
                 </Label>
-                <Input
-                  id="uPassword"
-                  type="password"
-                  value={formPassword}
-                  onChange={(e) => setFormPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  disabled={submitting}
-                />
+                <div className="relative">
+                  <IconLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="uPassword"
+                    type={showPassword ? "text" : "password"}
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    className="pl-9 pr-10"
+                    disabled={submitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                    disabled={submitting}
+                    title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  >
+                    {showPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="uPhone">No. Telepon</Label>
-                <Input
-                  id="uPhone"
-                  value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  placeholder="cth: 08123456789"
-                  disabled={submitting}
-                />
+                <div className="relative">
+                  <IconPhone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="uPhone"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="cth: 08123456789"
+                    className="pl-9"
+                    disabled={submitting}
+                  />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Role</Label>
