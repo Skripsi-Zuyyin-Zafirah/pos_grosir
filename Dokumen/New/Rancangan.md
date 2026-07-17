@@ -273,7 +273,7 @@ Papan antrian real-time yang menyajikan daftar antrian terurut prioritas (EWP te
 |                                                                                   |
 |  [ Status Pegawai Toko ]                                                          |
 |  +-------------------+-------------------+-------------------+------------------+ |
-|  | Pegawai 1: BUSY   | Pegawai 2: IDLE   | Pegawai 3: BUSY   | Pegawai 4: IDLE  | |
+|  | Pegawai 1: Sibuk  | Pegawai 2: Idle   | Pegawai 3: Sibuk  | Pegawai 4: Idle  | |
 |  | (ORD-00339)       | (Tersedia)        | (ORD-00338)       | (Tersedia)       | |
 |  +-------------------+-------------------+-------------------+------------------+ |
 +-----------------------------------------------------------------------------------+
@@ -297,5 +297,5 @@ Pengujian fungsionalitas sistem dirancang menggunakan teknik Black Box Testing u
 
 ### 5.3 Skenario Pengujian Antrian & Distribusi Pegawai
 - **Test Case 1**: Memasukkan 3 pesanan baru dengan EWP bervariasi -> Papan antrian kasir memperbarui urutan prioritas terkini secara real-time, menempatkan EWP terkecil di baris paling atas antrian.
-- **Test Case 2**: Mengubah status pesanan dari `ANTRI` menjadi `DIPROSES` -> Pegawai yang ditugaskan berubah status menjadi *busy* di dasbor kasir secara real-time.
-- **Test Case 3**: Kasir menyelesaikan transaksi pembayaran -> Status pesanan berubah menjadi `SELESAI`, stok produk di database terpotong otomatis sesuai item belanja, dan status pegawai kembali berubah menjadi *idle* (siap menerima pesanan baru).
+- **Test Case 2**: Mengubah status pesanan dari `antri` menjadi `diproses` -> Pegawai yang ditugaskan berubah status menjadi *sibuk* di dasbor kasir secara real-time.
+- **Test Case 3**: Kasir menyelesaikan transaksi pembayaran -> Status pesanan berubah menjadi `selesai`, dan status pegawai kembali berubah menjadi *idle* (siap menerima pesanan baru).
