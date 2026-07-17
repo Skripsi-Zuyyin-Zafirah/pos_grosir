@@ -65,7 +65,12 @@ type OrderItem = {
   products: { name: string; sku?: string | null } | null
 }
 
-type ReceiptOrder = Order & { order_items: OrderItem[] }
+type ReceiptOrder = Order & {
+  order_items: OrderItem[]
+  payment_method?: string
+  payment_amount?: number
+  change_amount?: number
+}
 
 const formatRupiah = (val: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val)
@@ -249,11 +254,21 @@ export default function CashierDashboardPage() {
       const { error } = await supabase.rpc("finalize_order_payment", {
         p_order_id: payOrder.id,
         p_staff_id: payOrder.staff_id,
-        p_payment_method: payMethod,
+        p_payment_method: payMethod === "tunai" ? "tunai" : "online",
       })
       if (error) throw error
       toast.success(`Pembayaran pesanan #${payOrder.order_number || ""} berhasil dikonfirmasi!`)
+      
+      const finalizedOrder = { ...payOrder }
       setPayOrder(null)
+
+      // Open receipt showing the payment details
+      await openReceipt(finalizedOrder, {
+        method: payMethod,
+        amount: paidVal,
+        change: payMethod === "tunai" ? paidVal - finalizedOrder.total_price : 0,
+      })
+
       fetchData()
     } catch (err: any) {
       toast.error("Gagal konfirmasi pembayaran: " + err.message)
@@ -271,11 +286,27 @@ export default function CashierDashboardPage() {
     return (data as any) || []
   }
 
-  const openReceipt = async (order: Order) => {
+  const openReceipt = async (
+    order: Order,
+    paymentInfo?: { method: string; amount: number; change: number }
+  ) => {
     try {
       setLoadingReceipt(true)
-      setReceiptOrder({ ...order, order_items: [] })
-      setReceiptOrder({ ...order, order_items: await fetchItems(order.id) })
+      const baseReceiptOrder: ReceiptOrder = {
+        ...order,
+        order_items: [],
+        ...(paymentInfo && {
+          payment_method: paymentInfo.method,
+          payment_amount: paymentInfo.amount,
+          change_amount: paymentInfo.change,
+        }),
+      }
+      setReceiptOrder(baseReceiptOrder)
+      const items = await fetchItems(order.id)
+      setReceiptOrder({
+        ...baseReceiptOrder,
+        order_items: items,
+      })
     } catch (err: any) {
       toast.error("Gagal memuat struk: " + err.message)
       setReceiptOrder(null)
@@ -616,15 +647,23 @@ export default function CashierDashboardPage() {
         </div>
       </SidebarInset>
 
-      {/* Dialog cetak struk untuk pegawai */}
+      {/* Dialog cetak struk */}
       <Dialog open={!!receiptOrder} onOpenChange={(v) => !v && setReceiptOrder(null)}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Cetak Struk Pesanan</DialogTitle>
+            <DialogTitle>
+              {receiptOrder?.payment_method ? "Transaksi Selesai / Struk Belanja" : "Cetak Struk Pesanan"}
+            </DialogTitle>
             <DialogDescription>
-              Cetak dan serahkan struk ini ke{" "}
-              <span className="font-semibold text-foreground">{staffName(receiptOrder?.staff_id || null)}</span>{" "}
-              untuk diproses.
+              {receiptOrder?.payment_method ? (
+                "Transaksi telah selesai dibayar. Cetak struk belanja untuk pelanggan."
+              ) : (
+                <>
+                  Cetak dan serahkan struk ini ke{" "}
+                  <span className="font-semibold text-foreground">{staffName(receiptOrder?.staff_id || null)}</span>{" "}
+                  untuk diproses.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           {loadingReceipt || !receiptOrder ? (

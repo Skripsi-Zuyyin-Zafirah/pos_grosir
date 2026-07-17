@@ -371,7 +371,7 @@ export default function PosWalkinPage() {
       // 3. Immediately finalize payment (walk-in = instant transaction)
       const { error: payErr } = await supabase.rpc("finalize_order_payment", {
         p_order_id: orderId,
-        p_payment_method: paymentMethod,
+        p_payment_method: paymentMethod === "tunai" ? "tunai" : "online",
         p_staff_id: null,
       })
       if (payErr) throw payErr
@@ -713,27 +713,6 @@ export default function PosWalkinPage() {
                     onChange={(e) => setCustomerName(e.target.value)}
                     disabled={submitting}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Metode Pembayaran</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(val) => {
-                      setPaymentMethod(val as any)
-                      if (val !== "tunai") setAmountPaid(totalPrice.toString())
-                    }}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Pilih Metode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tunai">Tunai / Cash</SelectItem>
-                      <SelectItem value="transfer">Transfer Bank</SelectItem>
-                      <SelectItem value="qris">QRIS Digital</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 {paymentMethod === "tunai" && (

@@ -26,6 +26,7 @@ import {
   IconUsers,
   IconCategory,
   IconClockHour4,
+  IconHistory,
 } from "@tabler/icons-react"
 
 type Role = "admin" | "cashier"
@@ -60,6 +61,11 @@ const navSections: { label: string; items: NavItem[] }[] = [
         title: "Kasir & Pembayaran",
         url: "/dashboard/queue",
         icon: <IconCash />,
+      },
+      {
+        title: "Riwayat Transaksi",
+        url: "/dashboard/transactions",
+        icon: <IconHistory />,
       },
     ],
   },

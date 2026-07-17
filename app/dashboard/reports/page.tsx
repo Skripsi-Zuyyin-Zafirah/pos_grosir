@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -59,6 +59,24 @@ export default function ReportsPage() {
   const [salesSearch, setSalesSearch] = useState("")
   const [stockSearch, setStockSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<"hari" | "minggu" | "bulan" | null>("bulan")
+
+  // Pagination State for Sales Report
+  const [salesPage, setSalesPage] = useState(1)
+  const salesPageSize = 10
+
+  // Pagination State for Stock Report
+  const [stockPage, setStockPage] = useState(1)
+  const stockPageSize = 10
+
+  // Reset sales page when date/search changes
+  useEffect(() => {
+    setSalesPage(1)
+  }, [startDate, endDate, salesSearch])
+
+  // Reset stock page when search changes
+  useEffect(() => {
+    setStockPage(1)
+  }, [stockSearch])
 
   const fetchSalesData = async () => {
     try {
@@ -166,6 +184,21 @@ export default function ReportsPage() {
     const searchLower = stockSearch.toLowerCase()
     return name.includes(searchLower) || sku.includes(searchLower)
   })
+
+  // Paginated lists
+  const paginatedSales = useMemo(() => {
+    const start = (salesPage - 1) * salesPageSize
+    return filteredSales.slice(start, start + salesPageSize)
+  }, [filteredSales, salesPage])
+
+  const totalSalesPages = Math.ceil(filteredSales.length / salesPageSize)
+
+  const paginatedStock = useMemo(() => {
+    const start = (stockPage - 1) * stockPageSize
+    return filteredStock.slice(start, start + stockPageSize)
+  }, [filteredStock, stockPage])
+
+  const totalStockPages = Math.ceil(filteredStock.length / stockPageSize)
 
   // Export Sales to CSV
   const exportSalesCSV = () => {
@@ -380,7 +413,7 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredSales.map((p) => (
+                          {paginatedSales.map((p) => (
                             <TableRow key={p.id} className="hover:bg-muted/30 transition-colors">
                               <TableCell className="font-mono text-xs font-semibold text-primary">
                                 #{p.orders?.order_number || p.id.substring(0, 8).toUpperCase()}
@@ -401,6 +434,38 @@ export default function ReportsPage() {
                           ))}
                         </TableBody>
                       </Table>
+                    </div>
+                  )}
+
+                  {/* Pagination Controls for Sales */}
+                  {!loadingSales && filteredSales.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 pt-4 border-t border-border/50 text-xs gap-3">
+                      <div className="text-muted-foreground">
+                        Menampilkan <span className="font-semibold text-foreground">{(salesPage - 1) * salesPageSize + 1}</span> hingga{" "}
+                        <span className="font-semibold text-foreground">{Math.min(salesPage * salesPageSize, filteredSales.length)}</span> dari{" "}
+                        <span className="font-semibold text-foreground">{filteredSales.length}</span> transaksi
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSalesPage((p) => Math.max(p - 1, 1))}
+                          disabled={salesPage === 1}
+                        >
+                          Sebelumnya
+                        </Button>
+                        <div className="flex items-center justify-center px-2 font-semibold">
+                          Halaman {salesPage} dari {totalSalesPages}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSalesPage((p) => Math.min(p + 1, totalSalesPages))}
+                          disabled={salesPage === totalSalesPages || totalSalesPages === 0}
+                        >
+                          Selanjutnya
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -456,7 +521,7 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredStock.map((m) => (
+                          {paginatedStock.map((m) => (
                             <TableRow key={m.id} className="hover:bg-muted/30 transition-colors">
                               <TableCell className="text-xs text-muted-foreground">
                                 {new Date(m.created_at).toLocaleString("id-ID")}
@@ -477,6 +542,38 @@ export default function ReportsPage() {
                           ))}
                         </TableBody>
                       </Table>
+                    </div>
+                  )}
+
+                  {/* Pagination Controls for Stock */}
+                  {!loadingStock && filteredStock.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 pt-4 border-t border-border/50 text-xs gap-3">
+                      <div className="text-muted-foreground">
+                        Menampilkan <span className="font-semibold text-foreground">{(stockPage - 1) * stockPageSize + 1}</span> hingga{" "}
+                        <span className="font-semibold text-foreground">{Math.min(stockPage * stockPageSize, filteredStock.length)}</span> dari{" "}
+                        <span className="font-semibold text-foreground">{filteredStock.length}</span> log pergerakan
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setStockPage((p) => Math.max(p - 1, 1))}
+                          disabled={stockPage === 1}
+                        >
+                          Sebelumnya
+                        </Button>
+                        <div className="flex items-center justify-center px-2 font-semibold">
+                          Halaman {stockPage} dari {totalStockPages}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setStockPage((p) => Math.min(p + 1, totalStockPages))}
+                          disabled={stockPage === totalStockPages || totalStockPages === 0}
+                        >
+                          Selanjutnya
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>
