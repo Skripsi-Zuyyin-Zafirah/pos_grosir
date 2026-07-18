@@ -56,7 +56,7 @@ graph LR
 ## 2. Diagram UML (Unified Modelling Language)
 
 ### 2.1 Use Case Diagram
-Use case diagram berikut menjelaskan hubungan interaksi antara 3 aktor (Pembeli, Kasir, Admin) dengan 10 fungsi utama dalam sistem POS Grosir Jasa.
+Use case diagram berikut menjelaskan hubungan interaksi antara 3 aktor (Pembeli, Kasir, Admin) dengan 13 fungsi utama dalam sistem POS Grosir Jasa.
 
 ```mermaid
 leftToRightDirection
@@ -74,8 +74,11 @@ graph TD
         UC6[Mencetak Struk Pesanan]
         UC7[Konfirmasi Pembayaran]
         UC8[Kelola Data Produk & Stok]
-        UC9[Kelola Data Pengguna]
+        UC9[Kelola Data Pengguna & Pegawai]
         UC10[Lihat Laporan Penjualan]
+        UC11[Melihat Riwayat Transaksi]
+        UC12[Mengatur Bobot Waktu Proses]
+        UC13[Melayani Pembelian POS Walk-in]
     end
     
     pembeli --> UC1
@@ -87,11 +90,16 @@ graph TD
     kasir --> UC5
     kasir --> UC6
     kasir --> UC7
+    kasir --> UC11
+    kasir --> UC13
     
     admin --> UC1
     admin --> UC8
     admin --> UC9
     admin --> UC10
+    admin --> UC11
+    admin --> UC12
+    admin --> UC13
 ```
 
 ### 2.2 Sequence Diagram: Proses Checkout dan Distribusi Pesanan
@@ -139,8 +147,11 @@ erDiagram
     products ||--o{ product_units : "memiliki"
     products ||--o{ order_items : "terdapat"
     orders ||--o{ order_items : "memiliki"
-    orders ||--o| payments : "dibayar"
     staff ||--o{ orders : "diproses"
+    products ||--o{ stock_mutations : "memiliki"
+    profiles ||--o{ stock_mutations : "mencatat"
+    units ||--o{ products : "memiliki"
+    units ||--o{ product_units : "memiliki"
     
     profiles {
         uuid id PK
@@ -206,13 +217,19 @@ erDiagram
         enum status "idle, sibuk"
         boolean is_active
     }
-    payments {
+    stock_mutations {
         uuid id PK
-        uuid order_id FK
-        uuid cashier_id FK
-        enum method "tunai, online"
-        numeric amount
-        timestamptz paid_at
+        uuid product_id FK
+        int change_qty
+        text type
+        text notes
+        uuid user_id FK
+        timestamptz created_at
+    }
+    units {
+        uuid id PK
+        text name
+        timestamptz created_at
     }
 ```
 
@@ -222,8 +239,9 @@ erDiagram
 2. **Tabel `products` & `categories`**: Menyimpan informasi barang dagang grosir. Dilengkapi kolom `time_weight` dan `waktu_pengambilan` untuk menampung bobot waktu pengambilan barang.
 3. **Tabel `product_units`**: Menyimpan variasi kemasan grosir (eceran, pak, karton) dengan kolom `multiplier` sebagai faktor perkalian kuantitas ke pcs.
 4. **Tabel `orders` & `order_items`**: Menyimpan data pesanan belanja. Nilai prioritas ditentukan oleh kolom `ewp` (Estimasi Waktu Proses) yang dihitung di aplikasi. Total belanja disimpan dalam `total_price` dan statusnya berupa enum `'antri'`, `'diproses'`, `'selesai'`, `'batal'`.
-5. **Tabel `staff`**: Menyimpan status ketersediaan 4 orang pegawai (`'idle'` atau `'sibuk'`). Status pegawai dikelola secara real-time via fungsi `assign_order_to_staff` dan `complete_packing`.
-6. **Tabel `payments`**: Menyimpan rincian transaksi pembayaran lunas dengan enum `payment_method` (`'tunai'` atau `'online'`).
+5. **Tabel `staff`**: Menyimpan status ketersediaan 4 orang pegawai (`'idle'` atau `'sibuk'`). Status pegawai dikelola secara real-time via fungsi `assign_order_to_staff` and `complete_packing`.
+6. **Tabel `units`**: Menyimpan data master nama satuan barang standar (seperti eceran, pak, karton, unit) yang digunakan untuk produk dan konversi satuan multi-unit.
+7. **Tabel `stock_mutations`**: Menyimpan log riwayat perubahan stok produk (penjualan, restok, penyesuaian awal) beserta jumlah perubahan dan notes pelacak mutasi.
 
 ---
 

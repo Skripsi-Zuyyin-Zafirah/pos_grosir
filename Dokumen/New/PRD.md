@@ -57,11 +57,14 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 - **Modul Kasir**:
   - Dasbor antrian Priority Queue terurut EWP real-time.
   - Informasi status ketersediaan 4 pegawai (`idle` / `sibuk`).
+  - Pembuatan transaksi penjualan langsung di toko (POS Walk-in).
+  - Pencarian, penyaringan, paginasi, dan pencetakan ulang struk dari riwayat transaksi.
   - Pencetakan struk transaksi untuk pegawai.
   - Konfirmasi pembayaran tunai maupun online.
 - **Modul Admin**:
-  - CRUD produk, kategori, dan stok barang.
-  - Manajemen data pengguna (kasir dan pembeli).
+  - CRUD produk, kategori, satuan barang (unit), dan stok barang.
+  - Manajemen data pengguna (customer, cashier, admin) dan ketersediaan pegawai (staff).
+  - Pengaturan bobot waktu proses produk (`time_weight` per item dan satuan multi-unit) untuk keperluan kalkulasi EWP antrian.
   - Visualisasi laporan penjualan bulanan dan produk terlaris dalam bentuk grafik.
 - **Logika Sistem (Otomatis)**:
   - Perhitungan EWP otomatis saat pesanan dibuat.
@@ -79,8 +82,8 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 | Peran | Deskripsi | Akses Utama |
 |---|---|---|
 | **Pembeli (Customer)** | Pelanggan Grosir Jasa | Melakukan pendaftaran, melihat katalog produk, membuat pesanan digital, memantau status antrian |
-| **Kasir (Cashier)** | Pegawai kasir yang mengelola transaksi | Memantau dasbor antrian prioritas, mencetak struk pesanan, memproses pembayaran tunai/online |
-| **Admin** | Pemilik toko atau pengelola penuh | Mengelola stok, produk, kategori, membuat akun kasir/pembeli, memantau grafik laporan penjualan |
+| **Kasir (Cashier)** | Pegawai kasir yang mengelola transaksi | Memantau dasbor antrian prioritas, mencetak struk pesanan, melayani pembelian langsung (POS Walk-in), memproses pembayaran tunai/online, serta melihat riwayat transaksi dan mencetak ulang invoice |
+| **Admin** | Pemilik toko atau pengelola penuh | Mengelola stok, produk, kategori, satuan, pegawai (staff), membuat akun pengguna baru, memantau grafik laporan penjualan, riwayat transaksi, serta mengatur bobot waktu proses produk |
 
 ---
 
@@ -106,9 +109,9 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
    - Status pegawai kembali diubah menjadi `idle` agar dapat menerima pesanan baru.
 4. Pembeli melakukan pembayaran ke kasir (metode `tunai` atau `online`).
 5. Kasir mengonfirmasi pembayaran selesai (memanggil fungsi database `finalize_order_payment`):
-   - Status pesanan berubah menjadi `selesai`.
-   - Catatan transaksi pembayaran tersimpan di tabel `payments`.
-   - *(Catatan: Pemotongan stok produk dan pencatatan mutasi stok jenis 'sale' terjadi secara otomatis di database saat pembeli membuat pesanan / checkout).*
+    - Status pesanan berubah menjadi `selesai`.
+    - Informasi pembayaran (metode `'tunai'` / `'online'` dan waktu selesai `'completed_at'`) diperbarui langsung pada baris pesanan di tabel `orders`.
+    - *(Catatan: Pemotongan stok produk dan pencatatan mutasi stok jenis 'sale' terjadi secara otomatis di database saat pembeli membuat pesanan / checkout).*
 
 ---
 
@@ -124,12 +127,15 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 | **F-06** | Pengelolaan antrian pesanan terurut dengan struktur Min-Heap | Sistem (Otomatis) |
 | **F-07** | Mekanisme penugasan (otomatis via dashboard kasir/manual) ke pegawai idle | Sistem (Otomatis) |
 | **F-08** | Monitoring dasbor antrian prioritas secara real-time | Kasir |
-| **F-09** | Pencetakan struk transaksi berdasarkan nomor prioritas teratas | Kasir |
+| **F-09** | Pencetakan struk transaksi berdasarkan nomor prioritas teratas atau cetak ulang dari riwayat | Kasir, Admin |
 | **F-10** | Konfirmasi pembayaran, selesai pengemasan (membebaskan status pegawai), dan status pesanan | Kasir |
-| **F-11** | CRUD produk, kategori, dan stok barang | Admin |
-| **F-12** | CRUD data pengguna kasir dan pembeli | Admin |
+| **F-11** | CRUD produk, kategori, satuan barang (unit), dan stok barang | Admin |
+| **F-12** | CRUD data pengguna (customer, cashier, admin) dan ketersediaan pegawai (staff) | Admin |
 | **F-13** | Visualisasi grafik laporan penjualan bulanan dan produk terlaris | Admin |
 | **F-14** | Pembaruan stok produk otomatis saat pesanan dibuat (checkout) | Sistem (Otomatis) |
+| **F-15** | Pembuatan transaksi pembelian langsung di toko (POS Walk-in) | Kasir, Admin |
+| **F-16** | Pencarian, pemfilteran (status/pembayaran/tanggal), dan paginasi riwayat transaksi | Kasir, Admin |
+| **F-17** | Pengaturan bobot waktu proses (time_weight) per produk/satuan multi-unit | Admin |
 
 ---
 
