@@ -403,7 +403,7 @@ export default function CashierDashboardPage() {
                 <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                   {staffPool.map((staff) => {
                     const order = staffOrder(staff.id)
-                    const busy = !!order
+                    const busy = staff.status === "sibuk"
                     return (
                       <div
                         key={staff.id}
