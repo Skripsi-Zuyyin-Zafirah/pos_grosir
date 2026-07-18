@@ -316,4 +316,5 @@ Pengujian fungsionalitas sistem dirancang menggunakan teknik Black Box Testing u
 ### 5.3 Skenario Pengujian Antrian & Distribusi Pegawai
 - **Test Case 1**: Memasukkan 3 pesanan baru dengan EWP bervariasi -> Papan antrian kasir memperbarui urutan prioritas terkini secara real-time, menempatkan EWP terkecil di baris paling atas antrian.
 - **Test Case 2**: Mengubah status pesanan dari `antri` menjadi `diproses` -> Pegawai yang ditugaskan berubah status menjadi *sibuk* di dasbor kasir secara real-time.
-- **Test Case 3**: Kasir menyelesaikan transaksi pembayaran -> Status pesanan berubah menjadi `selesai`, dan status pegawai kembali berubah menjadi *idle* (siap menerima pesanan baru).
+- **Test Case 3**: Kasir menandai selesai kemas (complete_packing) -> Kolom `packed_at` terisi timestamp (tampilan pelanggan berganti menjadi "Siap Diambil") dan status pegawai dibebaskan kembali menjadi *idle*.
+- **Test Case 4**: Kasir menyelesaikan transaksi pembayaran -> Status pesanan berubah menjadi `selesai` (lunas) di database dan sistem.
