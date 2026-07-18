@@ -582,6 +582,13 @@ export default function CashierDashboardPage() {
                             )}
                             Selesai Packing
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openReceipt(order)}
+                          >
+                            <IconPrinter className="size-4 mr-1.5" /> Struk
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => openDetail(order)}>
                             <IconEye className="size-4 mr-1.5" /> Detail
                           </Button>

@@ -53,6 +53,7 @@ type Order = {
   ewp: number
   status: "antri" | "diproses" | "selesai" | "batal"
   completed_at: string | null
+  packed_at: string | null
 }
 
 type StatusTab = "all" | "selesai" | "batal"
@@ -105,7 +106,7 @@ export default function CustomerOrdersPage() {
       const [{ data, error }, { data: waitingQueue, error: queueErr }] = await Promise.all([
         supabase
           .from("orders")
-          .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at")
+          .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at, packed_at")
           .eq("user_id", session.user.id)
           .order("created_at", { ascending: false }),
         supabase.from("orders").select("id, ewp, created_at").eq("status", "antri"),
@@ -172,9 +173,17 @@ export default function CustomerOrdersPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (order: Order) => {
     const base = "border-none font-bold text-[11px] tracking-wide px-2.5 py-1 gap-1.5 shadow-sm"
-    switch (status) {
+    if (order.status === "diproses" && order.packed_at) {
+      return (
+        <Badge className={`${base} bg-indigo-500 hover:bg-indigo-600 text-white`}>
+          <span className="size-1.5 rounded-full bg-white animate-pulse" />
+          SIAP DIAMBIL
+        </Badge>
+      )
+    }
+    switch (order.status) {
       case "antri":
         return (
           <Badge className={`${base} bg-sky-500 hover:bg-sky-600 text-white`}>
@@ -204,7 +213,7 @@ export default function CustomerOrdersPage() {
           </Badge>
         )
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return <Badge variant="outline">{order.status}</Badge>
     }
   }
 
@@ -301,7 +310,7 @@ export default function CustomerOrdersPage() {
       {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => getStatusBadge(row.original.status),
+        cell: ({ row }) => getStatusBadge(row.original),
       },
       {
         id: "queuePosition",

@@ -39,6 +39,7 @@ type Order = {
   completed_at: string | null
   enqueued_at: string | null
   dequeued_at: string | null
+  packed_at: string | null
   staff: { name: string; status: string } | null
 }
 
@@ -64,7 +65,7 @@ export default function CustomerTrackingPage() {
       const [{ data, error }, { data: waitingQueue, error: queueErr }] = await Promise.all([
         supabase
           .from("orders")
-          .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at, enqueued_at, dequeued_at, staff:staff_id ( name, status )")
+          .select("id, order_number, created_at, customer_name, total_items, total_price, ewp, status, completed_at, enqueued_at, dequeued_at, packed_at, staff:staff_id ( name, status )")
           .eq("user_id", session.user.id)
           .order("created_at", { ascending: false }),
         supabase.from("orders").select("id, ewp, created_at").eq("status", "antri"),
@@ -108,9 +109,16 @@ export default function CustomerTrackingPage() {
     }
   }, [])
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (order: Order) => {
     const base = "border-none font-bold text-[11px] tracking-wide px-2.5 py-1 gap-1.5 shadow-sm"
-    switch (status) {
+    if (order.status === "diproses" && order.packed_at) {
+      return (
+        <Badge className={`${base} bg-indigo-500 hover:bg-indigo-600 text-white`}>
+          <span className="size-1.5 rounded-full bg-white animate-pulse" /> SIAP DIAMBIL
+        </Badge>
+      )
+    }
+    switch (order.status) {
       case "antri":
         return (
           <Badge className={`${base} bg-sky-500 hover:bg-sky-600 text-white`}>
@@ -136,7 +144,7 @@ export default function CustomerTrackingPage() {
           </Badge>
         )
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return <Badge variant="outline">{order.status}</Badge>
     }
   }
 
@@ -160,15 +168,13 @@ export default function CustomerTrackingPage() {
 
   const getTimelineSteps = (o: Order) => {
     const steps = [
-      { label: "Pesanan Dibuat", time: o.created_at },
-      { label: "Masuk Antrian", time: o.enqueued_at },
-      { label: "Diproses & Dikemas", time: o.dequeued_at },
-      { label: o.status === "batal" ? "Dibatalkan" : "Selesai & Diambil", time: o.completed_at },
+      { label: "Pesanan Dibuat", time: o.created_at, done: true },
+      { label: "Masuk Antrian", time: o.enqueued_at || o.created_at, done: ["antri", "diproses", "selesai", "batal"].includes(o.status) },
+      { label: "Diproses & Dikemas", time: o.dequeued_at, done: !!o.dequeued_at || ["diproses", "selesai"].includes(o.status) },
+      { label: "Siap Diambil", time: o.packed_at, done: !!o.packed_at || o.status === "selesai" },
+      { label: o.status === "batal" ? "Dibatalkan" : "Selesai & Diambil", time: o.completed_at, done: o.status === "selesai" || o.status === "batal" },
     ]
-    return steps.map((step, i) => ({
-      ...step,
-      done: !!step.time || (o.status === "batal" && i === steps.length - 1),
-    }))
+    return steps
   }
 
   const renderTimeline = (order: Order) => {
@@ -242,7 +248,7 @@ export default function CustomerTrackingPage() {
             <span className="font-mono text-sm font-bold text-primary">
               #{order.order_number || order.id.substring(0, 8).toUpperCase()}
             </span>
-            {getStatusBadge(order.status)}
+            {getStatusBadge(order)}
           </div>
           <CardDescription className="mt-1">
             Dipesan {new Date(order.created_at).toLocaleString("id-ID")}

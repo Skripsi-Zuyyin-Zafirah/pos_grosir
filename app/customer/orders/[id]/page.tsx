@@ -51,6 +51,7 @@ type Order = {
   completed_at: string | null
   enqueued_at: string | null
   dequeued_at: string | null
+  packed_at: string | null
   staff: { name: string; status: string } | null
   order_items: OrderItem[]
 }
@@ -150,8 +151,11 @@ export default function CustomerOrderDetailPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (order: Order) => {
+    if (order.status === "diproses" && order.packed_at) {
+      return <Badge className="bg-indigo-500 hover:bg-indigo-600 border-none font-semibold">SIAP DIAMBIL</Badge>
+    }
+    switch (order.status) {
       case "antri":
         return <Badge className="bg-sky-500 hover:bg-sky-600 border-none font-semibold">ANTRI</Badge>
       case "diproses":
@@ -161,7 +165,7 @@ export default function CustomerOrderDetailPage() {
       case "batal":
         return <Badge className="bg-rose-500 hover:bg-rose-600 border-none font-semibold">BATAL</Badge>
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return <Badge variant="outline">{order.status}</Badge>
     }
   }
 
@@ -186,18 +190,17 @@ export default function CustomerOrderDetailPage() {
 
   const getTimelineSteps = (o: Order) => {
     const steps = [
-      { label: "Pesanan Dibuat", time: o.created_at },
-      { label: "Masuk Antrian Gudang", time: o.enqueued_at },
-      { label: "Diproses & Dikemas", time: o.dequeued_at },
+      { label: "Pesanan Dibuat", time: o.created_at, done: true },
+      { label: "Masuk Antrian Gudang", time: o.enqueued_at || o.created_at, done: ["antri", "diproses", "selesai", "batal"].includes(o.status) },
+      { label: "Diproses & Dikemas", time: o.dequeued_at, done: !!o.dequeued_at || ["diproses", "selesai"].includes(o.status) },
+      { label: "Siap Diambil", time: o.packed_at, done: !!o.packed_at || o.status === "selesai" },
       {
         label: o.status === "batal" ? "Dibatalkan" : "Selesai & Diambil",
         time: o.completed_at,
+        done: o.status === "selesai" || o.status === "batal",
       },
     ]
-    return steps.map((step, i) => ({
-      ...step,
-      done: !!step.time || (o.status === "batal" && i === steps.length - 1),
-    }))
+    return steps
   }
 
   return (
@@ -263,7 +266,7 @@ export default function CustomerOrderDetailPage() {
                       </div>
                       <div>
                         <p className="text-muted-foreground text-xs">Status</p>
-                        <div className="mt-0.5">{getStatusBadge(order.status)}</div>
+                         <div className="mt-0.5">{getStatusBadge(order)}</div>
                       </div>
                       <div>
                         <p className="text-muted-foreground text-xs flex items-center gap-1">
