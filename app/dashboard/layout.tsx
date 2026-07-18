@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { IconLoader2 } from "@tabler/icons-react"
+import { MobileBottomNav } from "@/components/mobile-bottom-nav"
 
 // Routes only "admin" role may access; "cashier" is redirected back to /dashboard.
 const ADMIN_ONLY_PREFIXES = [
@@ -72,5 +73,12 @@ export default function DashboardLayout({
     )
   }
 
-  return <>{children}</>
+  return (
+    <>
+      <div className="pb-24 md:pb-0 min-h-screen flex flex-col">
+        {children}
+      </div>
+      <MobileBottomNav />
+    </>
+  )
 }
