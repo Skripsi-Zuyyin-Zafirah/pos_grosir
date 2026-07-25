@@ -38,6 +38,15 @@ function RegisterForm() {
       return
     }
 
+    // Validasi nomor telepon hanya boleh berisi angka
+    const phoneRegex = /^\+?[0-9]+$/
+    if (!phoneRegex.test(phoneNumber)) {
+      const msg = "Nomor telepon hanya boleh berisi angka."
+      setErrorMsg(msg)
+      toast.error(msg)
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -53,15 +62,20 @@ function RegisterForm() {
       })
 
       if (error) {
-        setErrorMsg(error.message)
-        toast.error(error.message)
+        const message = error.message === "User already exists"
+          ? "Email sudah digunakan"
+          : error.message
+        setErrorMsg(message)
+        toast.error(message)
         return
       }
 
       toast.success("Registrasi berhasil! Silakan masuk.")
       router.push(`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`)
     } catch (err: any) {
-      const msg = err.message || "Terjadi kesalahan"
+      const msg = err.message === "User already exists"
+        ? "Email sudah digunakan"
+        : (err.message || "Terjadi kesalahan")
       setErrorMsg(msg)
       toast.error(msg)
     } finally {
@@ -121,6 +135,8 @@ function RegisterForm() {
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="pl-8"
                   required
+                  pattern="[0-9+]*"
+                  title="Nomor telepon hanya boleh berisi angka"
                   disabled={loading}
                 />
               </div>

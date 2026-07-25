@@ -35,8 +35,11 @@ function LoginForm() {
       })
 
       if (error) {
-        setErrorMsg(error.message)
-        toast.error(error.message)
+        const message = error.message === "Invalid login credentials"
+          ? "Email atau password salah"
+          : error.message
+        setErrorMsg(message)
+        toast.error(message)
         return
       }
 
@@ -58,7 +61,9 @@ function LoginForm() {
       }
       router.refresh()
     } catch (err: any) {
-      const msg = err.message || "Terjadi kesalahan"
+      const msg = err.message === "Invalid login credentials"
+        ? "Email atau password salah"
+        : (err.message || "Terjadi kesalahan")
       setErrorMsg(msg)
       toast.error(msg)
     } finally {

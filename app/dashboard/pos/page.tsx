@@ -362,6 +362,7 @@ export default function PosWalkinPage() {
           unit_price: i.price,
           unit_id: i.unitId === BASE_UNIT_ID ? null : i.unitId,
           unit_name: i.unitName,
+          multiplier: i.multiplier,
         })),
         p_total_items: totalItems,
         p_total_price: totalPrice,

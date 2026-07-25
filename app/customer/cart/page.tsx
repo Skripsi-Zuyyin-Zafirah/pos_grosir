@@ -136,6 +136,7 @@ export default function CustomerCartPage() {
           unit_price: i.price,
           unit_id: i.unitId,
           unit_name: i.unitName,
+          multiplier: i.multiplier,
         })),
         p_total_items: totalItems,
         p_total_price: totalPrice,

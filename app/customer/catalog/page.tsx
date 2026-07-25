@@ -486,18 +486,20 @@ export default function CustomerCatalogPage() {
         </div>
 
         {/* Floating cart button */}
-        <Button
-          size="icon"
-          className="fixed bottom-6 right-6 z-40 size-14 rounded-full shadow-lg"
-          onClick={() => setCartOpen(true)}
-        >
-          <IconShoppingCart className="size-5" />
-          {totalItems > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">
-              {totalItems}
-            </span>
-          )}
-        </Button>
+        {!cartOpen && (
+          <Button
+            size="icon"
+            className="fixed bottom-24 right-6 md:bottom-6 z-40 size-14 rounded-full shadow-lg"
+            onClick={() => setCartOpen(true)}
+          >
+            <IconShoppingCart className="size-5" />
+            {totalItems > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">
+                {totalItems}
+              </span>
+            )}
+          </Button>
+        )}
       </SidebarInset>
 
       {/* Cart drawer */}
