@@ -91,6 +91,7 @@ type ReceiptOrder = {
     unit_price: number
     products: { name: string } | null
   }[]
+  staff_name?: string | null
 }
 
 export default function PosWalkinPage() {

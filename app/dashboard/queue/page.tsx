@@ -70,6 +70,7 @@ type ReceiptOrder = Order & {
   payment_method?: string
   payment_amount?: number
   change_amount?: number
+  staff_name?: string | null
 }
 
 const formatRupiah = (val: number) =>
@@ -295,6 +296,7 @@ export default function CashierDashboardPage() {
       const baseReceiptOrder: ReceiptOrder = {
         ...order,
         order_items: [],
+        staff_name: staffName(order.staff_id || null),
         ...(paymentInfo && {
           payment_method: paymentInfo.method,
           payment_amount: paymentInfo.amount,

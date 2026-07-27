@@ -485,11 +485,11 @@ export default function CustomerCatalogPage() {
           )}
         </div>
 
-        {/* Floating cart button */}
+        {/* Floating cart button at top right */}
         {!cartOpen && (
           <Button
             size="icon"
-            className="fixed bottom-24 right-6 md:bottom-6 z-40 size-14 rounded-full shadow-lg"
+            className="fixed top-6 right-6 z-40 size-14 rounded-full shadow-lg"
             onClick={() => setCartOpen(true)}
           >
             <IconShoppingCart className="size-5" />

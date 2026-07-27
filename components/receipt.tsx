@@ -24,6 +24,7 @@ type ReceiptOrder = {
   payment_amount?: number
   change_amount?: number
   order_items: ReceiptItem[]
+  staff_name?: string | null
 }
 
 interface ReceiptProps {
@@ -71,6 +72,12 @@ export function Receipt({ order }: ReceiptProps) {
             <span>Pelanggan:</span>
             <span className="font-semibold">{order.customer_name}</span>
           </div>
+          {order.staff_name && (
+            <div className="flex justify-between">
+              <span>Pegawai:</span>
+              <span className="font-semibold">{order.staff_name}</span>
+            </div>
+          )}
         </div>
 
         {/* Item Table */}
