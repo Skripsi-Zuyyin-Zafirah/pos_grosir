@@ -291,6 +291,8 @@ export default function PosWalkinPage() {
   useEffect(() => {
     if (paymentMethod === "tunai") {
       setAmountPaid(totalPrice > 0 ? totalPrice.toString() : "")
+    } else {
+      setAmountPaid(totalPrice.toString())
     }
   }, [totalPrice, paymentMethod])
 
@@ -715,6 +717,24 @@ export default function PosWalkinPage() {
                     onChange={(e) => setCustomerName(e.target.value)}
                     disabled={submitting}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentMethod" className="text-xs">Metode Pembayaran</Label>
+                  <Select
+                    value={paymentMethod}
+                    onValueChange={(v) => setPaymentMethod(v as any)}
+                    disabled={submitting}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tunai">Tunai / Cash</SelectItem>
+                      <SelectItem value="transfer">Transfer Bank</SelectItem>
+                      <SelectItem value="qris">QRIS Digital</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {paymentMethod === "tunai" && (

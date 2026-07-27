@@ -143,10 +143,12 @@ export default function TransactionsPage() {
   // Client-side filtering for Search, Status, and Payment Method
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      const nota = order.order_number?.toLowerCase() || ""
-      const cust = order.customer_name?.toLowerCase() || ""
       const searchLower = search.toLowerCase()
-      const matchesSearch = nota.includes(searchLower) || cust.includes(searchLower)
+      const cleanSearch = search.startsWith("#") ? search.slice(1).toLowerCase() : searchLower
+
+      const nota = (order.order_number || order.id.substring(0, 8)).toLowerCase()
+      const cust = order.customer_name?.toLowerCase() || ""
+      const matchesSearch = nota.includes(cleanSearch) || cust.includes(searchLower)
 
       const matchesStatus = statusFilter === "all" || order.status === statusFilter
 
