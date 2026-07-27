@@ -173,6 +173,7 @@ erDiagram
         uuid category_id FK
         numeric price
         text unit
+        uuid unit_id FK
         int stock
         numeric time_weight
         int waktu_pengambilan
@@ -197,6 +198,7 @@ erDiagram
         int total_items
         numeric ewp
         enum status "antri, diproses, selesai, batal"
+        enum payment_method "tunai, online"
         uuid staff_id FK
         timestamptz enqueued_at
         timestamptz dequeued_at
