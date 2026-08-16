@@ -28,6 +28,12 @@ import {
   IconReceipt2,
   IconTag,
   IconHourglassHigh,
+  IconCreditCard,
+  IconQrcode,
+  IconAlertCircle,
+  IconUpload,
+  IconCheck,
+  IconDownload,
 } from "@tabler/icons-react"
 
 export default function CustomerCartPage() {
@@ -36,9 +42,15 @@ export default function CustomerCartPage() {
   const { items, updateQuantity, removeItem, clearCart, totalItems, totalPrice } = useCart()
 
   const [customerName, setCustomerName] = useState("")
+  const [paymentMethod, setPaymentMethod] = useState<"tunai" | "transfer" | "qris">("tunai")
   const [submitting, setSubmitting] = useState(false)
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [queueBacklog, setQueueBacklog] = useState(0)
+
+  // Upload proof states
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofUploading, setProofUploading] = useState(false)
+  const [proofUrl, setProofUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -78,6 +90,43 @@ export default function CustomerCartPage() {
     }
   }, [])
 
+  // Upload proof to products bucket under payment_proofs/
+  const handleProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 2MB")
+      return
+    }
+
+    setProofFile(file)
+    setProofUploading(true)
+    try {
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
+      const filePath = `payment_proofs/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("products")
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data } = supabase.storage
+        .from("products")
+        .getPublicUrl(filePath)
+
+      setProofUrl(data.publicUrl)
+      toast.success("Bukti transfer berhasil diunggah!")
+    } catch (err: any) {
+      toast.error("Gagal mengunggah bukti: " + err.message)
+      setProofFile(null)
+    } finally {
+      setProofUploading(false)
+    }
+  }
+
   // Estimasi waktu selesai keranjang ini (detik): sisa antrian saat ini + waktu kemas pesanan ini sendiri
   const cartEwp = computeEWP(items.map((i) => ({ qty: i.quantity, weight: i.timeWeight ?? 1 })))
   const estimatedCompletionSeconds = queueBacklog + cartEwp
@@ -86,6 +135,10 @@ export default function CustomerCartPage() {
     if (items.length === 0) return
     if (!customerName.trim()) {
       toast.error("Nama pemesan wajib diisi.")
+      return
+    }
+    if ((paymentMethod === "transfer" || paymentMethod === "qris") && !proofUrl) {
+      toast.error(`Bukti pembayaran wajib diunggah untuk metode ${paymentMethod === "transfer" ? "Transfer Bank" : "QRIS Digital"}.`)
       return
     }
     setSubmitting(true)
@@ -140,6 +193,8 @@ export default function CustomerCartPage() {
         })),
         p_total_items: totalItems,
         p_total_price: totalPrice,
+        p_payment_method: paymentMethod === "tunai" ? "tunai" : "online",
+        p_payment_proof_url: paymentMethod === "tunai" ? null : proofUrl,
       })
       if (checkoutErr) throw checkoutErr
 
@@ -335,6 +390,250 @@ export default function CustomerCartPage() {
                       disabled={loadingProfile || submitting}
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label>Metode Pembayaran</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        type="button"
+                        variant={paymentMethod === "tunai" ? "default" : "outline"}
+                        className="w-full text-[10px] sm:text-xs font-semibold px-1"
+                        onClick={() => {
+                          setPaymentMethod("tunai")
+                          setProofFile(null)
+                          setProofUrl(null)
+                        }}
+                        disabled={submitting}
+                      >
+                        Tunai / Cash
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentMethod === "transfer" ? "default" : "outline"}
+                        className="w-full text-[10px] sm:text-xs font-semibold px-1"
+                        onClick={() => {
+                          setPaymentMethod("transfer")
+                          setProofFile(null)
+                          setProofUrl(null)
+                        }}
+                        disabled={submitting}
+                      >
+                        Transfer Bank
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentMethod === "qris" ? "default" : "outline"}
+                        className="w-full text-[10px] sm:text-xs font-semibold px-1"
+                        onClick={() => {
+                          setPaymentMethod("qris")
+                          setProofFile(null)
+                          setProofUrl(null)
+                        }}
+                        disabled={submitting}
+                      >
+                        QRIS Digital
+                      </Button>
+                    </div>
+                  </div>
+
+                  {paymentMethod === "tunai" && (
+                    <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 text-xs text-yellow-600 dark:text-yellow-400 space-y-2">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <IconReceipt2 className="size-4 shrink-0" />
+                        <span>Bayar di Kasir (Tunai)</span>
+                      </div>
+                      <p className="text-muted-foreground leading-relaxed">
+                        Pesanan Anda akan dikemas terlebih dahulu. Silakan lakukan pembayaran tunai di kasir saat mengambil pesanan.
+                      </p>
+                      <div className="flex items-start gap-1.5 border-t border-yellow-500/10 pt-2 text-[11px] text-yellow-700 dark:text-yellow-300 font-medium">
+                        <IconAlertCircle className="size-3.5 mt-0.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                        <span>Harap simpan Nomor Pesanan Anda untuk ditunjukkan ke kasir saat pengambilan.</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === "transfer" && (
+                    <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3.5 text-xs space-y-3.5 text-foreground">
+                      <div className="flex items-center gap-1.5 font-bold text-blue-600 dark:text-blue-400">
+                        <IconCreditCard className="size-4 shrink-0" />
+                        <span>Transfer Bank Manual</span>
+                      </div>
+
+                      <div className="bg-background/80 rounded-lg border border-border p-3 space-y-2 font-mono text-[11px] shadow-sm">
+                        <div className="flex justify-between border-b border-border/50 pb-1.5">
+                          <span className="text-muted-foreground">Bank:</span>
+                          <span className="font-bold text-foreground">BSI (Bank Syariah Indonesia)</span>
+                        </div>
+                        <div className="flex justify-between border-b border-border/50 pb-1.5 items-center">
+                          <span className="text-muted-foreground">No. Rekening:</span>
+                          <span className="font-bold text-foreground">7337763094</span>
+                        </div>
+                        <div className="flex justify-between border-b border-border/50 pb-1.5">
+                          <span className="text-muted-foreground">Atas Nama:</span>
+                          <span className="font-bold text-foreground">GROSIR JASA</span>
+                        </div>
+                        <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/5 rounded px-1.5 py-1 mt-1">
+                          <span className="text-muted-foreground text-[10px]">Nominal Transfer:</span>
+                          <span className="font-bold">{formatRupiah(totalPrice)} <span className="text-[9px] font-normal">(harus sama persis)</span></span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="font-bold flex items-center gap-1 text-muted-foreground">
+                          <span>📋 Cara Pembayaran:</span>
+                        </div>
+                        <ol className="list-decimal list-inside space-y-1 text-[11px] text-muted-foreground pl-1">
+                          <li>Transfer sesuai nominal ke rekening di atas</li>
+                          <li>Upload bukti transfer di bawah ini</li>
+                          <li>Pesanan akan dikemas dan diverifikasi kasir</li>
+                          <li>Tunjukkan nomor pesanan saat pengambilan barang</li>
+                        </ol>
+                      </div>
+
+                      <div className="space-y-2 border-t border-border/50 pt-3">
+                        <div className="font-bold text-muted-foreground flex items-center gap-1.5">
+                          <span>📎 Upload Bukti Transfer (wajib):</span>
+                        </div>
+
+                        <div className="relative">
+                          <label className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 bg-background/50 hover:bg-muted/10 cursor-pointer transition-colors group">
+                            {proofUploading ? (
+                              <div className="flex flex-col items-center space-y-1.5">
+                                <IconLoader2 className="size-6 text-primary animate-spin" />
+                                <span className="text-[11px] font-semibold text-muted-foreground">Mengunggah...</span>
+                              </div>
+                            ) : proofUrl ? (
+                              <div className="flex flex-col items-center space-y-1.5 text-center">
+                                <div className="h-7 w-7 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                                  <IconCheck className="size-4" />
+                                </div>
+                                <span className="text-[11px] font-bold text-emerald-600 truncate max-w-[200px]">
+                                  {proofFile?.name || "Bukti Transfer"}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground">Klik untuk ganti file</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center space-y-1.5 text-center">
+                                <IconUpload className="size-6 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                                <span className="text-[11px] font-semibold text-foreground">
+                                  Pilih File Bukti Transfer
+                                </span>
+                                <span className="text-[9px] text-muted-foreground">
+                                  JPG, PNG, PDF (Maks. 2MB)
+                                </span>
+                              </div>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={handleProofChange}
+                              className="hidden"
+                              disabled={proofUploading || submitting}
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-1.5 border-t border-blue-500/10 pt-2.5 text-[10px] text-blue-700 dark:text-blue-300 font-medium">
+                        <IconAlertCircle className="size-3.5 mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <span>Status pembayaran akan diverifikasi oleh kasir setelah bukti transfer diterima.</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === "qris" && (
+                    <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3.5 text-xs space-y-3.5 text-foreground">
+                      <div className="flex items-center gap-1.5 font-bold text-purple-600 dark:text-purple-400">
+                        <IconQrcode className="size-4 shrink-0" />
+                        <span>QRIS Digital</span>
+                      </div>
+
+                      <div className="flex flex-col items-center justify-center p-3 bg-white rounded-lg border border-purple-200 shadow-sm space-y-2">
+                        <img
+                          src="/qris_real.jpg"
+                          alt="QRIS Merchant QR"
+                          className="w-48 object-contain rounded"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="text-[10px] h-7 px-3 font-semibold mt-1 w-full"
+                          asChild
+                        >
+                          <a href="/qris_real.jpg" download="QRIS_Grosir_Jasa.jpg">
+                            <IconDownload className="size-3 mr-1" /> Unduh Kode QR
+                          </a>
+                        </Button>
+                      </div>
+
+                      <div className="bg-rose-500/5 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-lg p-2.5 flex justify-between items-center font-semibold">
+                        <span className="text-[10px]">Nominal:</span>
+                        <span className="font-bold">{formatRupiah(totalPrice)} <span className="text-[9px] font-normal">(Wajib input manual di aplikasi)</span></span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="font-bold flex items-center gap-1 text-muted-foreground">
+                          <span>📋 Cara Pembayaran:</span>
+                        </div>
+                        <ol className="list-decimal list-inside space-y-1 text-[11px] text-muted-foreground pl-1">
+                          <li>Pindai kode QRIS dengan aplikasi e-wallet Anda (GoPay, OVO, DANA, ShopeePay, Mobile Banking)</li>
+                          <li>Masukkan nominal {formatRupiah(totalPrice)} secara manual</li>
+                          <li>Upload bukti pembayaran (screenshot) di bawah ini</li>
+                          <li>Tunjukkan nomor pesanan saat pengambilan barang</li>
+                        </ol>
+                      </div>
+
+                      <div className="space-y-2 border-t border-border/50 pt-3">
+                        <div className="font-bold text-muted-foreground flex items-center gap-1.5">
+                          <span>📎 Upload Bukti Pembayaran (wajib):</span>
+                        </div>
+
+                        <div className="relative">
+                          <label className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 bg-background/50 hover:bg-muted/10 cursor-pointer transition-colors group">
+                            {proofUploading ? (
+                              <div className="flex flex-col items-center space-y-1.5">
+                                <IconLoader2 className="size-6 text-primary animate-spin" />
+                                <span className="text-[11px] font-semibold text-muted-foreground">Mengunggah...</span>
+                              </div>
+                            ) : proofUrl ? (
+                              <div className="flex flex-col items-center space-y-1.5 text-center">
+                                <div className="h-7 w-7 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                                  <IconCheck className="size-4" />
+                                </div>
+                                <span className="text-[11px] font-bold text-emerald-600 truncate max-w-[200px]">
+                                  {proofFile?.name || "Bukti Pembayaran"}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground">Klik untuk ganti file</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center space-y-1.5 text-center">
+                                <IconUpload className="size-6 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                                <span className="text-[11px] font-semibold text-foreground">
+                                  Pilih File Bukti Pembayaran
+                                </span>
+                                <span className="text-[9px] text-muted-foreground">
+                                  JPG, PNG (Maks. 2MB)
+                                </span>
+                              </div>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleProofChange}
+                              className="hidden"
+                              disabled={proofUploading || submitting}
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-1.5 border-t border-purple-500/10 pt-2.5 text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                        <IconAlertCircle className="size-3.5 mt-0.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                        <span>Status pembayaran akan diverifikasi oleh kasir setelah bukti pembayaran diterima.</span>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5 text-sm border-t pt-3">
                     <div className="flex justify-between text-muted-foreground">

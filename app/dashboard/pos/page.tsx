@@ -720,21 +720,36 @@ export default function PosWalkinPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="paymentMethod" className="text-xs">Metode Pembayaran</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(v) => setPaymentMethod(v as any)}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tunai">Tunai / Cash</SelectItem>
-                      <SelectItem value="transfer">Transfer Bank</SelectItem>
-                      <SelectItem value="qris">QRIS Digital</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">Metode Pembayaran</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      type="button"
+                      variant={paymentMethod === "tunai" ? "default" : "outline"}
+                      className="w-full text-xs font-semibold px-1"
+                      onClick={() => setPaymentMethod("tunai")}
+                      disabled={submitting}
+                    >
+                      Tunai / Cash
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={paymentMethod === "transfer" ? "default" : "outline"}
+                      className="w-full text-xs font-semibold px-1"
+                      onClick={() => setPaymentMethod("transfer")}
+                      disabled={submitting}
+                    >
+                      Transfer Bank
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={paymentMethod === "qris" ? "default" : "outline"}
+                      className="w-full text-xs font-semibold px-1"
+                      onClick={() => setPaymentMethod("qris")}
+                      disabled={submitting}
+                    >
+                      QRIS Digital
+                    </Button>
+                  </div>
                 </div>
 
                 {paymentMethod === "tunai" && (

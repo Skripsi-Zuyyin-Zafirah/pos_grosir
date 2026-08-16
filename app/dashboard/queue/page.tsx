@@ -765,25 +765,47 @@ export default function CashierDashboardPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Metode Pembayaran</Label>
-              <Select
-                value={payMethod}
-                onValueChange={(v) => {
-                  setPayMethod(v as any)
-                  if (v !== "tunai" && payOrder) {
-                    setAmountPaid(payOrder.total_price.toString())
-                  }
-                }}
-                disabled={paying}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tunai">Tunai / Cash</SelectItem>
-                  <SelectItem value="transfer">Transfer Bank</SelectItem>
-                  <SelectItem value="qris">QRIS Digital</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant={payMethod === "tunai" ? "default" : "outline"}
+                  className="w-full text-xs font-semibold px-1"
+                  onClick={() => {
+                    setPayMethod("tunai")
+                  }}
+                  disabled={paying}
+                >
+                  Tunai / Cash
+                </Button>
+                <Button
+                  type="button"
+                  variant={payMethod === "transfer" ? "default" : "outline"}
+                  className="w-full text-xs font-semibold px-1"
+                  onClick={() => {
+                    setPayMethod("transfer")
+                    if (payOrder) {
+                      setAmountPaid(payOrder.total_price.toString())
+                    }
+                  }}
+                  disabled={paying}
+                >
+                  Transfer Bank
+                </Button>
+                <Button
+                  type="button"
+                  variant={payMethod === "qris" ? "default" : "outline"}
+                  className="w-full text-xs font-semibold px-1"
+                  onClick={() => {
+                    setPayMethod("qris")
+                    if (payOrder) {
+                      setAmountPaid(payOrder.total_price.toString())
+                    }
+                  }}
+                  disabled={paying}
+                >
+                  QRIS Digital
+                </Button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="amtPaid">Jumlah Uang Diterima (IDR)</Label>
