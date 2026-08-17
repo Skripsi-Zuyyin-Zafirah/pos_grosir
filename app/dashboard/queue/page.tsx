@@ -36,6 +36,8 @@ import {
   IconShoppingBag,
   IconEye,
   IconChartBar,
+  IconDownload,
+  IconQrcode,
 } from "@tabler/icons-react"
 
 type Order = {
@@ -43,6 +45,7 @@ type Order = {
   order_number: string | null
   created_at: string
   dequeued_at: string | null
+  enqueued_at: string | null
   customer_name: string | null
   total_items: number
   total_price: number
@@ -50,6 +53,10 @@ type Order = {
   status: "antri" | "diproses" | "selesai" | "batal"
   staff_id: string | null
   packed_at: string | null
+  payment_method?: string | null
+  payment_status?: string | null
+  payment_proof_url?: string | null
+  payment_channel?: string | null
 }
 
 type Staff = {
@@ -67,7 +74,7 @@ type OrderItem = {
 
 type ReceiptOrder = Order & {
   order_items: OrderItem[]
-  payment_method?: string
+  payment_method?: string | null
   payment_amount?: number
   change_amount?: number
   staff_name?: string | null
@@ -101,12 +108,33 @@ export default function CashierDashboardPage() {
 
   // Dialog konfirmasi pembayaran
   const [payOrder, setPayOrder] = useState<Order | null>(null)
-  const [payMethod, setPayMethod] = useState<"tunai" | "transfer" | "qris">("tunai")
+  const [payMethod, setPayMethod] = useState<"tunai" | "transfer" | "qris" | "online">("tunai")
   const [amountPaid, setAmountPaid] = useState("")
   const [paying, setPaying] = useState(false)
 
+  // Dialog lihat bukti pembayaran
+  const [proofModalOrder, setProofModalOrder] = useState<Order | null>(null)
+
   const calculatedChange =
     payOrder && !isNaN(parseFloat(amountPaid)) ? parseFloat(amountPaid) - payOrder.total_price : 0
+
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = blobUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (err) {
+      // Fallback: open in new tab if fetch fails due to CORS or network issues
+      window.open(url, "_blank")
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -626,24 +654,76 @@ export default function CashierDashboardPage() {
                             📦 {order.total_items} item
                             {order.packed_at && <> &middot; Selesai: {formatClock(order.packed_at)}</>}
                           </p>
+                          <div className="pt-0.5">
+                            {order.payment_method === "online" ? (
+                              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20 font-semibold text-[10px] px-2 py-0.5 rounded">
+                                {order.payment_channel === "qris" || order.payment_proof_url?.includes("qris_")
+                                  ? "QRIS Digital (Menunggu Verifikasi)"
+                                  : "Transfer Bank (Menunggu Verifikasi)"}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[10px] px-2 py-0.5 rounded">
+                                🟢 Tunai (Belum Dibayar)
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             💰 <span className="font-bold text-foreground">{formatRupiah(order.total_price)}</span>
                           </p>
                         </div>
-                        <div className="flex gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                            onClick={() => {
-                              setPayMethod("tunai")
-                              setAmountPaid(order.total_price.toString())
-                              setPayOrder(order)
-                            }}
+                        <div className="flex gap-1.5 shrink-0 flex-wrap">
+                          {order.payment_method === "online" ? (
+                            <>
+                              {order.payment_proof_url && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs px-2.5 h-8 font-semibold"
+                                  onClick={() => setProofModalOrder(order)}
+                                >
+                                  👁️ Lihat Bukti
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 h-8"
+                                onClick={() => {
+                                  setPayMethod("online")
+                                  setAmountPaid(order.total_price.toString())
+                                  setPayOrder(order)
+                                }}
+                              >
+                                ✅ Konfirmasi
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs px-2.5 h-8"
+                                onClick={() => openReceipt(order)}
+                              >
+                                <IconPrinter className="size-3.5 mr-1" /> Struk
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 h-8"
+                              onClick={() => {
+                                setPayMethod("tunai")
+                                setAmountPaid(order.total_price.toString())
+                                setPayOrder(order)
+                              }}
+                            >
+                              ✅ Konfirmasi Pembayaran
+                            </Button>
+                          )}
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-xs px-2.5 h-8"
+                            onClick={() => openDetail(order)}
                           >
-                            <IconCash className="size-4 mr-1.5" /> Konfirmasi Pembayaran
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => openDetail(order)}>
-                            <IconEye className="size-4 mr-1.5" /> Detail
+                            <IconEye className="size-3.5 mr-1" /> Detail
                           </Button>
                         </div>
                       </div>
@@ -682,6 +762,103 @@ export default function CashierDashboardPage() {
           ) : (
             <Receipt order={receiptOrder} />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog lihat bukti pembayaran */}
+      <Dialog open={!!proofModalOrder} onOpenChange={(v) => !v && setProofModalOrder(null)}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IconQrcode className="size-5 text-yellow-500" /> Bukti Pembayaran
+            </DialogTitle>
+            <DialogDescription>
+              Pesanan #{proofModalOrder?.order_number || proofModalOrder?.id.substring(0, 8).toUpperCase()} - {proofModalOrder?.customer_name || "-"}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {proofModalOrder && (
+            <div className="space-y-4 py-2">
+              <div className="flex flex-col items-center justify-center p-2 bg-slate-50 border rounded-lg overflow-hidden max-h-[45vh]">
+                {proofModalOrder.payment_proof_url ? (
+                  <img
+                    src={proofModalOrder.payment_proof_url}
+                    alt="Bukti Transfer"
+                    className="max-h-[40vh] object-contain rounded border"
+                  />
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    Tidak ada file bukti pembayaran
+                  </div>
+                )}
+              </div>
+              
+              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-xs">
+                <span className="font-bold text-foreground block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                  Informasi Tambahan:
+                </span>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">• Metode:</span>
+                    <span className="font-semibold text-foreground">
+                      {proofModalOrder.payment_channel === "qris" || proofModalOrder.payment_proof_url?.includes("qris_")
+                        ? "QRIS Digital"
+                        : "Transfer Bank (BSI)"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">• Nominal Transfer:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatRupiah(proofModalOrder.total_price)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">• Waktu Upload:</span>
+                    <span className="font-semibold text-foreground">
+                      {proofModalOrder.enqueued_at 
+                        ? new Date(proofModalOrder.enqueued_at).toLocaleString("id-ID", {
+                            day: "numeric",
+                            month: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          }) 
+                        : new Date(proofModalOrder.created_at).toLocaleString("id-ID", {
+                            day: "numeric",
+                            month: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="sm:justify-end gap-2">
+            {proofModalOrder?.payment_proof_url && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadFile(proofModalOrder.payment_proof_url!, `bukti_pesanan_${proofModalOrder.order_number || "order"}.jpg`)}
+              >
+                <IconDownload className="size-4 mr-1.5" /> Download Bukti
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setProofModalOrder(null)}
+            >
+              ✓ Tutup
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -747,100 +924,147 @@ export default function CashierDashboardPage() {
 
       {/* Dialog konfirmasi pembayaran */}
       <Dialog open={!!payOrder} onOpenChange={(v) => !paying && !v && setPayOrder(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Konfirmasi Pembayaran</DialogTitle>
-            <DialogDescription>
-              Pesanan{" "}
-              <span className="font-mono font-bold text-foreground">
-                #{payOrder?.order_number || payOrder?.id.substring(0, 8).toUpperCase()}
-              </span>{" "}
-              atas nama <span className="font-semibold text-foreground">{payOrder?.customer_name || "-"}</span>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total Tagihan</span>
-              <span className="text-lg font-bold">{payOrder ? formatRupiah(payOrder.total_price) : "-"}</span>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Metode Pembayaran</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  variant={payMethod === "tunai" ? "default" : "outline"}
-                  className="w-full text-xs font-semibold px-1"
-                  onClick={() => {
-                    setPayMethod("tunai")
-                  }}
-                  disabled={paying}
-                >
-                  Tunai / Cash
-                </Button>
-                <Button
-                  type="button"
-                  variant={payMethod === "transfer" ? "default" : "outline"}
-                  className="w-full text-xs font-semibold px-1"
-                  onClick={() => {
-                    setPayMethod("transfer")
-                    if (payOrder) {
-                      setAmountPaid(payOrder.total_price.toString())
-                    }
-                  }}
-                  disabled={paying}
-                >
-                  Transfer Bank
-                </Button>
-                <Button
-                  type="button"
-                  variant={payMethod === "qris" ? "default" : "outline"}
-                  className="w-full text-xs font-semibold px-1"
-                  onClick={() => {
-                    setPayMethod("qris")
-                    if (payOrder) {
-                      setAmountPaid(payOrder.total_price.toString())
-                    }
-                  }}
-                  disabled={paying}
-                >
-                  QRIS Digital
-                </Button>
+        {payOrder?.payment_method === "online" ? (
+          <DialogContent className="sm:max-w-sm text-foreground">
+            <DialogHeader>
+              <DialogTitle>Konfirmasi Pembayaran</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2 text-xs">
+              <div className="space-y-1">
+                <p className="text-muted-foreground">
+                  Pesanan: <span className="font-mono font-bold text-foreground">#{payOrder?.order_number || payOrder?.id.substring(0, 8).toUpperCase()}</span>
+                </p>
+                <p className="text-sm font-bold">
+                  Total: <span className="text-emerald-600 dark:text-emerald-400">{formatRupiah(payOrder?.total_price)}</span>
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-lg p-2.5 font-semibold text-[11px]">
+                <IconCheck className="size-4 shrink-0" />
+                <span>Bukti pembayaran sudah diverifikasi</span>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="amtPaid">Jumlah Uang Diterima (IDR)</Label>
-              <Input
-                id="amtPaid"
-                type="number"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                required
-                disabled={paying || payMethod !== "tunai"}
-              />
-            </div>
-            {payMethod === "tunai" && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex justify-between items-center text-sm">
-                <span className="font-semibold text-primary">Kembalian:</span>
-                <span className={cn("text-lg font-bold", calculatedChange < 0 ? "text-rose-500" : "text-primary")}>
-                  {calculatedChange < 0 ? "Kurang bayar" : formatRupiah(calculatedChange)}
-                </span>
+            <DialogFooter className="sm:justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setPayOrder(null)} disabled={paying}>
+                Batal
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmPayment}
+                disabled={paying}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              >
+                {paying ? (
+                  <>
+                    <IconLoader2 className="size-4 mr-1.5 animate-spin" /> Memproses...
+                  </>
+                ) : (
+                  <>✓ Ya, Konfirmasi Lunas</>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : (
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Konfirmasi Pembayaran</DialogTitle>
+              <DialogDescription>
+                Pesanan{" "}
+                <span className="font-mono font-bold text-foreground">
+                  #{payOrder?.order_number || payOrder?.id.substring(0, 8).toUpperCase()}
+                </span>{" "}
+                atas nama <span className="font-semibold text-foreground">{payOrder?.customer_name || "-"}</span>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total Tagihan</span>
+                <span className="text-lg font-bold">{payOrder ? formatRupiah(payOrder.total_price) : "-"}</span>
               </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayOrder(null)} disabled={paying}>
-              Batal
-            </Button>
-            <Button
-              onClick={handleConfirmPayment}
-              disabled={paying || isNaN(parseFloat(amountPaid)) || (!!payOrder && parseFloat(amountPaid) < payOrder.total_price)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {paying && <IconLoader2 className="size-4 mr-2 animate-spin" />}
-              Konfirmasi Lunas
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+              <div className="space-y-1.5">
+                <Label>Metode Pembayaran</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant={payMethod === "tunai" ? "default" : "outline"}
+                    className="w-full text-xs font-semibold px-1"
+                    onClick={() => {
+                      setPayMethod("tunai")
+                    }}
+                    disabled={paying}
+                  >
+                    Tunai / Cash
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={payMethod === "transfer" ? "default" : "outline"}
+                    className="w-full text-xs font-semibold px-1"
+                    onClick={() => {
+                      setPayMethod("transfer")
+                      if (payOrder) {
+                        setAmountPaid(payOrder.total_price.toString())
+                      }
+                    }}
+                    disabled={paying}
+                  >
+                    Transfer Bank
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={payMethod === "qris" ? "default" : "outline"}
+                    className="w-full text-xs font-semibold px-1"
+                    onClick={() => {
+                      setPayMethod("qris")
+                      if (payOrder) {
+                        setAmountPaid(payOrder.total_price.toString())
+                      }
+                    }}
+                    disabled={paying}
+                  >
+                    QRIS Digital
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="amtPaid">Jumlah Uang Diterima (IDR)</Label>
+                <Input
+                  id="amtPaid"
+                  type="number"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  required
+                  disabled={paying || payMethod !== "tunai"}
+                />
+              </div>
+              {payMethod === "tunai" && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex justify-between items-center text-sm">
+                  <span className="font-semibold text-primary">Kembalian:</span>
+                  <span className={cn("text-lg font-bold", calculatedChange < 0 ? "text-rose-500" : "text-primary")}>
+                    {calculatedChange < 0 ? "Kurang bayar" : formatRupiah(calculatedChange)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPayOrder(null)} disabled={paying}>
+                Batal
+              </Button>
+              <Button
+                onClick={handleConfirmPayment}
+                disabled={paying || isNaN(parseFloat(amountPaid)) || (!!payOrder && parseFloat(amountPaid) < payOrder.total_price)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              >
+                {paying ? (
+                  <>
+                    <IconLoader2 className="mr-2 size-4 animate-spin" /> Memproses...
+                  </>
+                ) : (
+                  <>Konfirmasi Lunas</>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
       </Dialog>
     </SidebarProvider>
   )

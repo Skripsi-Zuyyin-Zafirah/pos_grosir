@@ -4,7 +4,10 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status public.payment
 -- Add payment_proof_url column to public.orders if not exists
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_proof_url text;
 
--- Recreate the checkout_order function to accept p_payment_method and p_payment_proof_url parameters
+-- Add payment_channel column to public.orders if not exists
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_channel text;
+
+-- Recreate the checkout_order function to accept p_payment_method, p_payment_proof_url, and p_payment_channel parameters
 CREATE OR REPLACE FUNCTION public.checkout_order(
   p_customer_name text,
   p_ewp numeric,
@@ -12,7 +15,8 @@ CREATE OR REPLACE FUNCTION public.checkout_order(
   p_total_items integer,
   p_total_price numeric,
   p_payment_method public.payment_method DEFAULT 'tunai',
-  p_payment_proof_url text DEFAULT NULL
+  p_payment_proof_url text DEFAULT NULL,
+  p_payment_channel text DEFAULT NULL
 )
  RETURNS uuid
  LANGUAGE plpgsql
@@ -30,7 +34,7 @@ BEGIN
   v_user_id := auth.uid();
 
   -- Insert into orders (status 'antri' by default)
-  INSERT INTO public.orders (user_id, customer_name, total_price, total_items, ewp, status, payment_method, payment_status, payment_proof_url)
+  INSERT INTO public.orders (user_id, customer_name, total_price, total_items, ewp, status, payment_method, payment_status, payment_proof_url, payment_channel)
   VALUES (
     v_user_id,
     p_customer_name,
@@ -40,7 +44,8 @@ BEGIN
     'antri',
     p_payment_method,
     CASE WHEN p_payment_method = 'online' THEN 'paid'::public.payment_status ELSE 'unpaid'::public.payment_status END,
-    p_payment_proof_url
+    p_payment_proof_url,
+    p_payment_channel
   )
   RETURNING id INTO v_order_id;
 
@@ -108,4 +113,3 @@ WITH CHECK (
   bucket_id = 'products' AND
   (position('payment_proofs/' in name) = 1)
 );
-

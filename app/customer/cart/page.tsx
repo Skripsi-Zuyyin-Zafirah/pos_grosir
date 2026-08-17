@@ -104,7 +104,7 @@ export default function CustomerCartPage() {
     setProofUploading(true)
     try {
       const fileExt = file.name.split(".").pop()
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
+      const fileName = `${paymentMethod}_${Math.random().toString(36).substring(2)}.${fileExt}`
       const filePath = `payment_proofs/${fileName}`
 
       const { error: uploadError } = await supabase.storage
@@ -195,6 +195,7 @@ export default function CustomerCartPage() {
         p_total_price: totalPrice,
         p_payment_method: paymentMethod === "tunai" ? "tunai" : "online",
         p_payment_proof_url: paymentMethod === "tunai" ? null : proofUrl,
+        p_payment_channel: paymentMethod,
       })
       if (checkoutErr) throw checkoutErr
 

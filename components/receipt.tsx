@@ -20,7 +20,7 @@ type ReceiptOrder = {
   customer_name: string | null
   total_items: number
   total_price: number
-  payment_method?: string
+  payment_method?: string | null
   payment_amount?: number
   change_amount?: number
   order_items: ReceiptItem[]
