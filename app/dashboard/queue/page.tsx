@@ -695,7 +695,7 @@ export default function CashierDashboardPage() {
                                 size="sm"
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 h-8"
                                 onClick={() => {
-                                  setPayMethod("online")
+                                  setPayMethod((order.payment_channel as any) || "online")
                                   setAmountPaid(order.total_price.toString())
                                   setPayOrder(order)
                                 }}

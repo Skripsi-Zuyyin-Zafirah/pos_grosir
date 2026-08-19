@@ -403,8 +403,9 @@ export default function PosWalkinPage() {
           id: i.productId,
           qty: i.quantity,
           unit_price: i.price,
+          unit_name: i.unitName,
           products: { 
-            name: i.unitName ? `${i.name} (${i.unitName})` : i.name,
+            name: i.name,
             unit: i.unitName || "pcs"
           },
         })),
@@ -674,9 +675,6 @@ export default function PosWalkinPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold truncate">
                             {item.name}
-                            {item.unitName && (
-                              <span className="ml-1 font-normal text-muted-foreground">({item.unitName})</span>
-                            )}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             {formatRupiah(item.price)} / {item.unitName || "pcs"}

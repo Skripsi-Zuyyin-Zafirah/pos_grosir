@@ -220,9 +220,9 @@ export default function Page() {
         ) : (
           <div className="flex flex-1 flex-col py-6 space-y-6">
             <div className="px-4 lg:px-6">
-              <h1 className="text-3xl font-bold tracking-tight">Ikhtisar Dashboard</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Dashboard Utama</h1>
               <p className="text-muted-foreground mt-1">
-                Ikhtisar kinerja operasional, penjualan, dan inventori toko grosir Anda secara real-time.
+                Ringkasan kinerja operasional, penjualan, dan inventori toko grosir Anda secara real-time.
               </p>
             </div>
 
@@ -233,7 +233,7 @@ export default function Page() {
               {/* Monthly revenue interactive chart (Left/Center 2 cols) */}
               <div className="lg:col-span-2 space-y-6">
                 <ChartAreaInteractive data={chartData} />
-                
+
                 {/* Best Sellers List widget */}
                 <Card className="border-border/50 shadow-md">
                   <CardHeader>
