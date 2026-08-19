@@ -106,7 +106,7 @@ export function Receipt({ order }: ReceiptProps) {
                     </p>
                   </td>
                   <td className="text-right py-1">
-                    {item.qty} {item.unit_name || item.products?.unit || "pcs"}
+                    {item.qty}
                   </td>
                   <td className="text-right py-1 font-semibold">
                     {formatRupiah(item.unit_price * item.qty)}

@@ -911,7 +911,7 @@ export default function CashierDashboardPage() {
                         <TableCell className="text-center">
                           {item.qty} {item.unit_name || item.products?.unit || "pcs"}
                         </TableCell>
-                        <TableCell className="text-right text-xs">{formatRupiah(item.unit_price)}/{item.unit_name || item.products?.unit || "pcs"}</TableCell>
+                        <TableCell className="text-right text-xs">{formatRupiah(item.unit_price)}</TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatRupiah(item.qty * item.unit_price)}
                         </TableCell>
