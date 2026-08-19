@@ -69,7 +69,8 @@ type OrderItem = {
   id: string
   qty: number
   unit_price: number
-  products: { name: string; sku?: string | null } | null
+  unit_name?: string | null
+  products: { name: string; sku?: string | null; unit?: string | null } | null
 }
 
 type ReceiptOrder = Order & {
@@ -314,7 +315,7 @@ export default function CashierDashboardPage() {
   const fetchItems = async (orderId: string): Promise<OrderItem[]> => {
     const { data, error } = await supabase
       .from("order_items")
-      .select("id, qty, unit_price, products:product_id ( name, sku )")
+      .select("id, qty, unit_price, unit_name, products:product_id ( name, sku, unit )")
       .eq("order_id", orderId)
     if (error) throw error
     return (data as any) || []
@@ -900,13 +901,17 @@ export default function CashierDashboardPage() {
                     {detailItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
-                          <p className="font-medium">{item.products?.name || "Produk Terhapus"}</p>
+                          <p className="font-medium">
+                            {item.products?.name || "Produk Terhapus"}
+                          </p>
                           {item.products?.sku && (
                             <p className="text-[10px] font-mono text-muted-foreground">{item.products.sku}</p>
                           )}
                         </TableCell>
-                        <TableCell className="text-center">{item.qty}</TableCell>
-                        <TableCell className="text-right text-xs">{formatRupiah(item.unit_price)}</TableCell>
+                        <TableCell className="text-center">
+                          {item.qty} {item.unit_name || item.products?.unit || "pcs"}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">{formatRupiah(item.unit_price)}/{item.unit_name || item.products?.unit || "pcs"}</TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatRupiah(item.qty * item.unit_price)}
                         </TableCell>

@@ -39,6 +39,8 @@ export type Database = {
           product_id: string | null
           qty: number
           unit_price: number
+          unit_id: string | null
+          unit_name: string | null
         }
         Insert: {
           id?: string
@@ -46,6 +48,8 @@ export type Database = {
           product_id?: string | null
           qty?: number
           unit_price?: number
+          unit_id?: string | null
+          unit_name?: string | null
         }
         Update: {
           id?: string
@@ -53,6 +57,8 @@ export type Database = {
           product_id?: string | null
           qty?: number
           unit_price?: number
+          unit_id?: string | null
+          unit_name?: string | null
         }
         Relationships: [
           {

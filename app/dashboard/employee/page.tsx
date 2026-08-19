@@ -67,6 +67,7 @@ type OrderItem = {
   id: string
   qty: number
   unit_price: number
+  unit_name?: string | null
   products: {
     sku: string | null
     name: string
@@ -730,10 +731,14 @@ function PickingTask({
                 {isChecked && <IconCheck className="size-4 text-white" stroke={3} />}
               </span>
               <div className={cn("flex-1 min-w-0", isChecked && "text-muted-foreground line-through")}>
-                <p className="font-medium truncate">{item.products?.name}</p>
+                <p className="font-medium truncate">
+                  {item.products?.name}
+                </p>
                 <p className="text-xs font-mono text-muted-foreground">{item.products?.sku || "-"}</p>
               </div>
-              <span className="font-bold text-sm shrink-0">{item.qty} {item.products?.unit || "pcs"}</span>
+              <span className="font-bold text-sm shrink-0">
+                {item.qty} {item.unit_name || item.products?.unit || "pcs"}
+              </span>
             </button>
           )
         })}

@@ -52,13 +52,23 @@ BEGIN
   -- Insert order items and decrement stock
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
-    -- Insert order item using qty and unit_price
-    INSERT INTO public.order_items (order_id, product_id, qty, unit_price)
+    -- Insert order item using qty, unit_price, unit_id, and unit_name
+    INSERT INTO public.order_items (order_id, product_id, qty, unit_price, unit_id, unit_name)
     VALUES (
       v_order_id,
       (v_item->>'product_id')::uuid,
       (v_item->>'qty')::integer,
-      (v_item->>'unit_price')::numeric
+      (v_item->>'unit_price')::numeric,
+      CASE 
+        WHEN v_item->>'unit_id' IS NOT NULL AND v_item->>'unit_id' <> 'null' AND v_item->>'unit_id' <> '' 
+        THEN (v_item->>'unit_id')::uuid 
+        ELSE NULL 
+      END,
+      CASE 
+        WHEN v_item->>'unit_name' IS NOT NULL AND v_item->>'unit_name' <> 'null' AND v_item->>'unit_name' <> '' 
+        THEN (v_item->>'unit_name')::text 
+        ELSE NULL 
+      END
     );
 
     -- Get multiplier

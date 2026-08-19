@@ -8,8 +8,11 @@ type ReceiptItem = {
   id: string
   qty: number
   unit_price: number
+  unit_name?: string | null
   products: {
     name: string
+    sku?: string | null
+    unit?: string | null
   } | null
 }
 
@@ -95,13 +98,15 @@ export function Receipt({ order }: ReceiptProps) {
               {order.order_items.map((item) => (
                 <tr key={item.id}>
                   <td className="py-1">
-                    <p className="font-semibold">{item.products?.name}</p>
+                    <p className="font-semibold">
+                      {item.products?.name}
+                    </p>
                     <p className="text-[9px] text-gray-500">
-                      {formatRupiah(item.unit_price)}/pcs
+                      {formatRupiah(item.unit_price)}/{item.unit_name || item.products?.unit || "pcs"}
                     </p>
                   </td>
                   <td className="text-right py-1">
-                    {item.qty}
+                    {item.qty} {item.unit_name || item.products?.unit || "pcs"}
                   </td>
                   <td className="text-right py-1 font-semibold">
                     {formatRupiah(item.unit_price * item.qty)}

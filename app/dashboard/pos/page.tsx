@@ -83,13 +83,18 @@ type ReceiptOrder = {
   total_items: number
   total_price: number
   payment_method?: string
+  payment_channel?: string | null
   payment_amount?: number
   change_amount?: number
   order_items: {
     id: string
     qty: number
     unit_price: number
-    products: { name: string } | null
+    products: { 
+      name: string
+      sku?: string | null
+      unit?: string | null
+    } | null
   }[]
   staff_name?: string | null
 }
@@ -398,7 +403,10 @@ export default function PosWalkinPage() {
           id: i.productId,
           qty: i.quantity,
           unit_price: i.price,
-          products: { name: i.unitName ? `${i.name} (${i.unitName})` : i.name },
+          products: { 
+            name: i.unitName ? `${i.name} (${i.unitName})` : i.name,
+            unit: i.unitName || "pcs"
+          },
         })),
       })
       setReceiptOpen(true)

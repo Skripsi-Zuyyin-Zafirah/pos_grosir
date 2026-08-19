@@ -33,6 +33,7 @@ type OrderItem = {
   id: string
   unit_price: number
   qty: number
+  unit_name?: string | null
   products: {
     name: string
     unit: string | null
@@ -376,8 +377,12 @@ export default function CustomerOrderDetailPage() {
                         <TableBody>
                           {order.order_items.map((item) => (
                             <TableRow key={item.id}>
-                              <TableCell className="font-medium">{item.products?.name}</TableCell>
-                              <TableCell className="text-right">{item.qty} {item.products?.unit || "pcs"}</TableCell>
+                              <TableCell className="font-medium">
+                                {item.products?.name}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {item.qty} {item.unit_name || item.products?.unit || "pcs"}
+                              </TableCell>
                               <TableCell className="text-right font-semibold">
                                 {formatRupiah(item.unit_price * item.qty)}
                               </TableCell>

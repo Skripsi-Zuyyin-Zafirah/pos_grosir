@@ -43,6 +43,7 @@ type OrderItem = {
   id: string
   qty: number
   unit_price: number
+  unit_name?: string | null
   products: { name: string; sku: string | null; unit: string | null } | null
 }
 
@@ -175,7 +176,7 @@ export default function TransactionsPage() {
   const fetchOrderItems = async (orderId: string): Promise<OrderItem[]> => {
     const { data, error } = await supabase
       .from("order_items")
-      .select("id, qty, unit_price, products:product_id ( name, sku, unit )")
+      .select("id, qty, unit_price, unit_name, products:product_id ( name, sku, unit )")
       .eq("order_id", orderId)
     if (error) throw error
     return (data as any) || []
@@ -572,15 +573,17 @@ export default function TransactionsPage() {
                       {orderItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>
-                            <p className="font-semibold text-foreground">{item.products?.name || "Produk Terhapus"}</p>
+                            <p className="font-semibold text-foreground">
+                              {item.products?.name || "Produk Terhapus"}
+                            </p>
                             {item.products?.sku && (
                               <p className="text-[10px] font-mono text-muted-foreground">{item.products.sku}</p>
                             )}
                           </TableCell>
                           <TableCell className="text-center font-mono font-semibold">
-                            {item.qty} {item.products?.unit || "pcs"}
+                            {item.qty} {item.unit_name || item.products?.unit || "pcs"}
                           </TableCell>
-                          <TableCell className="text-right font-mono">{formatRupiah(item.unit_price)}</TableCell>
+                          <TableCell className="text-right font-mono">{formatRupiah(item.unit_price)}/{item.unit_name || item.products?.unit || "pcs"}</TableCell>
                           <TableCell className="text-right font-bold font-mono">
                             {formatRupiah(item.qty * item.unit_price)}
                           </TableCell>
@@ -704,16 +707,18 @@ function InvoiceView({
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+               {items.map((item) => (
                 <tr key={item.id}>
                   <td className="py-1">
-                    <p className="font-semibold text-gray-800">{item.products?.name || "Produk Terhapus"}</p>
+                    <p className="font-semibold text-gray-800">
+                      {item.products?.name || "Produk Terhapus"}
+                    </p>
                     <p className="text-[9px] text-gray-500">
-                      {formatRupiah(item.unit_price)}/{item.products?.unit || "pcs"}
+                      {formatRupiah(item.unit_price)}/{item.unit_name || item.products?.unit || "pcs"}
                     </p>
                   </td>
                   <td className="text-right py-1">
-                    {item.qty}
+                    {item.qty} {item.unit_name || item.products?.unit || "pcs"}
                   </td>
                   <td className="text-right py-1 font-semibold">
                     {formatRupiah(item.unit_price * item.qty)}

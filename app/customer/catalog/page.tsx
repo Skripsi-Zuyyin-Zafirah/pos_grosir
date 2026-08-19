@@ -430,7 +430,7 @@ export default function CustomerCatalogPage() {
                         {/* pcs sub-price for multi-unit */}
                         {isMulti && activeUnit && activeUnit.multiplier > 1 && (
                           <p className="text-[10px] text-muted-foreground">
-                            ≈ {formatRupiah(Math.round(activeUnit.price / activeUnit.multiplier))} / pcs
+                            ≈ {formatRupiah(Math.round(activeUnit.price / activeUnit.multiplier))} / {product.unit || "pcs"}
                           </p>
                         )}
                       </div>
