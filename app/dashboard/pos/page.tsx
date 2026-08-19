@@ -376,6 +376,7 @@ export default function PosWalkinPage() {
       const { error: payErr } = await supabase.rpc("finalize_order_payment", {
         p_order_id: orderId,
         p_payment_method: paymentMethod === "tunai" ? "tunai" : "online",
+        p_payment_channel: paymentMethod,
         p_staff_id: null,
       })
       if (payErr) throw payErr
@@ -389,7 +390,8 @@ export default function PosWalkinPage() {
         customer_name: finalCustomerName,
         total_items: totalItems,
         total_price: totalPrice,
-        payment_method: paymentMethod,
+        payment_method: paymentMethod === "tunai" ? "tunai" : "online",
+        payment_channel: paymentMethod,
         payment_amount: paidVal,
         change_amount: paymentMethod === "tunai" ? paidVal - totalPrice : 0,
         order_items: cart.map((i) => ({

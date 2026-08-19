@@ -284,11 +284,16 @@ export default function CashierDashboardPage() {
         p_order_id: payOrder.id,
         p_staff_id: payOrder.staff_id,
         p_payment_method: payMethod === "tunai" ? "tunai" : "online",
+        p_payment_channel: payMethod,
       })
       if (error) throw error
       toast.success(`Pembayaran pesanan #${payOrder.order_number || ""} berhasil dikonfirmasi!`)
       
-      const finalizedOrder = { ...payOrder }
+      const finalizedOrder: Order = {
+        ...payOrder,
+        payment_method: payMethod === "tunai" ? "tunai" : "online",
+        payment_channel: payMethod,
+      }
       setPayOrder(null)
 
       // Open receipt showing the payment details
@@ -326,7 +331,8 @@ export default function CashierDashboardPage() {
         order_items: [],
         staff_name: staffName(order.staff_id || null),
         ...(paymentInfo && {
-          payment_method: paymentInfo.method,
+          payment_method: paymentInfo.method === "tunai" ? "tunai" : "online",
+          payment_channel: paymentInfo.method,
           payment_amount: paymentInfo.amount,
           change_amount: paymentInfo.change,
         }),

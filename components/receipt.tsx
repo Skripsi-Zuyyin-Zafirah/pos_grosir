@@ -21,6 +21,7 @@ type ReceiptOrder = {
   total_items: number
   total_price: number
   payment_method?: string | null
+  payment_channel?: string | null
   payment_amount?: number
   change_amount?: number
   order_items: ReceiptItem[]
@@ -125,7 +126,15 @@ export function Receipt({ order }: ReceiptProps) {
             <>
               <div className="flex justify-between">
                 <span>Metode Bayar:</span>
-                <span className="uppercase">{order.payment_method}</span>
+                <span className="uppercase">
+                  {order.payment_channel
+                    ? order.payment_channel === "transfer"
+                      ? "TRANSFER BANK"
+                      : order.payment_channel === "qris"
+                      ? "QRIS"
+                      : order.payment_channel
+                    : order.payment_method}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Bayar:</span>

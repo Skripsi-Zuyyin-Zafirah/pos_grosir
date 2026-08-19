@@ -35,6 +35,7 @@ type Order = {
   total_price: number
   status: "antri" | "diproses" | "selesai" | "batal"
   payment_method: "tunai" | "online" | null
+  payment_channel: string | null
   staff_id: string | null
 }
 
@@ -120,6 +121,7 @@ export default function TransactionsPage() {
           total_price,
           status,
           payment_method,
+          payment_channel,
           staff_id
         `)
         .gte("created_at", startIso.toISOString())
@@ -404,7 +406,13 @@ export default function TransactionsPage() {
                                     : "border-sky-500/30 text-sky-600 bg-sky-500/5"
                                 )}
                               >
-                                {order.payment_method}
+                                {order.payment_channel
+                                   ? order.payment_channel === "transfer"
+                                     ? "TRANSFER BANK"
+                                     : order.payment_channel === "qris"
+                                     ? "QRIS"
+                                     : order.payment_channel
+                                   : order.payment_method}
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground text-xs">-</span>
@@ -533,7 +541,15 @@ export default function TransactionsPage() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Metode Pembayaran:</p>
-                    <p className="font-semibold uppercase">{selectedOrder.payment_method || "-"}</p>
+                    <p className="font-semibold uppercase">
+                      {selectedOrder.payment_channel
+                        ? selectedOrder.payment_channel === "transfer"
+                          ? "ONLINE (TRANSFER BANK)"
+                          : selectedOrder.payment_channel === "qris"
+                          ? "ONLINE (QRIS)"
+                          : selectedOrder.payment_channel
+                        : selectedOrder.payment_method || "-"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Pegawai Pengemas:</p>
@@ -721,7 +737,15 @@ function InvoiceView({
           {order.payment_method && (
             <div className="flex justify-between">
               <span>Metode Bayar:</span>
-              <span className="uppercase font-semibold">{order.payment_method}</span>
+              <span className="uppercase font-semibold">
+                {order.payment_channel
+                  ? order.payment_channel === "transfer"
+                    ? "TRANSFER BANK"
+                    : order.payment_channel === "qris"
+                    ? "QRIS"
+                    : order.payment_channel
+                  : order.payment_method}
+              </span>
             </div>
           )}
           <div className="flex justify-between">

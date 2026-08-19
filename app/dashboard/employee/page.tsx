@@ -70,6 +70,7 @@ type OrderItem = {
   products: {
     sku: string | null
     name: string
+    unit: string | null
   } | null
 }
 
@@ -287,7 +288,7 @@ export default function EmployeePage() {
 
       const { data: items, error: itemsErr } = await supabase
         .from("order_items")
-        .select("*, products:product_id ( sku, name )")
+        .select("*, products:product_id ( sku, name, unit )")
         .eq("order_id", orderId)
       if (itemsErr) throw itemsErr
 
@@ -732,7 +733,7 @@ function PickingTask({
                 <p className="font-medium truncate">{item.products?.name}</p>
                 <p className="text-xs font-mono text-muted-foreground">{item.products?.sku || "-"}</p>
               </div>
-              <span className="font-bold text-sm shrink-0">{item.qty} pcs</span>
+              <span className="font-bold text-sm shrink-0">{item.qty} {item.products?.unit || "pcs"}</span>
             </button>
           )
         })}

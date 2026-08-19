@@ -35,6 +35,7 @@ type OrderItem = {
   qty: number
   products: {
     name: string
+    unit: string | null
   } | null
 }
 
@@ -48,6 +49,7 @@ type Order = {
   ewp: number
   status: "antri" | "diproses" | "selesai" | "batal"
   payment_method: string | null
+  payment_channel: string | null
   completed_at: string | null
   enqueued_at: string | null
   dequeued_at: string | null
@@ -78,7 +80,7 @@ export default function CustomerOrderDetailPage() {
 
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items (*, products ( name )), staff:staff_id ( name, status )")
+        .select("*, order_items (*, products ( name, unit )), staff:staff_id ( name, status )")
         .eq("id", params.id)
         .eq("user_id", session.user.id)
         .single()
@@ -272,7 +274,15 @@ export default function CustomerOrderDetailPage() {
                         <p className="text-muted-foreground text-xs flex items-center gap-1">
                           <IconCreditCard className="size-3" /> Metode Bayar
                         </p>
-                        <p className="font-medium uppercase">{order.payment_method || "Belum dibayar"}</p>
+                        <p className="font-medium uppercase">
+                          {order.payment_channel
+                            ? order.payment_channel === "transfer"
+                              ? "ONLINE (TRANSFER BANK)"
+                              : order.payment_channel === "qris"
+                              ? "ONLINE (QRIS)"
+                              : order.payment_channel
+                            : order.payment_method || "Belum dibayar"}
+                        </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground text-xs flex items-center gap-1">
@@ -367,7 +377,7 @@ export default function CustomerOrderDetailPage() {
                           {order.order_items.map((item) => (
                             <TableRow key={item.id}>
                               <TableCell className="font-medium">{item.products?.name}</TableCell>
-                              <TableCell className="text-right">{item.qty} pcs</TableCell>
+                              <TableCell className="text-right">{item.qty} {item.products?.unit || "pcs"}</TableCell>
                               <TableCell className="text-right font-semibold">
                                 {formatRupiah(item.unit_price * item.qty)}
                               </TableCell>

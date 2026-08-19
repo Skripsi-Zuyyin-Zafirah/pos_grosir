@@ -379,7 +379,7 @@ export default function CustomerDashboardPage() {
                               <p className="font-semibold">{formatRupiah(order.total_price)}</p>
                             </div>
                             <div>
-                              <p className="text-muted-foreground">Estimasi (ECT)</p>
+                              <p className="text-muted-foreground">Estimasi (EWP)</p>
                               <p className="font-semibold">
                                 {timeLeft > 0 ? (
                                   `± ${timeLeft} menit lagi`

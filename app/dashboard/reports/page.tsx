@@ -88,23 +88,35 @@ export default function ReportsPage() {
 
       const { data, error } = await supabase
         .from("orders")
-        .select("id, total_price, completed_at, payment_method, order_number, customer_name")
+        .select("id, total_price, completed_at, payment_method, payment_channel, order_number, customer_name")
         .eq("status", "selesai")
         .gte("completed_at", startIso.toISOString())
         .lte("completed_at", endIso.toISOString())
         .order("completed_at", { ascending: false })
 
       if (error) throw error
-      const mapped: PaymentReport[] = (data || []).map((o: any) => ({
-        id: o.id,
-        amount: o.total_price || 0,
-        paid_at: o.completed_at,
-        method: o.payment_method || "-",
-        orders: {
-          order_number: o.order_number,
-          customer_name: o.customer_name,
-        },
-      }))
+      const mapped: PaymentReport[] = (data || []).map((o: any) => {
+        let displayMethod = o.payment_method || "-";
+        if (o.payment_channel) {
+          if (o.payment_channel === "transfer") {
+            displayMethod = "ONLINE (TRANSFER BANK)";
+          } else if (o.payment_channel === "qris") {
+            displayMethod = "ONLINE (QRIS)";
+          } else {
+            displayMethod = o.payment_channel;
+          }
+        }
+        return {
+          id: o.id,
+          amount: o.total_price || 0,
+          paid_at: o.completed_at,
+          method: displayMethod,
+          orders: {
+            order_number: o.order_number,
+            customer_name: o.customer_name,
+          },
+        };
+      })
       setSalesPayments(mapped)
     } catch (err: any) {
       toast.error("Gagal memuat laporan penjualan: " + err.message)
