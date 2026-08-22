@@ -107,10 +107,11 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 3. Setelah pengemasan selesai, kasir menandai selesai mengemas (memanggil fungsi database `complete_packing`):
    - Kolom `packed_at` pada pesanan terisi timestamp saat itu (status pesanan di mata pembeli menjadi siap diambil).
    - Status pegawai kembali diubah menjadi `idle` agar dapat menerima pesanan baru.
-4. Pembeli melakukan pembayaran ke kasir (metode `tunai` atau `online`).
+4. Pembeli melakukan pembayaran ke kasir (metode `tunai` saat pengambilan, atau metode `online` berupa `transfer` bank atau `qris` digital saat checkout dengan melampirkan file bukti transfer).
 5. Kasir mengonfirmasi pembayaran selesai (memanggil fungsi database `finalize_order_payment`):
+    - Untuk pembayaran `online`, kasir memverifikasi kecocokan gambar bukti transfer (`payment_proof_url`) terlebih dahulu melalui dialog konfirmasi pembayaran.
     - Status pesanan berubah menjadi `selesai`.
-    - Informasi pembayaran (metode `'tunai'` / `'online'` dan waktu selesai `'completed_at'`) diperbarui langsung pada baris pesanan di tabel `orders`.
+    - Informasi pembayaran (metode `'tunai'` / `'online'`, status `'paid'`, channel `'transfer'` / `'qris'`, dan waktu selesai `'completed_at'`) diperbarui langsung pada baris pesanan di tabel `orders`.
     - *(Catatan: Pemotongan stok produk dan pencatatan mutasi stok jenis 'sale' terjadi secara otomatis di database saat pembeli membuat pesanan / checkout).*
 
 ---
@@ -121,14 +122,14 @@ Grosir Jasa mengoperasikan usahanya dengan alur manual: pembeli datang, mencatat
 |---|---|---|
 | **F-01** | Registrasi akun pembeli dan login multi-role (customer, cashier, admin) | Pembeli, Kasir, Admin |
 | **F-02** | Tampilan katalog produk dengan informasi stok dan harga real-time | Pembeli |
-| **F-03** | Pembuatan pesanan digital melalui perangkat mobile | Pembeli |
+| **F-03** | Pembuatan pesanan digital melalui perangkat mobile serta opsi pembayaran online (QRIS/Transfer Bank) dengan unggah bukti pembayaran | Pembeli |
 | **F-04** | Perhitungan total harga belanja secara otomatis | Sistem (Otomatis) |
 | **F-05** | Perhitungan nilai Estimasi Waktu Proses (EWP) pesanan | Sistem (Otomatis) |
 | **F-06** | Pengelolaan antrian pesanan terurut dengan struktur Min-Heap | Sistem (Otomatis) |
 | **F-07** | Mekanisme penugasan (otomatis via dashboard kasir/manual) ke pegawai idle | Sistem (Otomatis) |
 | **F-08** | Monitoring dasbor antrian prioritas secara real-time | Kasir |
 | **F-09** | Pencetakan struk transaksi berdasarkan nomor prioritas teratas atau cetak ulang dari riwayat | Kasir, Admin |
-| **F-10** | Konfirmasi pembayaran, selesai pengemasan (membebaskan status pegawai), dan status pesanan | Kasir |
+| **F-10** | Konfirmasi pembayaran (termasuk verifikasi bukti pembayaran online), selesai pengemasan (membebaskan status pegawai), dan status pesanan | Kasir |
 | **F-11** | CRUD produk, kategori, satuan barang (unit), dan stok barang | Admin |
 | **F-12** | CRUD data pengguna (customer, cashier, admin) dan ketersediaan pegawai (staff) | Admin |
 | **F-13** | Visualisasi grafik laporan penjualan bulanan dan produk terlaris | Admin |

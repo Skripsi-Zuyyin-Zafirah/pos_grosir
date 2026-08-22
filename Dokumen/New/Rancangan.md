@@ -199,6 +199,9 @@ erDiagram
         numeric ewp
         enum status "antri, diproses, selesai, batal"
         enum payment_method "tunai, online"
+        enum payment_status "unpaid, paid"
+        text payment_proof_url
+        text payment_channel
         uuid staff_id FK
         timestamptz enqueued_at
         timestamptz dequeued_at
@@ -212,6 +215,8 @@ erDiagram
         uuid product_id FK
         int qty
         numeric unit_price
+        uuid unit_id FK
+        text unit_name
     }
     staff {
         uuid id PK
@@ -240,7 +245,7 @@ erDiagram
 1. **Tabel `profiles`**: Menyimpan data profil pengguna yang terintegrasi dengan `auth.users` Supabase. Hak akses diatur melalui enum `user_role` (`'customer'`, `'cashier'`, `'admin'`).
 2. **Tabel `products` & `categories`**: Menyimpan informasi barang dagang grosir. Dilengkapi kolom `time_weight` dan `waktu_pengambilan` untuk menampung bobot waktu pengambilan barang.
 3. **Tabel `product_units`**: Menyimpan variasi kemasan grosir (eceran, pak, karton) dengan kolom `multiplier` sebagai faktor perkalian kuantitas ke pcs.
-4. **Tabel `orders` & `order_items`**: Menyimpan data pesanan belanja. Nilai prioritas ditentukan oleh kolom `ewp` (Estimasi Waktu Proses) yang dihitung di aplikasi. Total belanja disimpan dalam `total_price` dan statusnya berupa enum `'antri'`, `'diproses'`, `'selesai'`, `'batal'`.
+4. **Tabel `orders` & `order_items`**: Menyimpan data pesanan belanja dan rincian itemnya. Di tingkat pesanan (`orders`), sistem merekam waktu pengemasan (`packed_at`), penyelesaian (`completed_at`), metode pembayaran (`payment_method`), status pembayaran (`payment_status`), kanal pembayaran (`payment_channel`), serta bukti transfer (`payment_proof_url`). Di tingkat item (`order_items`), sistem juga merekam ID satuan (`unit_id`) dan nama satuan (`unit_name`) yang dipilih pelanggan untuk mendukung fitur multi-unit kemasan.
 5. **Tabel `staff`**: Menyimpan status ketersediaan 4 orang pegawai (`'idle'` atau `'sibuk'`). Status pegawai dikelola secara real-time via fungsi `assign_order_to_staff` and `complete_packing`.
 6. **Tabel `units`**: Menyimpan data master nama satuan barang standar (seperti eceran, pak, karton, unit) yang digunakan untuk produk dan konversi satuan multi-unit.
 7. **Tabel `stock_mutations`**: Menyimpan log riwayat perubahan stok produk (penjualan, restok, penyesuaian awal) beserta jumlah perubahan dan notes pelacak mutasi.
